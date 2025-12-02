@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pihole-adlists
+  namespace: pihole
+data:
+  allow_lists_request_body.json: |
+    {
+        "address": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/whitelist-referral-native.txt",
+        "enabled": true
+    }
+  block_lists_request_body.json: |
+    {
+        "address": [
+            "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+            "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling/hosts",
+            "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/tif.txt",
+            "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt",
+            "https://raw.githubusercontent.com/DandelionSprout/adfilt/master/Alternate%20versions%20Anti-Malware%20List/AntiMalwareAdGuardHome.txt",
+            "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/gambling.txt",
+            "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/spam-tlds-adblock.txt",
+            "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/dyndns.txt",
+            "https://raw.githubusercontent.com/xRuffKez/NRD/main/lists/30-day/adblock/nrd-30day_adblock_part1.txt",
+            "https://raw.githubusercontent.com/xRuffKez/NRD/main/lists/30-day/adblock/nrd-30day_adblock_part2.txt"
+        ],
+        "enabled": true
+    }
+
+

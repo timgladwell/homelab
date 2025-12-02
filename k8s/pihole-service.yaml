@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pihole
+  namespace: pihole
+  labels:
+    app: pihole
+spec:
+  # Since we're using hostNetwork, the service is primarily for service discovery
+  # The actual DNS and web services are accessible via the node IP
+  type: ClusterIP
+  selector:
+    app: pihole
+  ports:
+  - name: dns-tcp
+    port: 53
+    targetPort: 53
+    protocol: TCP
+  - name: dns-udp
+    port: 53
+    targetPort: 53
+    protocol: UDP
+  - name: web
+    port: 80
+    targetPort: 80
+    protocol: TCP

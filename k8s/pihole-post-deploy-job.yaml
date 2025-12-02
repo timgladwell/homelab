@@ -1,0 +1,107 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pihole-adlist-config
+  namespace: pihole
+  annotations:
+    # This Job runs when PiHole is deployed or when adlist JSON files are updated
+    # When JSON files change, delete this Job and Flux CD will recreate it
+    "fluxcd.io/ignore": "false"
+spec:
+  # Set backoff limit to allow retries
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600  # Clean up job after 1 hour
+  template:
+    metadata:
+      labels:
+        app: pihole-adlist-config
+    spec:
+      restartPolicy: Never
+      initContainers:
+      - name: wait-for-pihole
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Waiting for PiHole pod to be ready..."
+          max_attempts=60
+          attempt=0
+          
+          while [ $attempt -lt $max_attempts ]; do
+            POD_PHASE=$(kubectl get pod -n pihole -l app=pihole -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "NotFound")
+            if [ "$POD_PHASE" = "Running" ]; then
+              PIHOLE_IP=$(kubectl get pod -n pihole -l app=pihole -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || echo "")
+              if [ -n "$PIHOLE_IP" ]; then
+                # Write IP to shared volume for main container
+                echo "$PIHOLE_IP" > /shared/pihole-ip
+                echo "PiHole is ready at ${PIHOLE_IP}"
+                exit 0
+              fi
+            fi
+            attempt=$((attempt + 1))
+            sleep 5
+          done
+          
+          echo "ERROR: PiHole did not become ready"
+          exit 1
+        volumeMounts:
+        - name: shared
+          mountPath: /shared
+      containers:
+      - name: configure-adlists
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -euo pipefail
+          
+          # Read PiHole IP from shared volume
+          PIHOLE_IP=$(cat /shared/pihole-ip 2>/dev/null || echo "")
+          if [ -z "$PIHOLE_IP" ]; then
+            echo "ERROR: Could not read PiHole IP"
+            exit 1
+          fi
+          
+          echo "Configuring PiHole adlists at ${PIHOLE_IP}..."
+          
+          # Step 1: Update allow list
+          echo "Step 1: Updating allow list subscriptions..."
+          curl -v -i -H "Content-Type: application/json" \
+            -X POST \
+            -d @"${ALLOW_LIST_FILE}" \
+            "http://${PIHOLE_IP}/api/lists?type=allow"
+          
+          # Step 2: Update block list
+          echo "Step 2: Updating block list subscriptions..."
+          curl -v -i -H "Content-Type: application/json" \
+            -X POST \
+            -d @"${BLOCK_LIST_FILE}" \
+            "http://${PIHOLE_IP}/api/lists?type=block"
+          
+          # Step 3: Trigger gravity update
+          echo "Step 3: Triggering gravity update to process adlists..."
+          curl -v -i -H "Content-Type: application/json" \
+            -X POST \
+            "http://${PIHOLE_IP}/api/action/gravity?color=true"
+          
+          echo "PiHole adlist configuration completed!"
+        volumeMounts:
+        - name: shared
+          mountPath: /shared
+        - name: adlists
+          mountPath: /adlists
+        env:
+        - name: ALLOW_LIST_FILE
+          value: /adlists/allow_lists_request_body.json
+        - name: BLOCK_LIST_FILE
+          value: /adlists/block_lists_request_body.json
+      volumes:
+      - name: shared
+        emptyDir: {}
+      - name: adlists
+        configMap:
+          name: pihole-adlists
+      serviceAccountName: pihole-config-sa
+
