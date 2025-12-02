@@ -55,27 +55,34 @@
 * Upstream DNS server is Cloudflare, 1.1.1.1 and 1.0.0.1
 * Use DNSSEC
 * Receive and respond to DNS queries from all local networks
-* Reverse server (conditional forwarding) is configured to forward DNS queries for the entire /16 subnet to the gateway IP address for the given local domain.
 * Disable UI password
 * Disable private relays like iCloud private relay
 * Disable DHCP server
 * Timezone is Toronto, Ontario, Canada
+* Reverse server (conditional forwarding) is configured to forward DNS queries for the local /16 subnet to a target server for the given local domain. This takes the form of:
+    * "<enabled>,<cidr-ip-address-range>,<server-ip-address>,<domain>"
+    * using the following substitution rules
+        * substitute <enabled> with `true` - reverse server configuration should always be active
+        * substitute <cidr-ip-address-range> with the CIDR-formatted address range of IPs applicable for reverse server lookups
+        * substitute <servier-ip-address> with the target reverse server's IP
+        * substitue <domain> with the local search domain
+
 
 #### PiHole post-deployment steps
 * Flux CD will be responsible for executing a post-deployment step against the PiHole container. The script will not be started until the PiHole instance is up and running.
 * Running this script is only required when the PiHole container is deployed, or when either of the files [`pihole_allow_lists.json`, `pihole_block_lists.json`] are updated.
 * The purpose of this post-deployment step is to keep the adlist subscriptions up-to-date and will consist of 3 steps:
     1. Send a POST request to update the allowlist subscriptions. The `curl` equivalent to this request looks like
-        * curl -v -i -H "Content-Type: application/json" -X POST -d @%%ALLOW_LIST_JSON_FILE%% http://%%PIHOLE_INSTANCE_IP_ADDRESS/api/lists\?type\=allow
+        * curl -v -i -H "Content-Type: application/json" -X POST -d @<allow_list_json_file> http://<pihole_instance_ip_address>/api/lists\?type\=allow
         * using the following substitution rules
-            * substitute %%ALLOW_LIST_JSON_FILE%% with the relative path to the `pihole_allow_lists.json" file in this repo
-            * substitute %%PIHOLE_INSTANCE_IP_ADDRESS%% with the IP address of the PiHole instance
+            * substitute <allow_list_json_file> with the relative path to the `pihole_allow_lists_request_body.json" file in this repo
+            * substitute <pihole_instance_ip_address>%% with the IP address of the PiHole instance
     2. Send a POST request to update the blocklist subscriptions. The `curl` equivalent to this request looks like
-        * curl -v -i -H "Content-Type: application/json" -X POST -d @%%BLOCK_LIST_JSON_FILE%% http://%%PIHOLE_INSTANCE_IP_ADDRESS/api/lists\?type\=block
+        * curl -v -i -H "Content-Type: application/json" -X POST -d @<block_list_json_file> http://<pihole_instance_ip_address>/api/lists\?type\=block
         * using the following substitution rules
-            * substitute %%BLOCK_LIST_JSON_FILE%% with the relative path to the `pihole_block_lists.json" file in this repo
-            * substitute %%PIHOLE_INSTANCE_IP_ADDRESS%% with the IP address of the PiHole instance
+            * substitute <block_list_json_file> with the relative path to the `pihole_block_lists_request_body.json" file in this repo
+            * substitute <pihole_instance_ip_address> with the IP address of the PiHole instance
     3. Send a POST request to trigger processing of the updated adlist subscriptions
-        * curl -v -i -H "Content-Type: application/json" -X POST http://%%PIHOLE_INSTANCE_IP_ADDRESS%%/api/action/gravity\?color\=true
+        * curl -v -i -H "Content-Type: application/json" -X POST http://<pihole_instance_ip_address>/api/action/gravity\?color\=true
         * using the following substitution rules
-            * substitute %%PIHOLE_INSTANCE_IP_ADDRESS%% with the IP address of the PiHole instance
+            * substitute <pihole_instance_ip_address> with the IP address of the PiHole instance
