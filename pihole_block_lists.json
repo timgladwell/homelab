@@ -8,8 +8,8 @@
         "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/gambling.txt",
         "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/spam-tlds-adblock.txt",
         "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/dyndns.txt",
-        "https://github.com/xRuffKez/NRD/blob/main/lists/30-day/adblock/nrd-30day_adblock_part1.txt",
-        "https://github.com/xRuffKez/NRD/blob/main/lists/30-day/adblock/nrd-30day_adblock_part2.txt"
+        "https://raw.githubusercontent.com/xRuffKez/NRD/main/lists/30-day/adblock/nrd-30day_adblock_part1.txt",
+        "https://raw.githubusercontent.com/xRuffKez/NRD/main/lists/30-day/adblock/nrd-30day_adblock_part2.txt"
     ],
     "enabled": true
 }
