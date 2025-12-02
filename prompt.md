@@ -63,6 +63,7 @@
 
 #### PiHole post-deployment steps
 * Flux CD will be responsible for executing a post-deployment step against the PiHole container. The script will not be started until the PiHole instance is up and running.
+* Running this script is only required when the PiHole container is deployed, or when either of the files [`pihole_allow_lists.json`, `pihole_block_lists.json`] are updated.
 * The purpose of this post-deployment step is to keep the adlist subscriptions up-to-date and will consist of 3 steps:
     1. Send a POST request to update the allowlist subscriptions. The `curl` equivalent to this request looks like
         * curl -v -i -H "Content-Type: application/json" -X POST -d @%%ALLOW_LIST_JSON_FILE%% http://%%PIHOLE_INSTANCE_IP_ADDRESS/api/lists\?type\=allow
