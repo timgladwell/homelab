@@ -4,8 +4,8 @@ metadata:
   name: pihole-adlist-config
   namespace: pihole
   annotations:
-    # This Job runs when PiHole is deployed or when adlist JSON files are updated
-    # When JSON files change, delete this Job and Flux CD will recreate it
+    # This Job runs when PiHole is deployed or when adlist ConfigMap is updated
+    # When ConfigMap changes, delete this Job and Flux CD will recreate it
     "fluxcd.io/ignore": "false"
 spec:
   # Set backoff limit to allow retries

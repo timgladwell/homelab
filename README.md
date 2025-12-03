@@ -114,45 +114,39 @@ Reverse DNS (conditional forwarding) is configured to forward queries for your l
 
 ### Ad Lists
 
-The adblock lists are configured via:
-- `pihole_allow_lists_request_body.json`: Whitelist entries
-- `pihole_block_lists_request_body.json`: Blocklist subscriptions
+The adblock lists are configured in `k8s/configmap-adlists.yaml`:
+- `allow_lists_request_body.json`: Whitelist entries
+- `block_lists_request_body.json`: Blocklist subscriptions
 
 These files are used by the post-deployment configuration script.
 
 ## Post-Deployment Configuration
 
-The adlist configuration script runs automatically in two scenarios:
+The adlist configuration is handled by a Kubernetes Job that runs automatically in two scenarios:
 1. **When PiHole is first deployed** - Flux CD will automatically create and run the post-deployment Job
-2. **When adlist JSON files are updated** - After updating `pihole_allow_lists_request_body.json` or `pihole_block_lists_request_body.json`, you need to:
-   - Update the ConfigMap in `k8s/configmap-adlists.yaml` with the new JSON contents
+2. **When adlist configuration is updated** - After updating the adlist entries in `k8s/configmap-adlists.yaml`:
    - Commit and push changes to trigger Flux CD sync
    - The Job will be recreated automatically by Flux CD
 
-### Manual Trigger (Alternative)
+### Manual Trigger
 
-If you prefer to manually trigger the configuration:
-
-```bash
-# Get PiHole pod IP
-POD_IP=$(kubectl get pod -n pihole -l app=pihole -o jsonpath='{.items[0].status.podIP}')
-
-# Configure adlists
-./scripts/configure-pihole-adlists.sh ${POD_IP}
-```
-
-Or use the helper script to trigger the Job:
+To manually trigger the Job after updating the adlist ConfigMap:
 
 ```bash
-# After updating JSON files and ConfigMap, trigger Job recreation
+# Option 1: Delete existing Job and let Flux CD recreate it (GitOps approach)
 ./scripts/trigger-pihole-adlist-update.sh
+
+# Option 2: Apply ConfigMap and Job directly for immediate execution
+./scripts/trigger-pihole-adlist-update.sh --apply
 ```
 
-**Technical Decision**: Post-deployment configuration is handled via a Kubernetes Job rather than init containers because:
+**Technical Decision**: Post-deployment configuration uses a single Kubernetes Job implementation that:
+- Runs automatically via Flux CD when PiHole is deployed or when adlist files change
+- Can be manually triggered using the helper script (`trigger-pihole-adlist-update.sh`)
+- Uses an init container to wait for PiHole readiness before configuring adlists
+- Mounts the adlist JSON files from a ConfigMap for version control
 - Allows re-running configuration without pod restart
-- Can be triggered independently when adlist files change
-- Better error handling and retry logic
-- Trade-off: Jobs are immutable, so they must be deleted and recreated when adlists change (handled automatically by Flux CD)
+- Provides better error handling and retry logic compared to init containers or standalone scripts
 
 ## Directory Structure
 
@@ -172,13 +166,10 @@ Or use the helper script to trigger the Job:
 │   ├── flux-kustomization.yaml  # Flux Kustomization resource
 │   └── kustomization.yaml       # Kustomize base configuration
 ├── scripts/
-│   ├── configure-pihole-adlists.sh  # Manual adlist configuration
 │   ├── create-pihole-secret.sh     # Secret creation helper
-│   └── trigger-pihole-adlist-update.sh  # Trigger Job after JSON file updates
+│   └── trigger-pihole-adlist-update.sh  # Trigger Job after ConfigMap updates
 ├── bootstrap-k3s.sh              # K3s installation script
 ├── bootstrap-flux.sh             # Flux CD installation script
-├── pihole_allow_lists_request_body.json       # Allow list request body
-├── pihole_block_lists_request_body.json       # Block list request body
 └── README.md                     # This file
 ```
 
@@ -197,8 +188,7 @@ All scripts are designed to be:
 ### Operational Scripts (Ongoing)
 
 - `scripts/create-pihole-secret.sh`: Creates/updates PiHole secret
-- `scripts/configure-pihole-adlists.sh`: Manually configures adblock lists (run when JSON files change)
-- `scripts/trigger-pihole-adlist-update.sh`: Triggers Job recreation after updating adlist JSON files
+- `scripts/trigger-pihole-adlist-update.sh`: Triggers Job recreation after updating adlist ConfigMap
 
 ## Troubleshooting
 
@@ -255,11 +245,10 @@ Update the image tag in `k8s/pihole-deployment.yaml` and commit to GitOps reposi
 
 ### Update Ad Lists
 
-When `pihole_allow_lists_request_body.json` or `pihole_block_lists_request_body.json` are updated:
+When adlist configuration in `k8s/configmap-adlists.yaml` is updated:
 
-1. **Update the ConfigMap**: Copy the JSON contents to `k8s/configmap-adlists.yaml`
-2. **Commit and push**: Commit both the JSON files and the updated ConfigMap to the GitOps repository
-3. **Automatic sync**: Flux CD will detect the changes, update the ConfigMap, and recreate the Job automatically
+1. **Commit and push**: Commit the updated ConfigMap to the GitOps repository
+2. **Automatic sync**: Flux CD will detect the changes, update the ConfigMap, and recreate the Job automatically
 
 Alternatively, use the helper script:
 ```bash
@@ -268,7 +257,7 @@ Alternatively, use the helper script:
 
 The post-deployment Job will run automatically when:
 - PiHole is first deployed
-- Adlist JSON files are updated (after updating the ConfigMap)
+- Adlist configuration in the ConfigMap is updated
 
 ### Backup PiHole Configuration
 

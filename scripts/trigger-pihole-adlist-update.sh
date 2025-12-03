@@ -1,10 +1,10 @@
 #!/bin/bash
 # Trigger PiHole Adlist Update Job
-# This script deletes the existing Job so Flux CD will recreate it
-# Run this after updating pihole_allow_lists_request_body.json or pihole_block_lists_request_body.json
-# and updating the ConfigMap in k8s/configmap-adlists.yaml
+# This script manages the PiHole adlist configuration Job
+# Run this after updating the adlist configuration in k8s/configmap-adlists.yaml
 #
-# Usage: ./trigger-pihole-adlist-update.sh
+# Usage: ./trigger-pihole-adlist-update.sh [--apply]
+#   --apply: Apply the Job directly for immediate execution (otherwise just delete for Flux CD to recreate)
 
 set -euo pipefail
 
@@ -38,24 +38,56 @@ if ! kubectl get namespace pihole &> /dev/null; then
     exit 1
 fi
 
-log_info "Deleting existing PiHole adlist configuration Job..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Delete the Job - Flux CD will recreate it on next sync
-if kubectl delete job -n pihole pihole-adlist-config --ignore-not-found=true; then
-    log_info "Job deleted successfully. Flux CD will recreate it on next sync."
-else
-    log_warn "Job may not have existed. It will be created when Flux CD syncs."
+# Check for --apply flag
+APPLY_DIRECTLY=false
+if [[ "${1:-}" == "--apply" ]]; then
+    APPLY_DIRECTLY=true
 fi
 
-log_info ""
-log_info "Next steps:"
-log_info "1. Ensure configmap-adlists.yaml is updated with the latest JSON file contents"
-log_info "2. Commit and push changes to the GitOps repository"
-log_info "3. Flux CD will automatically sync and recreate the Job"
-log_info ""
-log_info "Or apply the ConfigMap manually and trigger the Job immediately:"
-log_info "  kubectl apply -f k8s/configmap-adlists.yaml"
-log_info "  kubectl apply -f k8s/pihole-post-deploy-job.yaml"
+if [ "$APPLY_DIRECTLY" = true ]; then
+    log_info "Applying ConfigMap and Job directly for immediate execution..."
+    
+    # Apply ConfigMap first
+    if kubectl apply -f "${REPO_ROOT}/k8s/configmap-adlists.yaml"; then
+        log_info "ConfigMap applied successfully"
+    else
+        log_error "Failed to apply ConfigMap"
+        exit 1
+    fi
+    
+    # Delete existing Job if it exists
+    kubectl delete job -n pihole pihole-adlist-config --ignore-not-found=true
+    
+    # Apply the Job
+    if kubectl apply -f "${REPO_ROOT}/k8s/pihole-post-deploy-job.yaml"; then
+        log_info "Job applied successfully and will run immediately"
+    else
+        log_error "Failed to apply Job"
+        exit 1
+    fi
+else
+    log_info "Deleting existing PiHole adlist configuration Job..."
+    
+    # Delete the Job - Flux CD will recreate it on next sync
+    if kubectl delete job -n pihole pihole-adlist-config --ignore-not-found=true; then
+        log_info "Job deleted successfully. Flux CD will recreate it on next sync."
+    else
+        log_warn "Job may not have existed. It will be created when Flux CD syncs."
+    fi
+    
+    log_info ""
+    log_info "Next steps:"
+    log_info "1. Ensure configmap-adlists.yaml is updated with the latest JSON file contents"
+    log_info "2. Commit and push changes to the GitOps repository"
+    log_info "3. Flux CD will automatically sync and recreate the Job"
+    log_info ""
+    log_info "To trigger the Job immediately (without waiting for Flux CD sync), run:"
+    log_info "  $0 --apply"
+fi
+
 log_info ""
 log_info "Monitor the Job status with:"
 log_info "  kubectl get jobs -n pihole"
