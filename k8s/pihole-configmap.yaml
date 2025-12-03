@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pihole-config
+  namespace: pihole
+data:
+  # Upstream DNS servers
+  PIHOLE_DNS_: "1.1.1.1;1.0.0.1"
+  # Enable DNSSEC
+  DNSSEC_: "true"
+  # Disable UI password
+  WEBPASSWORD_: ""
+  # Disable private relays (iCloud private relay)
+  DNSMASQ_LISTENING_: "all"
+  # Disable DHCP
+  DHCP_ACTIVE_: "false"
+  # Timezone
+  TZ_: "America/Toronto"
+  # IPv6 (disabled for simplicity, can be enabled if needed)
+  IPv6_: "false"

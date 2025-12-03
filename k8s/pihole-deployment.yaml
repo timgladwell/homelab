@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole
+  namespace: pihole
+  labels:
+    app: pihole
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pihole
+  template:
+    metadata:
+      labels:
+        app: pihole
+    spec:
+      containers:
+      - name: pihole
+        image: pihole/pihole:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 53
+          name: dns-tcp
+          protocol: TCP
+        - containerPort: 53
+          name: dns-udp
+          protocol: UDP
+        - containerPort: 80
+          name: web
+          protocol: TCP
+        env:
+        - name: PIHOLE_DNS_
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: PIHOLE_DNS_
+        - name: DNSSEC_
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: DNSSEC_
+        - name: WEBPASSWORD_
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: WEBPASSWORD_
+        - name: DNSMASQ_LISTENING_
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: DNSMASQ_LISTENING_
+        - name: DHCP_ACTIVE_
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: DHCP_ACTIVE_
+        - name: TZ_
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: TZ_
+        - name: IPv6_
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: IPv6_
+        - name: CONDITIONAL_FORWARDING
+          valueFrom:
+            secretKeyRef:
+              name: pihole-secret
+              key: CONDITIONAL_FORWARDING_
+        volumeMounts:
+        - name: pihole-config
+          mountPath: /etc/pihole
+        - name: dnsmasq-config
+          mountPath: /etc/dnsmasq.d
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: pihole-config
+        persistentVolumeClaim:
+          claimName: pihole-config
+      - name: dnsmasq-config
+        emptyDir: {}
+      restartPolicy: Always
+      # Use hostNetwork to allow PiHole to be accessible by IP for DNS queries
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
