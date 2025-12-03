@@ -5,16 +5,17 @@ metadata:
   namespace: pihole
 data:
   # Upstream DNS servers
-  PIHOLE_DNS_: "1.1.1.1;1.0.0.1"
+  FTLCONF_dns_upstreams: "1.1.1.1;1.0.0.1"
   # Enable DNSSEC
-  DNSSEC_: "true"
+  FTLCONF_dns_dnssec: "true"
+  # Listen and respond to local network only
+  FTLCONF_dns_listeningMode: "SINGLE"
+  # Listen and respond to a specific interface only
+  FTLCONF_dns_interface: "eth0"
+  # Do not forward local domain lookups to upstream DNS servers
+  FTLCONF_dns_domainNeeded: "true"
   # Disable UI password
-  WEBPASSWORD_: ""
-  # Disable private relays (iCloud private relay)
-  DNSMASQ_LISTENING_: "all"
-  # Disable DHCP
-  DHCP_ACTIVE_: "false"
+  FTLCONF_webserver_api_password: ""
   # Timezone
-  TZ_: "America/Toronto"
-  # IPv6 (disabled for simplicity, can be enabled if needed)
-  IPv6_: "false"
+  TZ: "America/Toronto"
+

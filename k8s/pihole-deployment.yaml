@@ -30,46 +30,51 @@ spec:
           name: web
           protocol: TCP
         env:
-        - name: PIHOLE_DNS_
+        - name: FTLCONF_dns_upstreams
           valueFrom:
             configMapKeyRef:
               name: pihole-config
-              key: PIHOLE_DNS_
-        - name: DNSSEC_
+              key: FTLCONF_dns_upstreams
+        - name: FTLCONF_dns_dnssec
           valueFrom:
             configMapKeyRef:
               name: pihole-config
-              key: DNSSEC_
-        - name: WEBPASSWORD_
+              key: FTLCONF_dns_dnssec
+        - name: FTLCONF_dns_listeningMode
           valueFrom:
             configMapKeyRef:
               name: pihole-config
-              key: WEBPASSWORD_
-        - name: DNSMASQ_LISTENING_
+              key: FTLCONF_dns_listeningMode
+        - name: FTLCONF_dns_interface
           valueFrom:
             configMapKeyRef:
               name: pihole-config
-              key: DNSMASQ_LISTENING_
-        - name: DHCP_ACTIVE_
+              key: FTLCONF_dns_interface
+        - name: FTLCONF_dns_domainNeeded
           valueFrom:
             configMapKeyRef:
               name: pihole-config
-              key: DHCP_ACTIVE_
-        - name: TZ_
+              key: FTLCONF_dns_domainNeeded
+        - name: FTLCONF_dns_domain_name
           valueFrom:
-            configMapKeyRef:
-              name: pihole-config
-              key: TZ_
-        - name: IPv6_
-          valueFrom:
-            configMapKeyRef:
-              name: pihole-config
-              key: IPv6_
-        - name: CONDITIONAL_FORWARDING
+            secretKeyRef:
+              name: pihole-secret
+              key: LOCAL_DOMAIN_             
+        - name: FTLCONF_dns_revServers
           valueFrom:
             secretKeyRef:
               name: pihole-secret
               key: CONDITIONAL_FORWARDING_
+        - name: FTLCONF_webserver_api_password
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: FTLCONF_webserver_api_password
+        - name: TZ
+          valueFrom:
+            configMapKeyRef:
+              name: pihole-config
+              key: TZ
         volumeMounts:
         - name: pihole-config
           mountPath: /etc/pihole
