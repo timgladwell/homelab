@@ -20,9 +20,9 @@ data:
 
             "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/tif.txt",
             "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/fake.txt",
-            "https://raw.githubusercontent.com/hagezi/dns-blocklists/blob/main/adblock/pro.plus.txt",
+            "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.plus.txt",
             "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/gambling.txt",
-            "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/spam-tlds-adblock.txt",
+            "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/spam-tlds-adblock.txt",
             "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/dyndns.txt",
 
             "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nrd7.txt",
@@ -38,7 +38,6 @@ data:
 
             "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/doh-vpn-proxy-bypass.txt",
 
-            "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/spam-tlds-adblock.txt",
             "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/anti.piracy.txt",
 
             "https://raw.githubusercontent.com/DandelionSprout/adfilt/master/Alternate%20versions%20Anti-Malware%20List/AntiMalwareAdGuardHome.txt",
