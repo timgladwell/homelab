@@ -61,12 +61,12 @@ spec:
           valueFrom:
             secretKeyRef:
               name: pihole-secret
-              key: LOCAL_DOMAIN_             
+              key: FTLCONF_dns_domain_name            
         - name: FTLCONF_dns_revServers
           valueFrom:
             secretKeyRef:
               name: pihole-secret
-              key: CONDITIONAL_FORWARDING_
+              key: FTLCONF_dns_revServers
         - name: FTLCONF_webserver_api_password
           valueFrom:
             configMapKeyRef:

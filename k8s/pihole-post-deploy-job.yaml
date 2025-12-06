@@ -40,6 +40,7 @@ spec:
               fi
             fi
             attempt=$((attempt + 1))
+            echo "Attempt ${attempt} of ${max_attempts} completed - sleeping for 5"
             sleep 5
           done
           
@@ -65,7 +66,11 @@ spec:
           fi
           
           echo "Configuring PiHole adlists at ${PIHOLE_IP}..."
-          
+
+          #
+          # TODO - query the existing lists and remove any lists that've been dropped from the configuration
+          #
+
           # Step 1: Update allow list
           echo "Step 1: Updating allow list subscriptions..."
           curl -v -i -H "Content-Type: application/json" \

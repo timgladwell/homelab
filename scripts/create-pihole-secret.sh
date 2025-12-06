@@ -25,9 +25,30 @@ log_error() {
 }
 
 # Configuration - should be set via environment variables
-LOCAL_DOMAIN="${LOCAL_DOMAIN:-example.local}"
-GATEWAY_IP="${GATEWAY_IP:-192.168.1.1}"
+LOCAL_DOMAIN="${LOCAL_DOMAIN:-example.local}" # TODO - flip this over to the navigable domain
+GATEWAY_IP="${GATEWAY_IP:-${`ip route show | grep default | awk '{print $3}'`}}"
 SUBNET_MASK="${SUBNET_MASK:-255.255.0.0}"
+
+# Validate that LOCAL_DOMAIN is set and non-empty
+if [[ ! "$LOCAL_DOMAIN" =~ [^[:space:]] ]]; then
+    log_error "LOCAL_DOMAIN is empty or contains only whitespace."
+    log_error "Please set LOCAL_DOMAIN environment variable or ensure a default route exists."
+    exit 1
+fi
+
+# Validate that GATEWAY_IP is set and non-empty
+if [[ ! "$GATEWAY_IP" =~ [^[:space:]] ]]; then
+    log_error "GATEWAY_IP is empty or contains only whitespace."
+    log_error "Please set GATEWAY_IP environment variable or ensure a default route exists."
+    exit 1
+fi
+
+# Validate that SUBNET_MASK is set and non-empty
+if [[ ! "$SUBNET_MASK" =~ [^[:space:]] ]]; then
+    log_error "SUBNET_MASK is empty or contains only whitespace."
+    log_error "Please set SUBNET_MASK environment variable or ensure a default route exists."
+    exit 1
+fi
 
 # Calculate CIDR notation from subnet mask and gateway IP
 # Format: <enabled>,<cidr-ip-address-range>,<server-ip-address>,<domain>
@@ -45,19 +66,19 @@ elif [ "${MASK_ARRAY[0]}" = "255" ] && [ "${MASK_ARRAY[1]}" = "255" ]; then
     CIDR_RANGE="${GATEWAY_ARRAY[0]}.${GATEWAY_ARRAY[1]}.0.0/16"
 else
     log_error "This script currently only supports /16 (255.255.0.0) or /24 (255.255.255.0) subnets"
-    log_error "Please manually set CONDITIONAL_FORWARDING_ in the secret with the correct CIDR format"
+    log_error "Please manually set REVERSE_SERVER_CONFIG in the secret with the correct CIDR format"
     exit 1
 fi
 
 # Generate conditional forwarding CSV format: enabled,cidr-range,server-ip,domain
-CONDITIONAL_FORWARDING="true,${CIDR_RANGE},${GATEWAY_IP},${LOCAL_DOMAIN}"
+REVERSE_SERVER_CONFIG="true,${CIDR_RANGE},${GATEWAY_IP},${LOCAL_DOMAIN}"
 
 log_info "Creating PiHole secret with the following configuration:"
 log_info "  Local Domain: ${LOCAL_DOMAIN}"
 log_info "  Gateway IP: ${GATEWAY_IP}"
 log_info "  Subnet Mask: ${SUBNET_MASK}"
 log_info "  CIDR Range: ${CIDR_RANGE}"
-log_info "  Conditional Forwarding: ${CONDITIONAL_FORWARDING}"
+log_info "  Conditional Forwarding: ${REVERSE_SERVER_CONFIG}"
 
 # Check if namespace exists
 if ! kubectl get namespace pihole &> /dev/null; then
@@ -74,11 +95,8 @@ fi
 # Create the secret
 kubectl create secret generic pihole-secret \
     --namespace=pihole \
-    --from-literal=LOCAL_DOMAIN_="${LOCAL_DOMAIN}" \
-    --from-literal=GATEWAY_IP_="${GATEWAY_IP}" \
-    --from-literal=SUBNET_MASK_="${SUBNET_MASK}" \
-    --from-literal=CONDITIONAL_FORWARDING_="${CONDITIONAL_FORWARDING}"
+    --from-literal=FTLCONF_dns_domain_name="${LOCAL_DOMAIN}" \
+    --from-literal=FTLCONF_dns_revServers="${REVERSE_SERVER_CONFIG}"
 
 log_info "PiHole secret created successfully!"
-
 
