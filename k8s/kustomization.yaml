@@ -3,4 +3,3 @@ kind: Kustomization
 
 resources:
   - networking/  # This subfolder has its own kustomization
-  - pihole/

@@ -37,7 +37,6 @@
 * K3s is installed using the official installation script from https://get.k3s.io
 * K3s is configured to support multiple containers defined through manifest-type files or Helm charts. 
 * K3s is configured to default allow container access via URI. In the case of PiHole, since clients require access via a network-routable IP, K3s will be configured to allow access to PiHole via IP.
-* Each deployment is separated into its own namespace. For example, all resources for the PiHole deployment should be grouped into the `pihole` namespace, all resources for the Unbound deployment in the `unbound` namespace, etc.
 * Continuious deployment is handled by Flux CD.
 * K3s is configured to use the local path storage provider to support per-deployment persistent storage. The total amount of storage allocated to K3s will not exceed 100 gigabytes.
 * Containers automatically start at boot, and automatically restart if they fail.
@@ -56,7 +55,7 @@
 * Unbound will use DNSSEC.
 
 ### PiHole deployment
-* K3s namespace: pihole #TODO - move to `networking`
+* K3s namespace: networking
 * The PiHole container must be accessible by IP in order to act as the DNS server for the internal network.
 * PiHole will use the Unbound deployment as the sole upstram DNS provider. For context, the network firewall is configured to block any DNS requests that are not targeted to PiHole's IP.
 * Image is pulled from the image tagged "latest" at https://hub.docker.com/r/pihole/pihole

@@ -202,9 +202,9 @@ sudo journalctl -u k3s -f
 ### PiHole pod not ready
 
 ```bash
-kubectl get pods -n pihole
-kubectl describe pod -n pihole -l app=pihole
-kubectl logs -n pihole -l app=pihole
+kubectl get pods -n networking
+kubectl describe pod -n networking -l app=pihole
+kubectl logs -n networking -l app=pihole
 ```
 
 ### Flux CD not syncing
@@ -262,7 +262,7 @@ The post-deployment Job will run automatically when:
 ### Backup PiHole Configuration
 
 ```bash
-kubectl exec -n pihole -l app=pihole -- tar czf - /etc/pihole > pihole-backup-$(date +%Y%m%d).tar.gz
+kubectl exec -n networking -l app=pihole -- tar czf - /etc/pihole > pihole-backup-$(date +%Y%m%d).tar.gz
 ```
 
 ## GitOps Workflow

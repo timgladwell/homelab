@@ -33,8 +33,8 @@ if ! command -v kubectl &> /dev/null; then
 fi
 
 # Check if namespace exists
-if ! kubectl get namespace pihole &> /dev/null; then
-    log_error "Namespace 'pihole' does not exist. Please deploy PiHole first."
+if ! kubectl get namespace networking &> /dev/null; then
+    log_error "Namespace 'networking' does not exist. Please deploy PiHole first."
     exit 1
 fi
 
@@ -51,7 +51,7 @@ if [ "$APPLY_DIRECTLY" = true ]; then
     log_info "Applying ConfigMap and Job directly for immediate execution..."
     
     # Apply ConfigMap first
-    if kubectl apply -f "${REPO_ROOT}/k8s/pihole/configmap-adlists.yaml"; then
+    if kubectl apply -f "${REPO_ROOT}/k8s/networking/pihole/configmap-adlists.yaml"; then
         log_info "ConfigMap applied successfully"
     else
         log_error "Failed to apply ConfigMap"
@@ -59,10 +59,10 @@ if [ "$APPLY_DIRECTLY" = true ]; then
     fi
     
     # Delete existing Job if it exists
-    kubectl delete job -n pihole pihole-adlist-config --ignore-not-found=true
+    kubectl delete job -n networking pihole-adlist-config --ignore-not-found=true
     
     # Apply the Job
-    if kubectl apply -f "${REPO_ROOT}/k8s/pihole/pihole-post-deploy-job.yaml"; then
+    if kubectl apply -f "${REPO_ROOT}/k8s/networking/pihole/pihole-post-deploy-job.yaml"; then
         log_info "Job applied successfully and will run immediately"
     else
         log_error "Failed to apply Job"
@@ -72,7 +72,7 @@ else
     log_info "Deleting existing PiHole adlist configuration Job..."
     
     # Delete the Job - Flux CD will recreate it on next sync
-    if kubectl delete job -n pihole pihole-adlist-config --ignore-not-found=true; then
+    if kubectl delete job -n networking pihole-adlist-config --ignore-not-found=true; then
         log_info "Job deleted successfully. Flux CD will recreate it on next sync."
     else
         log_warn "Job may not have existed. It will be created when Flux CD syncs."
@@ -90,5 +90,5 @@ fi
 
 log_info ""
 log_info "Monitor the Job status with:"
-log_info "  kubectl get jobs -n pihole"
-log_info "  kubectl logs -n pihole -l app=pihole-adlist-config --tail=50 -f"
+log_info "  kubectl get jobs -n networking"
+log_info "  kubectl logs -n networking -l app=pihole-adlist-config --tail=50 -f"

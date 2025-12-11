@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: pihole
-  namespace: pihole
+  namespace: networking
   labels:
     app: pihole
 spec:

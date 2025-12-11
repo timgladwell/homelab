@@ -81,20 +81,20 @@ log_info "  CIDR Range: ${CIDR_RANGE}"
 log_info "  Conditional Forwarding: ${REVERSE_SERVER_CONFIG}"
 
 # Check if namespace exists
-if ! kubectl get namespace pihole &> /dev/null; then
-    log_error "Namespace 'pihole' does not exist. Please create it first."
+if ! kubectl get namespace networking &> /dev/null; then
+    log_error "Namespace 'networking' does not exist. Please create it first."
     exit 1
 fi
 
 # Delete existing secret if it exists
-if kubectl get secret pihole-secret -n pihole &> /dev/null; then
+if kubectl get secret pihole-secret -n networking &> /dev/null; then
     log_info "Deleting existing secret..."
-    kubectl delete secret pihole-secret -n pihole
+    kubectl delete secret pihole-secret -n networking
 fi
 
 # Create the secret
 kubectl create secret generic pihole-secret \
-    --namespace=pihole \
+    --namespace=networking \
     --from-literal=FTLCONF_dns_domain_name="${LOCAL_DOMAIN}" \
     --from-literal=FTLCONF_dns_revServers="${REVERSE_SERVER_CONFIG}"
 

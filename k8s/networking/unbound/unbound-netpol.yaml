@@ -14,7 +14,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: pihole
+              name: networking
           podSelector:
             matchLabels:
               app: pihole

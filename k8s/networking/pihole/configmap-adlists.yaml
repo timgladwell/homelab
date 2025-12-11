@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: pihole-adlists
-  namespace: pihole
+  namespace: networking
 data:
   # yamllint disable rule:line-length
   allow_lists_request_body.json: |

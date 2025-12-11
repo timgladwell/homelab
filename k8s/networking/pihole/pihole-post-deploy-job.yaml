@@ -4,7 +4,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: pihole-adlist-config
-  namespace: pihole
+  namespace: networking
   annotations:
     # This Job runs when PiHole is deployed or when the adlist ConfigMap is updated
     # The ConfigMap (pihole-adlists) is the single source of truth for adlist subscriptions
@@ -32,9 +32,9 @@ spec:
               attempt=0
 
               while [ $attempt -lt $max_attempts ]; do
-                POD_PHASE=$(kubectl get pod -n pihole -l app=pihole -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "NotFound")
+                POD_PHASE=$(kubectl get pod -n networking -l app=pihole -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "NotFound")
                 if [ "$POD_PHASE" = "Running" ]; then
-                  PIHOLE_IP=$(kubectl get pod -n pihole -l app=pihole -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || echo "")
+                  PIHOLE_IP=$(kubectl get pod -n networking -l app=pihole -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || echo "")
                   if [ -n "$PIHOLE_IP" ]; then
                     # Write IP to shared volume for main container
                     echo "$PIHOLE_IP" > /shared/pihole-ip

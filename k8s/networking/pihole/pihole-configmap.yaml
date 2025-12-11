@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: pihole-config
-  namespace: pihole
+  namespace: networking
 data:
   # Upstream DNS server: Unbound service (recursive DNS resolver)
   # Using service DNS name for stable resolution
