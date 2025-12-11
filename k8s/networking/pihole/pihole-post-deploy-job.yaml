@@ -13,6 +13,7 @@ metadata:
 spec:
   # Set backoff limit to allow retries
   backoffLimit: 3
+  activeDeadlineSeconds: 1200  # Kill Job after 20 minutes total, prevents being stuck in an unstartable state
   ttlSecondsAfterFinished: 3600  # Clean up job after 1 hour
   template:
     metadata:
@@ -25,6 +26,7 @@ spec:
           # Using Alpine for ARM64 compatibility - multi-arch support guaranteed
           # kubectl binary mounted from K3s host ensures version compatibility
           image: alpine:3.19
+          imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
             - -c
@@ -60,6 +62,7 @@ spec:
       containers:
         - name: configure-adlists
           image: curlimages/curl:8.17.0
+          imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
             - -c
