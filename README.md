@@ -52,7 +52,7 @@ export SUBNET_MASK="255.255.0.0"
 ./scripts/create-pihole-secret.sh
 ```
 
-**Security Note**: This secret contains network-specific information. Never commit actual secrets to the repository. The template file (`k8s/pihole-secret-template.yaml`) shows the schema with dummy values.
+**Security Note**: This secret contains network-specific information. Never commit actual secrets to the repository. The template file (`k8s/pihole/pihole-secret-template.yaml`) shows the schema with dummy values.
 
 ### 4. Bootstrap Flux CD
 
@@ -114,7 +114,7 @@ Reverse DNS (conditional forwarding) is configured to forward queries for your l
 
 ### Ad Lists
 
-The adblock lists are configured in `k8s/configmap-adlists.yaml` ConfigMap, which is the single source of truth for adlist subscriptions:
+The adblock lists are configured in `k8s/pihole/configmap-adlists.yaml` ConfigMap, which is the single source of truth for adlist subscriptions:
 - `pihole_allow_lists_request_body.json`: Whitelist entries (stored as ConfigMap key)
 - `pihole_block_lists_request_body.json`: Blocklist subscriptions (stored as ConfigMap key)
 
@@ -124,7 +124,7 @@ The ConfigMap data is mounted into the post-deployment job and used to configure
 
 The adlist configuration is handled by a Kubernetes Job that runs automatically in two scenarios:
 1. **When PiHole is first deployed** - Flux CD will automatically create and run the post-deployment Job
-2. **When adlist configuration is updated** - After updating the adlist entries in `k8s/configmap-adlists.yaml`:
+2. **When adlist configuration is updated** - After updating the adlist entries in `k8s/pihole/configmap-adlists.yaml`:
    - Commit and push changes to trigger Flux CD sync
    - The Job will be recreated automatically by Flux CD
 
@@ -241,11 +241,11 @@ df -h /var/lib/rancher/k3s/storage
 
 ### Update PiHole
 
-Update the image tag in `k8s/pihole-deployment.yaml` and commit to GitOps repository. Flux CD will automatically deploy the update.
+Update the image tag in `k8s/pihole/pihole-deployment.yaml` and commit to GitOps repository. Flux CD will automatically deploy the update.
 
 ### Update Ad Lists
 
-When adlist configuration in `k8s/configmap-adlists.yaml` is updated:
+When adlist configuration in `k8s/pihole/configmap-adlists.yaml` is updated:
 
 1. **Commit and push**: Commit the updated ConfigMap to the GitOps repository
 2. **Automatic sync**: Flux CD will detect the changes, update the ConfigMap, and recreate the Job automatically

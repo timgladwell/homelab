@@ -1,7 +1,7 @@
 #!/bin/bash
 # Trigger PiHole Adlist Update Job
 # This script manages the PiHole adlist configuration Job
-# Run this after updating the adlist configuration in k8s/configmap-adlists.yaml
+# Run this after updating the adlist configuration in k8s/pihole/configmap-adlists.yaml
 #
 # Usage: ./trigger-pihole-adlist-update.sh [--apply]
 #   --apply: Apply the Job directly for immediate execution (otherwise just delete for Flux CD to recreate)
@@ -51,7 +51,7 @@ if [ "$APPLY_DIRECTLY" = true ]; then
     log_info "Applying ConfigMap and Job directly for immediate execution..."
     
     # Apply ConfigMap first
-    if kubectl apply -f "${REPO_ROOT}/k8s/configmap-adlists.yaml"; then
+    if kubectl apply -f "${REPO_ROOT}/k8s/pihole/configmap-adlists.yaml"; then
         log_info "ConfigMap applied successfully"
     else
         log_error "Failed to apply ConfigMap"
@@ -62,7 +62,7 @@ if [ "$APPLY_DIRECTLY" = true ]; then
     kubectl delete job -n pihole pihole-adlist-config --ignore-not-found=true
     
     # Apply the Job
-    if kubectl apply -f "${REPO_ROOT}/k8s/pihole-post-deploy-job.yaml"; then
+    if kubectl apply -f "${REPO_ROOT}/k8s/pihole/pihole-post-deploy-job.yaml"; then
         log_info "Job applied successfully and will run immediately"
     else
         log_error "Failed to apply Job"
