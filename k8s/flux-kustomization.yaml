@@ -17,6 +17,3 @@ spec:
       NAMESPACE: "pihole"
   # Health checks
   wait: true
-  timeout: 10m
-
-

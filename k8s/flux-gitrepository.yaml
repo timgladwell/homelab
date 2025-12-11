@@ -9,5 +9,3 @@ spec:
   ref:
     branch: main
   timeout: 60s
-
-

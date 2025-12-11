@@ -12,12 +12,12 @@ spec:
   ingress:
     # Allow from PiHole pods only
     - from:
-      - namespaceSelector:
-          matchLabels:
-            name: pihole
-        podSelector:
-          matchLabels:
-            app: pihole
+        - namespaceSelector:
+            matchLabels:
+              name: pihole
+          podSelector:
+            matchLabels:
+              app: pihole
       ports:
         - protocol: TCP
           port: 53

@@ -11,7 +11,7 @@ data:
 
       # Ignore CD flag from clients (don't allow clients to disable DNSSEC)
       ignore-cd-flag: yes
-    
+
       # Log DNSSEC validation failures
       val-log-level: 2
 

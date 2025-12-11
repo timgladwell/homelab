@@ -18,20 +18,20 @@ spec:
         app: pihole
     spec:
       containers:
-      - name: pihole
-        image: pihole/pihole:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 53
-          name: dns-tcp
-          protocol: TCP
-        - containerPort: 53
-          name: dns-udp
-          protocol: UDP
-        - containerPort: 80
-          name: web
-          protocol: TCP
-        env:
+        - name: pihole
+          image: pihole/pihole:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 53
+              name: dns-tcp
+              protocol: TCP
+            - containerPort: 53
+              name: dns-udp
+              protocol: UDP
+            - containerPort: 80
+              name: web
+              protocol: TCP
+      env:
         - name: FTLCONF_dns_upstreams
           valueFrom:
             configMapKeyRef:
@@ -61,7 +61,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: pihole-secret
-              key: FTLCONF_dns_domain_name            
+              key: FTLCONF_dns_domain_name
         - name: FTLCONF_dns_revServers
           valueFrom:
             secretKeyRef:
@@ -77,24 +77,24 @@ spec:
             configMapKeyRef:
               name: pihole-config
               key: TZ
-        volumeMounts:
+      volumeMounts:
         - name: pihole-config
           mountPath: /etc/pihole
         - name: dnsmasq-config
           mountPath: /etc/dnsmasq.d
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
+      resources:
+        requests:
+          memory: "256Mi"
+          cpu: "100m"
+        limits:
+          memory: "512Mi"
+          cpu: "500m"
       volumes:
-      - name: pihole-config
-        persistentVolumeClaim:
-          claimName: pihole-config
-      - name: dnsmasq-config
-        emptyDir: {}
+        - name: pihole-config
+          persistentVolumeClaim:
+            claimName: pihole-config
+        - name: dnsmasq-config
+          emptyDir: {}
       restartPolicy: Always
       # Use hostNetwork to allow PiHole to be accessible by IP for DNS queries
       hostNetwork: true

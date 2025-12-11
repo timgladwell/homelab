@@ -10,4 +10,4 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  # Note: Local-path provisioner will dynamically create volumes up to 100GB total
+# Note: Local-path provisioner will dynamically create volumes up to 100GB total

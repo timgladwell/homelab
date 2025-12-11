@@ -4,11 +4,12 @@ metadata:
   name: pihole-adlists
   namespace: pihole
 data:
+  # yamllint disable rule:line-length
   allow_lists_request_body.json: |
     {
-        "address": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/whitelist-referral-native.txt",
-        "enabled": true,
-        "comment": "Set automatically by script"
+      "address": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/whitelist-referral-native.txt",
+      "enabled": true,
+      "comment": "Set automatically by script"
     }
   # Heavily influenced by lots of nice folks on the internet. In addition to the authors,
   # https://github.com/stevejenkins/pi-hole-lists/
@@ -32,7 +33,7 @@ data:
             "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nrd35-29.txt",
             "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/dga7.txt",
             "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/dga14.txt",
-            "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/dga30.txt",            
+            "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/dga30.txt",
 
             "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/hoster.txt",
 
@@ -40,6 +41,7 @@ data:
 
             "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/anti.piracy.txt",
 
+            # yamllint disable-line rule:line-length
             "https://raw.githubusercontent.com/DandelionSprout/adfilt/master/Alternate%20versions%20Anti-Malware%20List/AntiMalwareAdGuardHome.txt",
             "https://big.oisd.nl",
             "https://urlhaus.abuse.ch/downloads/hostfile/",
@@ -58,5 +60,3 @@ data:
         "enabled": true,
         "comment": "Set automatically by script"
     }
-
-

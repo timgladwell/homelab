@@ -21,4 +21,3 @@ data:
   FTLCONF_webserver_api_password: ""
   # Timezone
   TZ: "America/Toronto"
-
