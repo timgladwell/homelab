@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unbound-config
+  namespace: networking
+data:
+  homelab.unbound.conf: |
+    server:
+      # Remove data from additional section that fails validation
+      val-clean-additional: yes
+
+      # Ignore CD flag from clients (don't allow clients to disable DNSSEC)
+      ignore-cd-flag: yes
+    
+      # Log DNSSEC validation failures
+      val-log-level: 2
+
+      # Access control: only allow queries from K3s pods
+      # PiHole pods query from their pod IPs, which are in the pod CIDR
+      # K3s default pod CIDR is typically 10.42.0.0/16
+      # Allow localhost and pod network, refuse all others
+      access-control: 127.0.0.1/32 allow
+      access-control: 10.42.0.0/16 allow
+      access-control: 0.0.0.0/0 refuse
+
+      # Privacy settings
+      hide-identity: yes
+      hide-version: yes

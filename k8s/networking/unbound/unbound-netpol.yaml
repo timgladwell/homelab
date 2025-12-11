@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: unbound-access
+  namespace: networking
+spec:
+  podSelector:
+    matchLabels:
+      app: unbound
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from PiHole pods only
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: pihole
+        podSelector:
+          matchLabels:
+            app: pihole
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
