@@ -1,10 +1,11 @@
+  # yamllint disable rule:line-length
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: pihole-adlists
   namespace: networking
 data:
-  # yamllint disable rule:line-length
   allow_lists_request_body.json: |
     {
       "address": "https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/whitelist-referral-native.txt",
@@ -41,7 +42,6 @@ data:
 
             "https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/anti.piracy.txt",
 
-            # yamllint disable-line rule:line-length
             "https://raw.githubusercontent.com/DandelionSprout/adfilt/master/Alternate%20versions%20Anti-Malware%20List/AntiMalwareAdGuardHome.txt",
             "https://big.oisd.nl",
             "https://urlhaus.abuse.ch/downloads/hostfile/",
