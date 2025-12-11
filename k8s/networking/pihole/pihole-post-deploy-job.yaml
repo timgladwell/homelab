@@ -22,7 +22,9 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-pihole
-          image: bitnami/kubectl:latest # TODO - switch to a version when I understand why the versioned images don't work
+          # Using Alpine for ARM64 compatibility - multi-arch support guaranteed
+          # kubectl binary mounted from K3s host ensures version compatibility
+          image: alpine:3.19
           command:
             - /bin/sh
             - -c
@@ -32,9 +34,9 @@ spec:
               attempt=0
 
               while [ $attempt -lt $max_attempts ]; do
-                POD_PHASE=$(kubectl get pod -n networking -l app=pihole -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "NotFound")
+                POD_PHASE=$(/kubectl get pod -n networking -l app=pihole -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "NotFound")
                 if [ "$POD_PHASE" = "Running" ]; then
-                  PIHOLE_IP=$(kubectl get pod -n networking -l app=pihole -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || echo "")
+                  PIHOLE_IP=$(/kubectl get pod -n networking -l app=pihole -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || echo "")
                   if [ -n "$PIHOLE_IP" ]; then
                     # Write IP to shared volume for main container
                     echo "$PIHOLE_IP" > /shared/pihole-ip
@@ -52,6 +54,9 @@ spec:
           volumeMounts:
             - name: shared
               mountPath: /shared
+            - name: kubectl-binary
+              mountPath: /kubectl
+              readOnly: true
       containers:
         - name: configure-adlists
           image: curlimages/curl:8.17.0
@@ -111,4 +116,10 @@ spec:
         - name: adlists
           configMap:
             name: pihole-adlists
+        # Mount kubectl binary from K3s host installation
+        # This ensures ARM64 compatibility and matches cluster version
+        - name: kubectl-binary
+          hostPath:
+            path: /usr/local/bin/kubectl
+            type: File
       serviceAccountName: pihole-config-sa
