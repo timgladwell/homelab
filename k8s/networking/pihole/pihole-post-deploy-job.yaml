@@ -22,7 +22,7 @@ spec:
       restartPolicy: Never
       initContainers:
         - name: wait-for-pihole
-          image: bitnami/kubectl:sha256:9ea8617c49dea18e57b44c7d6e3a50aac4c7fd4aaa8967e6826c23b92fadde31
+          image: bitnami/kubectl:sha256-30296fb6cf048584d13eefe6b57be99049a711e41119dbc243674be658a83f24
           command:
             - /bin/sh
             - -c
