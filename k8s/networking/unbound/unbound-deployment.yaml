@@ -31,7 +31,8 @@ spec:
         # Mount Unbound configuration
         volumeMounts:
         - name: unbound-config
-          mountPath: /etc/unbound/unbound.conf.d/homelab.unbound.conf
+          mountPath: /etc/unbound/unbound.conf.d
+          subpath: homelab.unbound.conf
         resources:
           requests:
             memory: "128Mi"
