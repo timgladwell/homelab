@@ -17,9 +17,9 @@ kustomize build ./k8s > /tmp/k3s-built.yaml
 echo "✅ Validating Kubernetes schemas..."
 kubeconform -summary /tmp/k3s-built.yaml
 
-# # 4. Best practices
-# echo "⭐ Checking best practices..."
-# kube-score score /tmp/k3s-built.yaml
+# 4. Best practices
+echo "⭐ Checking best practices..."
+kube-score score /tmp/k3s-built.yaml
 
 # # 5. Security scan
 # echo "🔒 Security scanning..."
