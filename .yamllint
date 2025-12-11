@@ -1,0 +1,9 @@
+extends: default
+
+ignore:
+  - /k8s/flux-system/
+
+rules:
+  line-length:
+    max: 100
+  document-start: disable
