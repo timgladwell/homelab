@@ -80,9 +80,9 @@ else
     
     log_info ""
     log_info "Next steps:"
-    log_info "1. Ensure configmap-adlists.yaml is updated with the latest JSON file contents"
+    log_info "1. Ensure configmap-adlists.yaml is updated with the latest adlist subscription data"
     log_info "2. Commit and push changes to the GitOps repository"
-    log_info "3. Flux CD will automatically sync and recreate the Job"
+    log_info "3. Flux CD will automatically sync the ConfigMap and recreate the Job"
     log_info ""
     log_info "To trigger the Job immediately (without waiting for Flux CD sync), run:"
     log_info "  $0 --apply"

@@ -114,11 +114,11 @@ Reverse DNS (conditional forwarding) is configured to forward queries for your l
 
 ### Ad Lists
 
-The adblock lists are configured in `k8s/configmap-adlists.yaml`:
-- `allow_lists_request_body.json`: Whitelist entries
-- `block_lists_request_body.json`: Blocklist subscriptions
+The adblock lists are configured in `k8s/configmap-adlists.yaml` ConfigMap, which is the single source of truth for adlist subscriptions:
+- `pihole_allow_lists_request_body.json`: Whitelist entries (stored as ConfigMap key)
+- `pihole_block_lists_request_body.json`: Blocklist subscriptions (stored as ConfigMap key)
 
-These files are used by the post-deployment configuration script.
+The ConfigMap data is mounted into the post-deployment job and used to configure PiHole.
 
 ## Post-Deployment Configuration
 
@@ -141,7 +141,7 @@ To manually trigger the Job after updating the adlist ConfigMap:
 ```
 
 **Technical Decision**: Post-deployment configuration uses a single Kubernetes Job implementation that:
-- Runs automatically via Flux CD when PiHole is deployed or when adlist files change
+- Runs automatically via Flux CD when PiHole is deployed or when the adlist ConfigMap is updated
 - Can be manually triggered using the helper script (`trigger-pihole-adlist-update.sh`)
 - Uses an init container to wait for PiHole readiness before configuring adlists
 - Mounts the adlist JSON files from a ConfigMap for version control

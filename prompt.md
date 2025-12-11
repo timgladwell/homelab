@@ -49,12 +49,14 @@
 * Flux CD will monitor the repo at https://github.com/timgladwell/homelab. Any updates to the repo will trigger an automatic deployment, including (but not limited to) manifest changes, configuration changes, shell script changes, and post-deployment job changes.
 
 ### Unbound deployment
+* K3s namespace: networking
 * Unbound will be responsible for querying upstream DNS servers. Unbound will answer queries from the PiHole deployment only - queries from any other source will be ignored.
 * Image will be pulled from the image tagged "latest" at https://hub.docker.com/r/klutchell/unbound
 * Unbound will be configured to perform **recursive** DNS queries.
 * Unbound will use DNSSEC.
 
 ### PiHole deployment
+* K3s namespace: pihole #TODO - move to `networking`
 * The PiHole container must be accessible by IP in order to act as the DNS server for the internal network.
 * PiHole will use the Unbound deployment as the sole upstram DNS provider. For context, the network firewall is configured to block any DNS requests that are not targeted to PiHole's IP.
 * Image is pulled from the image tagged "latest" at https://hub.docker.com/r/pihole/pihole
