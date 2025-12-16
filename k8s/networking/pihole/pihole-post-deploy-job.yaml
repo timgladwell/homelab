@@ -10,6 +10,9 @@ metadata:
     # The ConfigMap (pihole-adlists) is the single source of truth for adlist subscriptions
     # When the ConfigMap changes, Flux CD will recreate this Job
     "fluxcd.io/ignore": "false"
+    
+    # Option for future infinite-loop issues, uncomment to have Flux kill and recreate the job
+    # kustomize.toolkit.fluxcd.io/force: "enabled"
 spec:
   # Set backoff limit to allow retries
   backoffLimit: 3
