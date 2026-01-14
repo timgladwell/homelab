@@ -7,10 +7,10 @@ data:
   # Upstream DNS server: Unbound service (recursive DNS resolver)
   # Using service DNS name for stable resolution
   # TODO - uncomment when Unbound deployment is confirmed working
-  # FTLCONF_dns_upstreams: "unbound.networking.svc.cluster.local"
-  FTLCONF_dns_upstreams: "1.1.1.1;1.0.0.1"
+  FTLCONF_dns_upstreams: "unbound.networking.svc.cluster.local"
+  # FTLCONF_dns_upstreams: "1.1.1.1;1.0.0.1"
   # Enable DNSSEC
-  FTLCONF_dns_dnssec: "true"
+  # FTLCONF_dns_dnssec: "true"
   # Listen and respond to local network only
   FTLCONF_dns_listeningMode: "SINGLE"
   # Listen and respond to a specific interface only
