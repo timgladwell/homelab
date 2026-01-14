@@ -37,11 +37,11 @@ spec:
                 configMapKeyRef:
                   name: pihole-config
                   key: FTLCONF_dns_upstreams
-            - name: FTLCONF_dns_dnssec
-              valueFrom:
-                configMapKeyRef:
-                  name: pihole-config
-                  key: FTLCONF_dns_dnssec
+            # - name: FTLCONF_dns_dnssec
+            #   valueFrom:
+            #     configMapKeyRef:
+            #       name: pihole-config
+            #       key: FTLCONF_dns_dnssec
             - name: FTLCONF_dns_listeningMode
               valueFrom:
                 configMapKeyRef:
