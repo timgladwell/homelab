@@ -21,8 +21,8 @@ kubeconform -summary /tmp/k3s-built.yaml
 echo "⭐ Checking best practices..."
 kube-score score /tmp/k3s-built.yaml
 
-# # 5. Security scan
-# echo "🔒 Security scanning..."
-# trivy config ./k8s/ --severity HIGH,CRITICAL
+# 5. Security scan
+echo "🔒 Security scanning..."
+trivy config ./k8s/ --severity HIGH,CRITICAL
 
 echo "✨ All validations passed!"

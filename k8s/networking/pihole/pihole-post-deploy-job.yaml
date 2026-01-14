@@ -10,7 +10,7 @@ metadata:
     # The ConfigMap (pihole-adlists) is the single source of truth for adlist subscriptions
     # When the ConfigMap changes, Flux CD will recreate this Job
     "fluxcd.io/ignore": "false"
-    
+
     # Option for future infinite-loop issues, uncomment to have Flux kill and recreate the job
     # kustomize.toolkit.fluxcd.io/force: "enabled"
 spec:
@@ -95,13 +95,13 @@ spec:
 
                 while [ $attempt -le $max_retries ]; do
                   echo "[${step_name}] Attempt ${attempt}/${max_retries}"
-                  
+
                   # Capture HTTP code and response body separately
                   http_code=$(curl -s -w "%{http_code}" -o /tmp/response.json \
                     --max-time 30 \
                     --connect-timeout 10 \
                     "$@" || echo "000")
-                  
+
                   # Check for successful HTTP response (2xx)
                   if [ "${http_code}" -ge 200 ] && [ "${http_code}" -lt 300 ]; then
                     echo "[${step_name}] ✓ Success (HTTP ${http_code})"
@@ -109,18 +109,18 @@ spec:
                     echo ""
                     return 0
                   fi
-                  
+
                   # Log failure details
                   echo "[${step_name}] ✗ Failed with HTTP ${http_code}"
                   cat /tmp/response.json 2>/dev/null || echo "(no response body)"
                   echo ""
-                  
+
                   # Exit immediately on client errors (4xx) - no point retrying
                   if [ "${http_code}" -ge 400 ] && [ "${http_code}" -lt 500 ]; then
                     echo "[${step_name}] Client error - not retrying"
                     return 1
                   fi
-                  
+
                   # Retry on server errors (5xx) or network issues
                   if [ $attempt -lt $max_retries ]; then
                     echo "[${step_name}] Retrying in ${retry_delay}s..."

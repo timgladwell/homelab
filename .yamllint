@@ -6,4 +6,5 @@ ignore:
 rules:
   line-length:
     max: 100
+    level: warning
   document-start: disable
