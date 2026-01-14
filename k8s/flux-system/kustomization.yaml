@@ -3,9 +3,3 @@ kind: Kustomization
 resources:
 - gotk-components.yaml
 - gotk-sync.yaml
-
-patches:
-  - path: sops_config.yaml
-    target:
-      kind: Kustomization
-      name: flux-system
