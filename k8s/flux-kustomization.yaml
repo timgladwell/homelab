@@ -17,3 +17,7 @@ spec:
       NAMESPACE: "pihole"
   # Health checks
   wait: true
+  decryption:
+    provider: "sops"
+    secretRef:
+      name: "sops-age"

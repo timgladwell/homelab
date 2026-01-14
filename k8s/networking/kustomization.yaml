@@ -21,6 +21,6 @@ resources:
   # When the adlist ConfigMap (pihole-adlists) is updated, Flux CD will recreate this Job
   - pihole/pihole-post-deploy-job.yaml
   - pihole/pihole-pvc.yaml
-  - pihole/pihole-secret-template.yaml
+  - pihole/secret.sops.yaml
   - pihole/pihole-service.yaml
   - pihole/pihole-serviceaccount.yaml
