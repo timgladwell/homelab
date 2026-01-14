@@ -98,7 +98,7 @@ spec:
 
                   # Capture HTTP code and response body separately
                   http_code=$(curl -s -w "%{http_code}" -o /tmp/response.json \
-                    --max-time 30 \
+                    --max-time 120 \
                     --connect-timeout 10 \
                     "$@" || echo "000")
 
