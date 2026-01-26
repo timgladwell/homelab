@@ -1,0 +1,24 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ../apps/homelab
+  prune: true
+  wait: false  # Apps can fail without blocking reconciliation
+  timeout: 5m
+  # TODO - uncomment when infrastructure is ready
+  # dependsOn:  # Critical: apps only deploy after infrastructure is ready
+  #   - name: infrastructure
+  # TODO - uncomment when SOPS is ready
+  # Decrypt SOPS secrets during reconciliation
+  # decryption:
+  #   provider: sops
+  #   secretRef:
+  #     name: sops-age  # Secret containing age private key

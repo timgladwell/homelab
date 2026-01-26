@@ -1,0 +1,18 @@
+# TODO - uncomment when infrastructure is ready
+#
+# ---
+# apiVersion: kustomize.toolkit.fluxcd.io/v1
+# kind: Kustomization
+# metadata:
+#   name: infrastructure
+#   namespace: flux-system
+# spec:
+#   interval: 10m
+#   sourceRef:
+#     kind: GitRepository
+#     name: flux-system  # References the GitRepository that Flux created during bootstrap
+#   path: ../infrastructure/homelab  # Path in the repo to reconcile
+#   prune: true
+#   wait: true
+#   timeout: 5m
+#   # Infrastructure must be healthy before apps deploy
