@@ -1,0 +1,19 @@
+# infrastructure/traefik/helmrelease.yaml
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  chart:
+    spec:
+      chart: traefik
+      version: ">=30.0.0 <31.0.0"  # Version constraint
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+  values:
+    # Custom configuration (overrides chart defaults)
+    resources:
+      limits:
+        memory: 150Mi

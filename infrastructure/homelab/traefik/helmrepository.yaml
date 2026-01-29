@@ -1,0 +1,9 @@
+# infrastructure/traefik/helmrepository.yaml
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  interval: 24h  # How often to check for updates
+  url: https://traefik.github.io/charts
