@@ -14,8 +14,8 @@ spec:
   wait: false  # Apps can fail without blocking reconciliation
   timeout: 5m
   # TODO - uncomment when infrastructure is ready
-  # dependsOn:  # Critical: apps only deploy after infrastructure is ready
-  #   - name: infrastructure
+  dependsOn:  # Critical: apps only deploy after infrastructure is ready
+    - name: infrastructure
   # TODO - uncomment when SOPS is ready
   # Decrypt SOPS secrets during reconciliation
   # decryption:
