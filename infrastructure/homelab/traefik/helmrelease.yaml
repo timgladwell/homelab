@@ -1,10 +1,12 @@
 # infrastructure/traefik/helmrelease.yaml
+---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: traefik
   namespace: traefik
 spec:
+  interval: 30m
   chart:
     spec:
       chart: traefik
@@ -12,8 +14,80 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: traefik
+        namespace: traefik
+      interval: 12h
+  
+  # Helm values for Traefik configuration
   values:
-    # Custom configuration (overrides chart defaults)
+    # Resource limits appropriate for RPi 4B
     resources:
+      requests:
+        cpu: 100m
+        memory: 50Mi
       limits:
+        cpu: 300m
         memory: 150Mi
+    
+    # Use host network for simplicity in homelab
+    # Alternative: LoadBalancer requires MetalLB
+    # Alternative: NodePort requires remembering ports
+    # hostNetwork gives direct 80/443 access
+    hostNetwork: true
+    
+    # Deploy single replica (homelab constraints)
+    deployment:
+      replicas: 1
+    
+    # Enable dashboard (useful for learning/debugging)
+    # Accessible via multiple patterns for migration flexibility:
+    # 1. http://RASPBERRY_PI_IP/traefik (immediate, no DNS)
+    # 2. http://PLACEHOLDER_DOMAIN/traefik (single domain, path-based)
+    # 3. http://traefik.PLACEHOLDER_DOMAIN (subdomain, final state)
+    ingressRoute:
+      dashboard:
+        enabled: true
+        matchRule: >-
+          PathPrefix(`/traefik`) ||
+          Host(`PLACEHOLDER_DOMAIN`) && PathPrefix(`/traefik`) ||
+          Host(`traefik.PLACEHOLDER_DOMAIN`)
+        entryPoints: ["web"]
+        middlewares:
+          - name: traefik-dashboard-stripprefix
+    
+    # Define entry points
+    ports:
+      web:
+        port: 8000
+        exposedPort: 80
+        protocol: TCP
+      websecure:
+        port: 8443
+        exposedPort: 443
+        protocol: TCP
+        # TLS will be configured per-ingress or via cert-manager later
+      traefik:
+        port: 9000
+        exposedPort: 9000
+        protocol: TCP
+    
+    # Enable Kubernetes CRD provider
+    providers:
+      kubernetesCRD:
+        enabled: true
+        allowCrossNamespace: true  # Allow routing to services in any namespace
+      kubernetesIngress:
+        enabled: true
+        publishedService:
+          enabled: false  # Not using LoadBalancer
+    
+    # Middleware to strip /traefik prefix for path-based access
+    additionalArguments:
+      - "--api.insecure=true"  # Dashboard access (internal network only)
+      - "--providers.kubernetesingress.ingressclass=traefik"
+    
+    # Logging for troubleshooting
+    logs:
+      general:
+        level: INFO
+      access:
+        enabled: true

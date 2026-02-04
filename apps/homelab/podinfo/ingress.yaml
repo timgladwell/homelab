@@ -1,0 +1,45 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: podinfo
+  namespace: flux-system 
+  annotations:
+    # Specify Traefik as ingress class
+    kubernetes.io/ingress.class: traefik
+    # Strip /podinfo prefix when using path-based routing
+    traefik.ingress.kubernetes.io/router.middlewares: default-podinfo-stripprefix@kubernetescrd
+spec:
+  rules:
+    # Path-based access: http://RASPBERRY_PI_IP/podinfo
+    - http:
+        paths:
+          - path: /podinfo
+            pathType: Prefix
+            backend:
+              service:
+                name: podinfo
+                port:
+                  number: 9898
+    # # Path-based with domain: http://PLACEHOLDER_DOMAIN/podinfo
+    # - host: PLACEHOLDER_DOMAIN
+    #   http:
+    #     paths:
+    #       - path: /podinfo
+    #         pathType: Prefix
+    #         backend:
+    #           service:
+    #             name: podinfo
+    #             port:
+    #               number: 9898
+    # # Subdomain: http://podinfo.PLACEHOLDER_DOMAIN
+    # - host: podinfo.PLACEHOLDER_DOMAIN
+    #   http:
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    #         backend:
+    #           service:
+    #             name: podinfo
+    #             port:
+    #               number: 9898
