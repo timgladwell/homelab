@@ -3,7 +3,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: podinfo
-  namespace: flux-system 
+  namespace: default
   annotations:
     # Specify Traefik as ingress class
     kubernetes.io/ingress.class: traefik
