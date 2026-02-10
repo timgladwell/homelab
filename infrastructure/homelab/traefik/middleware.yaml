@@ -1,0 +1,11 @@
+# Middleware for stripping /traefik prefix from dashboard requests
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: traefik-dashboard-stripprefix
+  namespace: traefik
+spec:
+  stripPrefix:
+    prefixes:
+      - /traefik
