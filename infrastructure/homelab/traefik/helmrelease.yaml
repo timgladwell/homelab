@@ -79,6 +79,7 @@ spec:
 
     additionalArguments:
       - "--api.insecure=true"  # Enable dashboard API (internal network only)
+      - "--api.basePath=/traefik"  # Serve dashboard at /traefik, all routes relative to this
       - "--providers.kubernetesingress.ingressclass=traefik"
 
     # Logging for troubleshooting

@@ -1,11 +1,12 @@
-# Middleware for stripping /traefik prefix from dashboard requests
+# Middleware for subdomain routing to add /traefik prefix
+# Used when accessing via http://traefik.<DOMAIN> - adds the prefix
+# that Traefik's dashboard expects (configured via --api.basePath=/traefik)
 ---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: traefik-dashboard-stripprefix
+  name: traefik-dashboard-addprefix
   namespace: traefik
 spec:
-  stripPrefix:
-    prefixes:
-      - /traefik
+  addPrefix:
+    prefix: /traefik

@@ -65,7 +65,7 @@ Do not use beta API versions unless the stable version does not yet exist for th
 
 ## Routing Strategy
 
-All web apps are namespaced under `/<app-name>` to avoid route collisions. Standard ports only (80/443) — no custom ports to remember.
+All web apps are namespaced under `/<app-name>` to avoid route collisions. Standard ports only (80/443) — no custom ports to remember. Each app must believe `/<app-name>` is its root path so all internal links and redirects stay within the namespaced route.
 
 | Route Type | Pattern | Example |
 |------------|---------|---------|
@@ -73,17 +73,22 @@ All web apps are namespaced under `/<app-name>` to avoid route collisions. Stand
 | Domain-based | `http://<DOMAIN>/<app-name>` | `http://homelab.local/traefik` |
 | Subdomain-based | `http://<app-name>.<DOMAIN>` | `http://traefik.homelab.local` |
 
-**Implementation requirements for each app:**
+**Implementation approaches (in order of preference):**
 
-1. **Middleware** (`middleware.yaml`): StripPrefix middleware to remove `/<app-name>` prefix before forwarding to the backend
-2. **Ingress/IngressRoute**: Route `/<app-name>` to the service, applying the strip-prefix middleware
-3. **Default behavior preserved**: Apps should show their default UI/behavior at the namespaced route (e.g., Traefik redirects to `/dashboard`, PiHole shows 403 directing to `/admin`)
+1. **Native base path support** (preferred): Configure the app to serve from `/<app-name>` natively. The app generates correct links and handles redirects properly.
+   - Example: Traefik uses `--api.basePath=/traefik`
+   - No middleware needed for path-based routing
+   - For subdomain routing, use `addPrefix` middleware to add the expected prefix
+
+2. **StripPrefix middleware** (fallback): Strip `/<app-name>` before forwarding to the backend. Only works if the app doesn't generate absolute redirects or links.
+   - Requires `middleware.yaml` with StripPrefix
+   - May break apps that redirect to `/` (redirects escape the namespace)
 
 **Example files for a new app:**
 ```
 apps/homelab/myapp/
   kustomization.yaml      # Lists all resources
-  middleware.yaml         # StripPrefix for /myapp
+  middleware.yaml         # AddPrefix (for subdomain) or StripPrefix (fallback)
   ingress.yaml            # Routes /myapp to service
   ...                     # App-specific resources
 ```
