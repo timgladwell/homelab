@@ -58,7 +58,7 @@ Use the latest stable API versions at all times:
 | `source.toolkit.fluxcd.io` | `v1` |
 | `helm.toolkit.fluxcd.io` | `v2` |
 | `kustomize.toolkit.fluxcd.io` | `v1` |
-| `kustomize.config.k8s.io` | `v1` |
+| `kustomize.config.k8s.io` | `v1beta1` |
 | Core Kubernetes APIs | `v1`, `apps/v1`, `networking.k8s.io/v1`, etc. |
 
 Do not use beta API versions unless the stable version does not yet exist for that resource.
@@ -66,7 +66,7 @@ Do not use beta API versions unless the stable version does not yet exist for th
 ## Adding a New Application
 
 1. Create a directory under `apps/homelab/<app-name>/`
-2. Add a `kustomization.yaml` (apiVersion: `kustomize.config.k8s.io/v1`) listing all resources
+2. Add a `kustomization.yaml` (apiVersion: `kustomize.config.k8s.io/v1beta1`) listing all resources
 3. Add the app's source (GitRepository or HelmRepository) and deployment (Kustomization or HelmRelease)
 4. Register the new directory in `apps/homelab/kustomization.yaml`
 5. If the app needs infrastructure (e.g., a new namespace, CRDs), add those under `infrastructure/homelab/`
