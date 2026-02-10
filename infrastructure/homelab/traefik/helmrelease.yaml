@@ -42,8 +42,11 @@ spec:
     hostNetwork: true
 
     # Single replica (homelab constraints)
+    # Recreate strategy required for hostNetwork - must release ports before new pod starts
     deployment:
       replicas: 1
+      strategy:
+        type: Recreate
 
     # Disable built-in dashboard IngressRoute - we'll create our own
     # This gives us full control over routing and middleware
