@@ -63,13 +63,39 @@ Use the latest stable API versions at all times:
 
 Do not use beta API versions unless the stable version does not yet exist for that resource.
 
+## Routing Strategy
+
+All web apps are namespaced under `/<app-name>` to avoid route collisions. Standard ports only (80/443) — no custom ports to remember.
+
+| Route Type | Pattern | Example |
+|------------|---------|---------|
+| IP-based | `http://<IP>/<app-name>` | `http://192.168.1.100/traefik` |
+| Domain-based | `http://<DOMAIN>/<app-name>` | `http://homelab.local/traefik` |
+| Subdomain-based | `http://<app-name>.<DOMAIN>` | `http://traefik.homelab.local` |
+
+**Implementation requirements for each app:**
+
+1. **Middleware** (`middleware.yaml`): StripPrefix middleware to remove `/<app-name>` prefix before forwarding to the backend
+2. **Ingress/IngressRoute**: Route `/<app-name>` to the service, applying the strip-prefix middleware
+3. **Default behavior preserved**: Apps should show their default UI/behavior at the namespaced route (e.g., Traefik redirects to `/dashboard`, PiHole shows 403 directing to `/admin`)
+
+**Example files for a new app:**
+```
+apps/homelab/myapp/
+  kustomization.yaml      # Lists all resources
+  middleware.yaml         # StripPrefix for /myapp
+  ingress.yaml            # Routes /myapp to service
+  ...                     # App-specific resources
+```
+
 ## Adding a New Application
 
 1. Create a directory under `apps/homelab/<app-name>/`
 2. Add a `kustomization.yaml` (apiVersion: `kustomize.config.k8s.io/v1beta1`) listing all resources
 3. Add the app's source (GitRepository or HelmRepository) and deployment (Kustomization or HelmRelease)
-4. Register the new directory in `apps/homelab/kustomization.yaml`
-5. If the app needs infrastructure (e.g., a new namespace, CRDs), add those under `infrastructure/homelab/`
+4. **Add routing:** Create `middleware.yaml` (StripPrefix) and `ingress.yaml` following the routing strategy above
+5. Register the new directory in `apps/homelab/kustomization.yaml`
+6. If the app needs infrastructure (e.g., a new namespace, CRDs), add those under `infrastructure/homelab/`
 
 ## Adding New Infrastructure
 

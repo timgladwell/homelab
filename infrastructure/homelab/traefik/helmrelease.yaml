@@ -1,4 +1,14 @@
 # infrastructure/traefik/helmrelease.yaml
+#
+# Routing strategy:
+# - All web apps are namespaced under /<app-name> to avoid route collisions
+# - Standard ports only (80/443) - no custom ports to remember
+# - Each app preserves its default behavior at its namespaced route
+#
+# Traefik dashboard routes:
+# - http://<IP>/traefik           -> dashboard (redirects to /traefik/dashboard/)
+# - http://<DOMAIN>/traefik       -> dashboard
+# - http://traefik.<DOMAIN>       -> dashboard (no prefix needed)
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -10,14 +20,13 @@ spec:
   chart:
     spec:
       chart: traefik
-      version: ">=39.0.0 <40.0.0"  # Version constraint
+      version: ">=39.0.0 <40.0.0"
       sourceRef:
         kind: HelmRepository
         name: traefik
         namespace: traefik
       interval: 12h
-  
-  # Helm values for Traefik configuration
+
   values:
     # Resource limits appropriate for RPi 4B
     resources:
@@ -27,34 +36,22 @@ spec:
       limits:
         cpu: 300m
         memory: 150Mi
-    
-    # Use host network for simplicity in homelab
-    # Alternative: LoadBalancer requires MetalLB
-    # Alternative: NodePort requires remembering ports
-    # hostNetwork gives direct 80/443 access
+
+    # Use host network for direct 80/443 access
+    # Alternatives: LoadBalancer (requires MetalLB), NodePort (requires remembering ports)
     hostNetwork: true
-    
-    # Deploy single replica (homelab constraints)
+
+    # Single replica (homelab constraints)
     deployment:
       replicas: 1
-    
-    # Enable dashboard (useful for learning/debugging)
-    # Accessible via multiple patterns for migration flexibility:
-    # 1. http://RASPBERRY_PI_IP/traefik (immediate, no DNS)
-    # 2. http://PLACEHOLDER_DOMAIN/traefik (single domain, path-based)
-    # 3. http://traefik.PLACEHOLDER_DOMAIN (subdomain, final state)
+
+    # Disable built-in dashboard IngressRoute - we'll create our own
+    # This gives us full control over routing and middleware
     ingressRoute:
       dashboard:
-        enabled: true
-        matchRule: >-
-          PathPrefix(`/traefik`) ||
-          Host(`PLACEHOLDER_DOMAIN`) && PathPrefix(`/traefik`) ||
-          Host(`traefik.PLACEHOLDER_DOMAIN`)
-        entryPoints: ["web"]
-        middlewares:
-          - name: traefik-dashboard-stripprefix
-    
-    # Define entry points
+        enabled: false
+
+    # Define entry points - standard ports only
     ports:
       web:
         port: 8000
@@ -64,27 +61,26 @@ spec:
         port: 8443
         exposedPort: 443
         protocol: TCP
-        # TLS will be configured per-ingress or via cert-manager later
       traefik:
         port: 9000
-        exposedPort: 9000
+        expose:
+          default: false  # Dashboard accessed via web entrypoint, not dedicated port
         protocol: TCP
-    
-    # Enable Kubernetes CRD provider
+
+    # Enable Kubernetes CRD and Ingress providers
     providers:
       kubernetesCRD:
         enabled: true
-        allowCrossNamespace: true  # Allow routing to services in any namespace
+        allowCrossNamespace: true
       kubernetesIngress:
         enabled: true
         publishedService:
-          enabled: false  # Not using LoadBalancer
-    
-    # Middleware to strip /traefik prefix for path-based access
+          enabled: false
+
     additionalArguments:
-      - "--api.insecure=true"  # Dashboard access (internal network only)
+      - "--api.insecure=true"  # Enable dashboard API (internal network only)
       - "--providers.kubernetesingress.ingressclass=traefik"
-    
+
     # Logging for troubleshooting
     logs:
       general:

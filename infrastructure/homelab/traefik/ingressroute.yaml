@@ -1,0 +1,34 @@
+# Traefik dashboard IngressRoute
+#
+# Routes:
+# - http://<IP>/traefik/*         -> dashboard API (strips /traefik prefix)
+# - http://<DOMAIN>/traefik/*     -> dashboard API (strips /traefik prefix)
+# - http://traefik.<DOMAIN>/*     -> dashboard API (no prefix to strip)
+#
+# The dashboard automatically redirects / to /dashboard/
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: traefik-dashboard
+  namespace: traefik
+spec:
+  entryPoints:
+    - web
+  routes:
+    # Path-based routing: /traefik prefix stripped before reaching dashboard
+    - match: PathPrefix(`/traefik`)
+      kind: Rule
+      middlewares:
+        - name: traefik-dashboard-stripprefix
+          namespace: traefik
+      services:
+        - name: api@internal
+          kind: TraefikService
+    # Subdomain routing: no prefix to strip
+    # Uncomment when DNS is configured
+    # - match: Host(`traefik.PLACEHOLDER_DOMAIN`)
+    #   kind: Rule
+    #   services:
+    #     - name: api@internal
+    #       kind: TraefikService

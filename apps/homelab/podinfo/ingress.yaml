@@ -1,3 +1,11 @@
+# Podinfo Ingress
+#
+# Routes:
+# - http://<IP>/podinfo/*           -> podinfo service (strips /podinfo prefix)
+# - http://<DOMAIN>/podinfo/*       -> podinfo service (strips /podinfo prefix)
+# - http://podinfo.<DOMAIN>/*       -> podinfo service (no prefix to strip)
+#
+# Podinfo shows its default UI at /
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -5,13 +13,11 @@ metadata:
   name: podinfo
   namespace: default
   annotations:
-    # Specify Traefik as ingress class
     kubernetes.io/ingress.class: traefik
-    # Strip /podinfo prefix when using path-based routing
     traefik.ingress.kubernetes.io/router.middlewares: default-podinfo-stripprefix@kubernetescrd
 spec:
   rules:
-    # Path-based access: http://RASPBERRY_PI_IP/podinfo
+    # Path-based routing: http://<IP>/podinfo
     - http:
         paths:
           - path: /podinfo
@@ -21,18 +27,8 @@ spec:
                 name: podinfo
                 port:
                   number: 9898
-    # # Path-based with domain: http://PLACEHOLDER_DOMAIN/podinfo
-    # - host: PLACEHOLDER_DOMAIN
-    #   http:
-    #     paths:
-    #       - path: /podinfo
-    #         pathType: Prefix
-    #         backend:
-    #           service:
-    #             name: podinfo
-    #             port:
-    #               number: 9898
-    # # Subdomain: http://podinfo.PLACEHOLDER_DOMAIN
+    # Subdomain routing: http://podinfo.<DOMAIN>
+    # Uncomment when DNS is configured (no middleware needed - no prefix to strip)
     # - host: podinfo.PLACEHOLDER_DOMAIN
     #   http:
     #     paths:
