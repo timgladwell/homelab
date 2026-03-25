@@ -5,3 +5,4 @@ resources:
   - podinfo-source.yaml
   - podinfo-kustomization.yaml
   - ingressroute.yaml
+  - test.sops.yaml
