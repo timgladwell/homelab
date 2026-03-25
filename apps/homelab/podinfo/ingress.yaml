@@ -27,15 +27,15 @@ spec:
                 name: podinfo
                 port:
                   number: 9898
-    # Subdomain routing: http://podinfo.<DOMAIN>
-    # Uncomment when DNS is configured (no middleware needed - no prefix to strip)
-    # - host: podinfo.PLACEHOLDER_DOMAIN
-    #   http:
-    #     paths:
-    #       - path: /
-    #         pathType: Prefix
-    #         backend:
-    #           service:
-    #             name: podinfo
-    #             port:
-    #               number: 9898
+# Subdomain routing: http://podinfo.<DOMAIN>
+# Uncomment when DNS is configured (no middleware needed - no prefix to strip)
+# - host: podinfo.PLACEHOLDER_DOMAIN
+#   http:
+#     paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: podinfo
+#             port:
+#               number: 9898

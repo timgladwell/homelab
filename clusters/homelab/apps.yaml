@@ -16,9 +16,9 @@ spec:
   # TODO - uncomment when infrastructure is ready
   dependsOn:  # Critical: apps only deploy after infrastructure is ready
     - name: infrastructure
-  # TODO - uncomment when SOPS is ready
-  # Decrypt SOPS secrets during reconciliation
-  # decryption:
-  #   provider: sops
-  #   secretRef:
-  #     name: sops-age  # Secret containing age private key
+# TODO - uncomment when SOPS is ready
+# Decrypt SOPS secrets during reconciliation
+# decryption:
+#   provider: sops
+#   secretRef:
+#     name: sops-age  # Secret containing age private key

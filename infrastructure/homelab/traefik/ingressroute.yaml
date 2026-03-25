@@ -24,13 +24,13 @@ spec:
       services:
         - name: api@internal
           kind: TraefikService
-    # Subdomain routing: needs prefix added since Traefik expects /traefik
-    # Uncomment when DNS is configured
-    # - match: Host(`traefik.PLACEHOLDER_DOMAIN`)
-    #   kind: Rule
-    #   middlewares:
-    #     - name: traefik-dashboard-addprefix
-    #       namespace: traefik
-    #   services:
-    #     - name: api@internal
-    #       kind: TraefikService
+# Subdomain routing: needs prefix added since Traefik expects /traefik
+# Uncomment when DNS is configured
+# - match: Host(`traefik.PLACEHOLDER_DOMAIN`)
+#   kind: Rule
+#   middlewares:
+#     - name: traefik-dashboard-addprefix
+#       namespace: traefik
+#   services:
+#     - name: api@internal
+#       kind: TraefikService

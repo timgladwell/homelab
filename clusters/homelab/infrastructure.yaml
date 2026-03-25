@@ -13,4 +13,4 @@ spec:
   prune: true
   wait: true
   timeout: 5m
-  # Infrastructure must be healthy before apps deploy
+# Infrastructure must be healthy before apps deploy
