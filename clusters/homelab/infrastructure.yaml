@@ -13,4 +13,8 @@ spec:
   prune: true
   wait: true
   timeout: 5m
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-vars
 # Infrastructure must be healthy before apps deploy
