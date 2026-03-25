@@ -1,13 +1,8 @@
 # Traefik dashboard IngressRoute
 #
-# The dashboard is configured with --api.basePath=/traefik so it expects
-# requests at /traefik/* and generates all links relative to /traefik.
-# No prefix stripping needed - Traefik handles the path natively.
-#
 # Routes:
-# - http://<IP>/traefik           -> redirects to /traefik/dashboard/
-# - http://<IP>/traefik/dashboard -> dashboard UI
-# - http://<IP>/traefik/api/*     -> dashboard API
+# - http://traefik.PLACEHOLDER_DOMAIN/dashboard/ -> dashboard UI
+# - http://traefik.PLACEHOLDER_DOMAIN/api/*      -> dashboard API
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -18,19 +13,8 @@ spec:
   entryPoints:
     - web
   routes:
-    # Path-based routing: no middleware needed, Traefik expects /traefik prefix
-    - match: PathPrefix(`/traefik`)
+    - match: Host(`traefik.PLACEHOLDER_DOMAIN`)
       kind: Rule
       services:
         - name: api@internal
           kind: TraefikService
-# Subdomain routing: needs prefix added since Traefik expects /traefik
-# Uncomment when DNS is configured
-# - match: Host(`traefik.PLACEHOLDER_DOMAIN`)
-#   kind: Rule
-#   middlewares:
-#     - name: traefik-dashboard-addprefix
-#       namespace: traefik
-#   services:
-#     - name: api@internal
-#       kind: TraefikService

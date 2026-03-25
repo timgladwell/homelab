@@ -1,14 +1,11 @@
 # infrastructure/traefik/helmrelease.yaml
 #
 # Routing strategy:
-# - All web apps are namespaced under /<app-name> to avoid route collisions
+# - Each app uses subdomain-based routing: http://<app>.PLACEHOLDER_DOMAIN
 # - Standard ports only (80/443) - no custom ports to remember
-# - Each app preserves its default behavior at its namespaced route
 #
-# Traefik dashboard routes:
-# - http://<IP>/traefik           -> dashboard (redirects to /traefik/dashboard/)
-# - http://<DOMAIN>/traefik       -> dashboard
-# - http://traefik.<DOMAIN>       -> dashboard (no prefix needed)
+# Traefik dashboard route:
+# - http://traefik.PLACEHOLDER_DOMAIN/dashboard/
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -82,7 +79,6 @@ spec:
 
     additionalArguments:
       - "--api.insecure=true"  # Enable dashboard API (internal network only)
-      - "--api.basePath=/traefik"  # Serve dashboard at /traefik, all routes relative to this
       - "--providers.kubernetesingress.ingressclass=traefik"
 
     # Logging for troubleshooting
