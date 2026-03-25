@@ -120,7 +120,7 @@ echo "Checking if SOPS decryption is working..."
 echo ""
 
 # Check if any encrypted secrets are in the repo
-if find "${PROJECT_ROOT}/k8s" -name "*.yaml" -exec grep -l "sops:" {} \; 2>/dev/null | head -n 1 | grep -q .; then
+if find "${PROJECT_ROOT}" -name "*.sops.yaml" 2>/dev/null | head -n 1 | grep -q .; then
     echo "Found SOPS-encrypted files in repository"
     echo ""
     

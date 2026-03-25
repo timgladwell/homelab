@@ -16,13 +16,11 @@ spec:
   # TODO - uncomment when infrastructure is ready
   dependsOn:  # Critical: apps only deploy after infrastructure is ready
     - name: infrastructure
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
   postBuild:
     substituteFrom:
       - kind: ConfigMap
         name: cluster-vars
-# TODO - uncomment when SOPS is ready
-# Decrypt SOPS secrets during reconciliation
-# decryption:
-#   provider: sops
-#   secretRef:
-#     name: sops-age  # Secret containing age private key
