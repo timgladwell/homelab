@@ -1,0 +1,94 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole
+  namespace: dns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pihole
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: pihole
+    spec:
+      # Bind directly to the host network so port 53 is reachable on the node's IP
+      # without a LoadBalancer - consistent with how Traefik is deployed.
+      # Recreate strategy (above) is required: hostNetwork pods must release ports
+      # before a new pod can start.
+      hostNetwork: true
+      # Preserve cluster DNS resolution so PiHole can reach unbound.dns.svc.cluster.local
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: pihole
+          image: pihole/pihole:2026.02.0
+          ports:
+            - containerPort: 53
+              protocol: UDP
+            - containerPort: 53
+              protocol: TCP
+            - containerPort: 80
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "America/Toronto"
+            # Unbound is the sole upstream DNS resolver
+            - name: FTLCONF_dns_upstreams
+              value: "unbound.dns.svc.cluster.local#5335"
+            # No web UI password
+            - name: FTLCONF_webserver_api_password
+              value: ""
+            # PiHole is not the DHCP server
+            - name: FTLCONF_dhcp_active
+              value: "false"
+            # Listen on all interfaces (required in Kubernetes pod networking)
+            - name: FTLCONF_dns_listeningMode
+              value: "all"
+            # Block DNS bypass mechanisms
+            - name: FTLCONF_dns_specialDomains_mozillaCanary
+              value: "true"
+            - name: FTLCONF_dns_specialDomains_iCloudPrivateRelay
+              value: "true"
+            - name: FTLCONF_dns_specialDomains_designatedResolver
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: pihole-secret
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pihole
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command:
+                - dig
+                - +norecurse
+                - +time=3
+                - "@127.0.0.1"
+                - pi.hole
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          livenessProbe:
+            exec:
+              command:
+                - dig
+                - +norecurse
+                - +time=3
+                - "@127.0.0.1"
+                - pi.hole
+            initialDelaySeconds: 60
+            periodSeconds: 30
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: pihole-config
