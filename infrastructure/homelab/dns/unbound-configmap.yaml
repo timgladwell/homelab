@@ -28,12 +28,13 @@ data:
       access-control: 10.42.0.0/16 allow
 
       # DNSSEC - strict validation, fast-fail on any failure
+      # auto-trust-anchor-file is intentionally omitted - the klutchell/unbound
+      # base image config manages the root trust anchor at the correct path
       harden-glue: yes
       harden-dnssec-stripped: yes
       harden-algo-downgrade: yes
       val-permissive-mode: no
       val-log-level: 2
-      auto-trust-anchor-file: "/opt/unbound/etc/unbound/root.key"
 
       # Disable cap randomisation - can cause DNSSEC failures
       use-caps-for-id: no
