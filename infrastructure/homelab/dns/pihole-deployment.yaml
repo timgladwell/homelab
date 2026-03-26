@@ -31,7 +31,7 @@ spec:
               protocol: UDP
             - containerPort: 53
               protocol: TCP
-            - containerPort: 80
+            - containerPort: 8080
               protocol: TCP
           env:
             - name: TZ
@@ -42,6 +42,8 @@ spec:
             # No web UI password
             - name: FTLCONF_webserver_api_password
               value: ""
+            - name: FTLCONF_webserver_port
+              value: "8080"
             # PiHole is not the DHCP server
             - name: FTLCONF_dhcp_active
               value: "false"

@@ -34,23 +34,13 @@ spec:
               cpu: 200m
               memory: 128Mi
           livenessProbe:
-            exec:
-              command:
-                - drill
-                - -p
-                - "5335"
-                - healthcheck.unbound
-                - "@127.0.0.1"
+            tcpSocket:
+              port: 5335
             initialDelaySeconds: 30
             periodSeconds: 30
           readinessProbe:
-            exec:
-              command:
-                - drill
-                - -p
-                - "5335"
-                - healthcheck.unbound
-                - "@127.0.0.1"
+            tcpSocket:
+              port: 5335
             initialDelaySeconds: 10
             periodSeconds: 15
       volumes:
