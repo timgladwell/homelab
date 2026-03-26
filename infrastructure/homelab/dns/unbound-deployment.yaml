@@ -24,7 +24,7 @@ spec:
               protocol: TCP
           volumeMounts:
             - name: config
-              mountPath: /opt/unbound/etc/unbound/unbound.conf
+              mountPath: /etc/unbound/custom.conf.d/unbound.conf
               subPath: unbound.conf
           resources:
             requests:
@@ -34,13 +34,13 @@ spec:
               cpu: 200m
               memory: 128Mi
           livenessProbe:
-            tcpSocket:
-              port: 5335
+            exec:
+              command: ["drill-hc", "-p", "5335", "@127.0.0.1", "dnssec.works"]
             initialDelaySeconds: 30
             periodSeconds: 30
           readinessProbe:
-            tcpSocket:
-              port: 5335
+            exec:
+              command: ["drill-hc", "-p", "5335", "@127.0.0.1", "dnssec.works"]
             initialDelaySeconds: 10
             periodSeconds: 15
       volumes:
