@@ -1,5 +1,5 @@
 ---
 creation_rules:
-  - path_regex: k8s/.*secret\.sops\.yaml$
+  - path_regex: .*secret\.sops\.yaml$
     age: age1wfqc89fy2a8l339nf2rlevclkkhjcy28jurdex6gpdjt8laa2sfqswl45d
     encrypted_regex: '^(data|stringData)$'

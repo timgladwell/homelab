@@ -1,0 +1,19 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unbound
+  namespace: dns
+spec:
+  selector:
+    app: unbound
+  type: ClusterIP
+  ports:
+    - name: dns-udp
+      port: 5335
+      targetPort: 5335
+      protocol: UDP
+    - name: dns-tcp
+      port: 5335
+      targetPort: 5335
+      protocol: TCP
