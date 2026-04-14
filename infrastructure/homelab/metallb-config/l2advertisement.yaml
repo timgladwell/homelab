@@ -1,0 +1,12 @@
+---
+# Advertise the IP pool via ARP (L2 mode).
+# MetalLB will respond to ARP requests for assigned IPs, making them
+# reachable on the local network without needing BGP.
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: homelab-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - homelab-pool

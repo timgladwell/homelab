@@ -10,19 +10,16 @@ spec:
     matchLabels:
       app: pihole
   strategy:
-    type: Recreate
+    type: RollingUpdate
   template:
     metadata:
       labels:
         app: pihole
     spec:
-      # Bind directly to the host network so port 53 is reachable on the node's IP
-      # without a LoadBalancer - consistent with how Traefik is deployed.
-      # Recreate strategy (above) is required: hostNetwork pods must release ports
-      # before a new pod can start.
-      hostNetwork: true
-      # Preserve cluster DNS resolution so PiHole can reach unbound.dns.svc.cluster.local
-      dnsPolicy: ClusterFirstWithHostNet
+      # No hostNetwork: MetalLB provides a stable external IP via the pihole-dns
+      # LoadBalancer service. RollingUpdate is now safe because the old pod stays
+      # alive (serving DNS) until the new pod passes its readiness probe.
+      dnsPolicy: ClusterFirst
       containers:
         - name: pihole
           image: pihole/pihole:2026.04.0

@@ -1,22 +1,23 @@
 ---
+# Deploys MetalLB configuration (IPAddressPool + L2Advertisement).
+# Runs after the infrastructure Kustomization so MetalLB CRDs are guaranteed
+# to be installed before these resources are applied.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: apps
+  name: infrastructure-config
   namespace: flux-system
 spec:
   interval: 10m
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ../apps/homelab
+  path: ../infrastructure/homelab/metallb-config
   prune: true
-  wait: false  # Apps can fail without blocking reconciliation
-  timeout: 5m
-  # TODO - uncomment when infrastructure is ready
-  dependsOn:  # Critical: apps only deploy after infrastructure is ready and MetalLB IPs are assigned
+  wait: true
+  timeout: 2m
+  dependsOn:
     - name: infrastructure
-    - name: infrastructure-config
   decryption:
     provider: sops
     secretRef:

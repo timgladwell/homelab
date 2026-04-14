@@ -10,4 +10,5 @@ resources:
   - pihole-secret.sops.yaml
   - pihole-deployment.yaml
   - pihole-service.yaml
+  - pihole-dns-service.yaml
   - pihole-ingressroute.yaml

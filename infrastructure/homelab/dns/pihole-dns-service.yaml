@@ -1,0 +1,26 @@
+---
+# Exposes PiHole's DNS port 53 as a MetalLB LoadBalancer with a stable IP.
+# The fixed IP means the IP survives pod restarts/updates and can be set as
+# the DNS server on your router and in /etc/resolv.conf on the node.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pihole-dns
+  namespace: dns
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: "${METALLB_PIHOLE_IP}"
+spec:
+  selector:
+    app: pihole
+  type: LoadBalancer
+  # Preserve real client IPs in PiHole query logs (single-node: no routing penalty)
+  externalTrafficPolicy: Local
+  ports:
+    - name: dns-udp
+      port: 53
+      targetPort: 53
+      protocol: UDP
+    - name: dns-tcp
+      port: 53
+      targetPort: 53
+      protocol: TCP
