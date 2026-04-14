@@ -1,0 +1,12 @@
+---
+# IP range MetalLB can assign to LoadBalancer services.
+# Must be static IPs outside your router's DHCP range.
+# Update METALLB_ADDRESS_RANGE in clusters/homelab/cluster-vars.yaml before applying.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: homelab-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - ${METALLB_ADDRESS_RANGE}

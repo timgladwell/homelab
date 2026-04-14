@@ -34,16 +34,19 @@ spec:
         cpu: 300m
         memory: 150Mi
 
-    # Use host network for direct 80/443 access
-    # Alternatives: LoadBalancer (requires MetalLB), NodePort (requires remembering ports)
-    hostNetwork: true
+    # Stable external IP provided by MetalLB - no hostNetwork needed.
+    # The fixed IP survives pod restarts so DNS/bookmarks don't need updating.
+    service:
+      annotations:
+        metallb.universe.tf/loadBalancerIPs: "${METALLB_TRAEFIK_IP}"
 
-    # Single replica (homelab constraints)
-    # Recreate strategy required for hostNetwork - must release ports before new pod starts
+    # Single replica (homelab constraints).
+    # RollingUpdate is now safe: old pod keeps accepting traffic until the new
+    # pod passes its readiness probe, so there is no gap in HTTP/HTTPS routing.
     deployment:
       replicas: 1
       strategy:
-        type: Recreate
+        type: RollingUpdate
 
     # Disable built-in dashboard IngressRoute - we'll create our own
     # This gives us full control over routing and middleware
