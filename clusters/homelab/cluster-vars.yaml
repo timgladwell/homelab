@@ -5,7 +5,8 @@ metadata:
   name: cluster-vars
   namespace: flux-system
 data:
-  DOMAIN: homelab.home.arpa
+  DNS_DOMAIN: home.arpa
+  HOSTNAME: homelab.${DNS_DOMAIN}
   # MetalLB IP allocations - must be static IPs outside your router's DHCP range,
   # within your home network subnet (e.g. 192.168.1.x).
   # TODO: Change these to match your actual network before applying.
