@@ -26,13 +26,15 @@ spec:
 
   values:
     # Resource limits appropriate for RPi 4B
+    # Traefik v3 startup allocations exceed 135Mi (GOMEMLIMIT at 90% of 150Mi),
+    # causing the Go runtime to be killed before logging initialises → silent crash.
     resources:
       requests:
         cpu: 100m
-        memory: 50Mi
+        memory: 128Mi
       limits:
         cpu: 300m
-        memory: 150Mi
+        memory: 256Mi
 
     # Stable external IP provided by MetalLB - no hostNetwork needed.
     # The fixed IP survives pod restarts so DNS/bookmarks don't need updating.
