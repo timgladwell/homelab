@@ -9,7 +9,6 @@ data:
   HOSTNAME: homelab.home.arpa
   # MetalLB IP allocations - must be static IPs outside your router's DHCP range,
   # within your home network subnet (e.g. 192.168.1.x).
-  # TODO: Change these to match your actual network before applying.
-  METALLB_ADDRESS_RANGE: "10.6.1.10-10.6.1.30"
-  METALLB_TRAEFIK_IP: "10.6.1.20"
-  METALLB_PIHOLE_IP: "10.6.1.10"
+  METALLB_ADDRESS_RANGE: "10.6.1.10-10.6.1.99"
+  METALLB_TRAEFIK_IP: "10.6.1.80"
+  METALLB_PIHOLE_IP: "10.6.1.53"
