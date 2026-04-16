@@ -33,9 +33,12 @@ spec:
           env:
             - name: TZ
               value: "America/Toronto"
-            # Unbound is the sole upstream DNS resolver
+            # Unbound is the sole upstream DNS resolver. Using the pinned
+            # ClusterIP directly avoids a circular dependency at startup:
+            # dnsmasq would fail to resolve the hostname before the pod network
+            # is ready, causing CrashLoopBackOff. See unbound-service.yaml.
             - name: FTLCONF_dns_upstreams
-              value: "unbound.dns.svc.cluster.local#5335"
+              value: "10.43.0.53#5335"
             # No web UI password
             - name: FTLCONF_webserver_api_password
               value: ""

@@ -8,6 +8,10 @@ spec:
   selector:
     app: unbound
   type: ClusterIP
+  # Pinned so PiHole can reference Unbound by IP at startup, avoiding the
+  # circular dependency where dnsmasq tries to resolve the hostname before
+  # the pod network is fully up.
+  clusterIP: 10.43.0.53
   ports:
     - name: dns-udp
       port: 5335
