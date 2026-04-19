@@ -1,0 +1,57 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pihole-sync
+  namespace: dns
+spec:
+  # Flux force-recreates this Job when the ConfigMap hash changes (i.e. when
+  # pihole-config.yaml or sync.py changes). The 7-day TTL ensures completed
+  # pods don't accumulate and gives Flux a periodic re-check opportunity.
+  ttlSecondsAfterFinished: 604800
+  backoffLimit: 2
+  # Gravity update can take ~10 minutes; 20 minutes covers that with headroom.
+  activeDeadlineSeconds: 1200
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      containers:
+        - name: sync
+          image: python:3.12-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              pip install --quiet --no-cache-dir --target=/tmp/pydeps pyyaml
+              PYTHONPATH=/tmp/pydeps python /sync/sync.py
+          env:
+            - name: PIHOLE_URL
+              value: "http://pihole-web.dns.svc.cluster.local"
+            - name: CONFIG_PATH
+              value: "/sync/pihole-config.yaml"
+            - name: PIHOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pihole-secret
+                  key: FTLCONF_webserver_api_password
+          volumeMounts:
+            - name: sync
+              mountPath: /sync
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: sync
+          configMap:
+            name: pihole-sync

@@ -49,9 +49,6 @@ spec:
             # is ready, causing CrashLoopBackOff. See unbound-service.yaml.
             - name: FTLCONF_dns_upstreams
               value: "10.43.0.53#5335"
-            # No web UI password
-            - name: FTLCONF_webserver_api_password
-              value: ""
             - name: FTLCONF_webserver_port
               value: "8080"
             # PiHole is not the DHCP server
