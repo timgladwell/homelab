@@ -5,7 +5,11 @@
   ],
   "enabledManagers": ["flux"],
   "flux": {
-    "fileMatch": ["(^|/)clusters/.+\\.ya?ml$", "(^|/)infrastructure/.+\\.ya?ml$", "(^|/)apps/.+\\.ya?ml$"]
+    "managerFilePatterns": [
+      "/(^|/)clusters/.+\\.ya?ml$/",
+      "/(^|/)infrastructure/.+\\.ya?ml$/",
+      "/(^|/)apps/.+\\.ya?ml$/"
+    ]
   },
   "schedule": ["every weekend"]
 }
