@@ -3,7 +3,7 @@ version: 2
 updates:
   - package-ecosystem: docker
     directories:
-      - "/**"
+      - "/infrastructure/homelab/dns"
     schedule:
       interval: weekly
 
