@@ -3,11 +3,14 @@
 ## Overview
 
 Add metrics collection, log aggregation, and Grafana dashboards to the homelab.
-The stack is **Prometheus + Loki + Grafana** (PLG — the practical subset of LGTM for a
-single-node cluster; Mimir is skipped in favour of Prometheus, Tempo is out of scope).
+The stack is **Prometheus + Loki + Grafana + OTel Collector** (PLG+OTel — the practical
+subset of LGTM for a single-node cluster; Mimir is skipped in favour of Prometheus;
+Tempo/distributed tracing is a natural Phase 11 follow-on once the OTel Collector is
+in place).
 
 All work follows the existing GitOps pattern: Flux CD + Kustomize + HelmReleases,
-SOPS-encrypted secrets, subdomain routing via Traefik.
+SOPS-encrypted secrets, subdomain routing via Traefik (with MetalLB for LoadBalancer
+services where appropriate).
 
 ### Target coverage
 
@@ -17,7 +20,7 @@ SOPS-encrypted secrets, subdomain routing via Traefik.
 | Homelab host (CPU, memory, disk, network, temperature) | ✓ | ✓ |
 | PiHole | ✓ | ✓ |
 | Unbound | ✓ | ✓ |
-| UniFi network (UDM) | ✓ | — |
+| UniFi network (UDM) | ✓ | ✓ (SIEM syslog) |
 | Traefik ingress | ✓ | ✓ |
 | Flux CD | ✓ | ✓ |
 
@@ -28,6 +31,7 @@ SOPS-encrypted secrets, subdomain routing via Traefik.
 | Prometheus | 14 Gi | 14 days / 12 GB |
 | Loki | 8 Gi | 7 days |
 | Grafana | 2 Gi | — |
+| OTel Collector | — (no persistent store) | — |
 | **Total** | **~24 Gi** | within 20–30 GB budget |
 
 ### Key conventions
@@ -194,6 +198,11 @@ infrastructure/homelab/monitoring/grafana-ingressroute.yaml
 Traefik `IngressRoute` routing `grafana.${DOMAIN}` →
 `kube-prometheus-stack-grafana` service on port 80 in namespace `monitoring`.
 Follow the pattern in `infrastructure/homelab/dns/pihole-ingressroute.yaml`.
+
+**MetalLB note:** If Traefik has been or will be migrated from `hostNetwork: true`
+to a MetalLB `LoadBalancer` service, verify that the Traefik service name and port
+still match before applying this IngressRoute. The IngressRoute resource itself is
+unchanged; only the backend service type differs.
 
 ---
 
@@ -473,6 +482,48 @@ Each is a `ConfigMap` with label `grafana_dashboard: "1"` in namespace `monitori
 
 ---
 
+### Task 6.4 — UniFi SIEM syslog ingestion
+
+The UDM has a built-in SIEM / syslog forwarding option (Settings → System →
+Advanced → Remote Logging). This delivers real-time **event logs** (firewall rules
+hit, IDS/IPS alerts, client auth, DHCP, VPN) that unpoller does not capture —
+unpoller only covers time-series metrics. The two are complementary.
+
+**Approach:** Add a Promtail syslog scrape config so Promtail listens on a UDP
+port on the host and forwards directly to Loki. No extra daemon required.
+
+**File to modify:**
+```
+infrastructure/homelab/monitoring/promtail.yaml
+```
+
+Add to `extraScrapeConfigs`:
+```yaml
+- job_name: unifi-siem
+  syslog:
+    listen_address: 0.0.0.0:1514
+    labels:
+      job: unifi-siem
+  relabel_configs:
+    - source_labels: [__syslog_message_hostname]
+      target_label: host
+    - source_labels: [__syslog_message_app_name]
+      target_label: app
+```
+
+Add `hostNetwork: true` or a `hostPort: 1514` to the Promtail DaemonSet so the
+UDM can reach it. Since the cluster already uses hostNetwork for PiHole and
+Traefik, a `hostPort` on the Promtail DaemonSet is the lower-blast-radius option.
+
+**UDM configuration (manual step):**
+In the UDM controller UI: Settings → System → Remote Logging →
+set target to `<node-ip>:1514`, protocol `UDP`, format `syslog`.
+
+**Grafana:** No dedicated dashboard needed — use the built-in Loki Explore panel
+with filter `{job="unifi-siem"}` to search firewall/IDS events.
+
+---
+
 ## Phase 7 — Traefik and Flux CD Metrics
 
 ### Task 7.1 — Traefik metrics
@@ -584,6 +635,156 @@ All dashboard ConfigMaps must carry:
 
 ---
 
+## Phase 10 — OpenTelemetry Collector (custom app support)
+
+This phase adds an **OpenTelemetry Collector** as the universal ingestion point
+for hosted applications and custom apps. Apps instrument once with the OTel SDK
+and send to a single endpoint; the collector fans out to Prometheus, Loki, and
+(in a future Phase 11) Tempo for traces.
+
+```
+Custom app / hosted app
+  └─ OTel SDK (metrics, logs, traces)
+       └─ OTLP → OTel Collector
+                    ├─ Prometheus remote_write  (metrics)
+                    ├─ Loki push API            (logs)
+                    └─ Tempo (future Phase 11)  (traces)
+```
+
+Without this layer, every new app would need to independently expose a Prometheus
+`/metrics` endpoint and manage its own log shipping.
+
+### Task 10.1 — Add OpenTelemetry Operator HelmRepository
+
+**File to create:**
+```
+infrastructure/homelab/monitoring/otel-helmrepo.yaml
+```
+
+`HelmRepository` for the OpenTelemetry Operator:
+- Name: `open-telemetry`
+- URL: `https://open-telemetry.github.io/opentelemetry-helm-charts`
+- interval: `24h`
+
+---
+
+### Task 10.2 — Deploy OpenTelemetry Operator
+
+**File to create:**
+```
+infrastructure/homelab/monitoring/otel-operator.yaml
+```
+
+`HelmRelease` for chart `opentelemetry-operator`. The operator manages
+`OpenTelemetryCollector` custom resources and handles cert rotation.
+
+Key values:
+```yaml
+manager:
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 100m, memory: 128Mi }
+admissionWebhooks:
+  certManager:
+    enabled: false     # no cert-manager yet; use operator's self-signed certs
+```
+
+OTel Operator images are ARM64-compatible ✓.
+
+---
+
+### Task 10.3 — Deploy OpenTelemetry Collector instance
+
+**File to create:**
+```
+infrastructure/homelab/monitoring/otel-collector.yaml
+```
+
+`OpenTelemetryCollector` CR in namespace `monitoring`, mode `Deployment`.
+
+Receiver / exporter configuration:
+```yaml
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  processors:
+    batch: {}
+    memory_limiter:
+      limit_mib: 128
+  exporters:
+    prometheusremotewrite:
+      endpoint: http://kube-prometheus-stack-prometheus:9090/api/v1/write
+    loki:
+      endpoint: http://loki:3100/loki/api/v1/push
+      default_labels_enabled:
+        exporter: false
+        job: true
+  service:
+    pipelines:
+      metrics:
+        receivers:  [otlp]
+        processors: [memory_limiter, batch]
+        exporters:  [prometheusremotewrite]
+      logs:
+        receivers:  [otlp]
+        processors: [memory_limiter, batch]
+        exporters:  [loki]
+```
+
+Resources: `requests: {cpu: 100m, memory: 128Mi}`, `limits: {cpu: 200m, memory: 256Mi}`
+
+---
+
+### Task 10.4 — Expose collector endpoint via Service
+
+The `OpenTelemetryCollector` CR auto-generates a Service, but verify it is
+reachable from other namespaces. Apps in any namespace can send to:
+- `http://otel-collector.monitoring.svc.cluster.local:4318` (HTTP/OTLP)
+- `grpc://otel-collector.monitoring.svc.cluster.local:4317` (gRPC/OTLP)
+
+Document the endpoint addresses in a `ConfigMap` in the `monitoring` namespace
+so apps can reference it via environment variable injection rather than
+hard-coding the address.
+
+**File to create:**
+```
+infrastructure/homelab/monitoring/otel-endpoints-configmap.yaml
+```
+
+---
+
+### Task 10.5 — Enable Prometheus remote_write receiver
+
+By default, Prometheus does not accept remote_write from external sources.
+Add to the kube-prometheus-stack HelmRelease:
+```yaml
+prometheus:
+  prometheusSpec:
+    enableRemoteWriteReceiver: true
+```
+
+This allows the OTel Collector's `prometheusremotewrite` exporter to push metrics
+into the existing Prometheus instance, keeping a single metrics store.
+
+---
+
+### Task 10.6 — (Future — Phase 11) Add Tempo for traces
+
+When distributed tracing is needed:
+- Add `grafana/tempo` HelmRelease (single-binary mode, ~4 Gi PVC)
+- Add `traces` pipeline to OTel Collector with `otlp` exporter pointing at Tempo
+- Add Tempo as a datasource in Grafana
+- Add trace-to-log and trace-to-metric correlations in Grafana datasource config
+
+This completes the full LGTM stack.
+
+---
+
 ## Verification Checklist
 
 After each phase, run the validation pipeline:
@@ -618,6 +819,8 @@ After full deployment (via Flux reconciliation):
 | pihole-exporter | ekofr/pihole-exporter | ✓ |
 | unbound-exporter | ar51an/unbound-exporter | verify tag |
 | unpoller | ghcr.io/unpoller/unpoller | ✓ |
+| OTel Operator | ghcr.io/open-telemetry/opentelemetry-operator | ✓ |
+| OTel Collector | ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib | ✓ |
 
 ---
 
@@ -642,6 +845,10 @@ infrastructure/homelab/monitoring/
 ├── traefik-servicemonitor.yaml
 ├── flux-servicemonitor.yaml
 ├── alerting-rules.yaml
+├── otel-helmrepo.yaml
+├── otel-operator.yaml
+├── otel-collector.yaml
+├── otel-endpoints-configmap.yaml
 └── dashboards/
     ├── kustomization.yaml
     ├── pihole-dashboard.yaml
