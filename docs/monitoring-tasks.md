@@ -143,7 +143,6 @@ prometheus:
             requests:
               storage: 14Gi
     serviceMonitorSelectorNilUsesHelmValues: false   # scrape ALL ServiceMonitors
-    podMonitorSelectorNilUsesHelmValues: false        # scrape ALL PodMonitors (needed for Traefik)
     ruleSelectorNilUsesHelmValues: false              # pick up ALL PrometheusRules
     resources:
       requests: { cpu: 200m, memory: 512Mi }
@@ -517,9 +516,9 @@ Add to `extraScrapeConfigs`:
       target_label: app
 ```
 
-Add `hostNetwork: true` or a `hostPort: 1514` to the Promtail DaemonSet so the
-UDM can reach it. Since the cluster already uses hostNetwork for PiHole and
-Traefik, a `hostPort` on the Promtail DaemonSet is the lower-blast-radius option.
+Add a `hostPort: 1514` to the Promtail DaemonSet container so the UDM can reach
+the node on that port. No `hostNetwork` is needed — a `hostPort` alone binds the
+single port on the node's IP without giving the pod full host-network access.
 
 **UDM configuration (manual step):**
 In the UDM controller UI: Settings → System → Remote Logging →
@@ -534,33 +533,56 @@ with filter `{job="unifi-siem"}` to search firewall/IDS events.
 
 ### Task 7.1 — Traefik metrics
 
-**Important:** Traefik's `traefik` entrypoint (port 9000) is configured with
-`expose: {default: false}`, which means it is intentionally **absent from the
-MetalLB LoadBalancer service**. The port is open on the pod itself but no
-`Service` port maps to it. A standard `ServiceMonitor` (which targets a Service)
-therefore cannot reach it — use a `PodMonitor` instead.
+**Approach:** Add a dedicated ClusterIP `Service` for Traefik's metrics port so
+that a standard `ServiceMonitor` can be used (the conventional pattern). Port 9000
+stays absent from the MetalLB LoadBalancer service — it is only reachable
+in-cluster via the ClusterIP, which is exactly what Prometheus needs.
 
 **File to modify:**
 ```
 infrastructure/homelab/traefik/helmrelease.yaml
 ```
 
-Add to Traefik Helm values to enable Prometheus metrics on the traefik entrypoint:
+Add to Traefik Helm values to enable Prometheus metrics:
 ```yaml
 metrics:
   prometheus:
-    entryPoint: traefik    # serves /metrics on :9000 (pod-only, not LoadBalancer)
+    entryPoint: traefik    # serves /metrics on :9000
 ```
 
 **File to create:**
 ```
-infrastructure/homelab/monitoring/traefik-podmonitor.yaml
+infrastructure/homelab/traefik/metrics-service.yaml
 ```
 
-`PodMonitor` (not `ServiceMonitor`) in namespace `monitoring`:
+A ClusterIP `Service` in namespace `traefik` that exposes port 9000 without
+touching the MetalLB LoadBalancer service:
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-metrics
+  namespace: traefik
+spec:
+  selector:
+    app.kubernetes.io/name: traefik
+  ports:
+    - name: metrics
+      port: 9000
+      targetPort: 9000
+```
+
+Add `metrics-service.yaml` to `infrastructure/homelab/traefik/kustomization.yaml`.
+
+**File to create:**
+```
+infrastructure/homelab/monitoring/traefik-servicemonitor.yaml
+```
+
+`ServiceMonitor` targeting the `traefik-metrics` ClusterIP service:
 ```yaml
 apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
+kind: ServiceMonitor
 metadata:
   name: traefik
   namespace: monitoring
@@ -569,17 +591,15 @@ spec:
     matchNames: [traefik]
   selector:
     matchLabels:
-      app.kubernetes.io/name: traefik
-  podMetricsEndpoints:
-    - port: traefik    # named port on the pod, port 9000
+      app.kubernetes.io/name: traefik-metrics
+  endpoints:
+    - port: metrics
       path: /metrics
       interval: 30s
 ```
 
-Also ensure `prometheusSpec.podMonitorSelectorNilUsesHelmValues: false` is set
-in the kube-prometheus-stack HelmRelease (alongside the existing
-`serviceMonitorSelectorNilUsesHelmValues: false`) so that all `PodMonitor`
-resources are picked up regardless of labels.
+Remove `podMonitorSelectorNilUsesHelmValues: false` from the kube-prometheus-stack
+values added in Task 2.1 — it is no longer needed.
 
 **Dashboard file to create:**
 ```
@@ -875,7 +895,7 @@ infrastructure/homelab/monitoring/
 ├── unbound-servicemonitor.yaml
 ├── unpoller-secret.sops.yaml
 ├── unpoller.yaml
-├── traefik-podmonitor.yaml
+├── traefik-servicemonitor.yaml
 ├── flux-servicemonitor.yaml
 ├── alerting-rules.yaml
 ├── otel-helmrepo.yaml
