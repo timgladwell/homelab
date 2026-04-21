@@ -9,8 +9,14 @@ Tempo/distributed tracing is a natural Phase 11 follow-on once the OTel Collecto
 in place).
 
 All work follows the existing GitOps pattern: Flux CD + Kustomize + HelmReleases,
-SOPS-encrypted secrets, subdomain routing via Traefik (with MetalLB for LoadBalancer
-services where appropriate).
+SOPS-encrypted secrets, subdomain routing via Traefik.
+
+**Confirmed infrastructure (already deployed on `main`):**
+- MetalLB v0.15 in L2/ARP mode — provides stable external IPs for LoadBalancer services
+- Traefik exposed via MetalLB at `${METALLB_TRAEFIK_IP}` (10.6.1.80); no `hostNetwork`
+- PiHole DNS port 53 exposed via MetalLB at `${METALLB_PIHOLE_IP}` (10.6.1.53) on service `pihole-dns`; no `hostNetwork`
+- New `cluster-vars.yaml` entries: `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`
+- System upgrade controller for automated K3s updates
 
 ### Target coverage
 
@@ -137,6 +143,7 @@ prometheus:
             requests:
               storage: 14Gi
     serviceMonitorSelectorNilUsesHelmValues: false   # scrape ALL ServiceMonitors
+    podMonitorSelectorNilUsesHelmValues: false        # scrape ALL PodMonitors (needed for Traefik)
     ruleSelectorNilUsesHelmValues: false              # pick up ALL PrometheusRules
     resources:
       requests: { cpu: 200m, memory: 512Mi }
@@ -199,10 +206,9 @@ Traefik `IngressRoute` routing `grafana.${DOMAIN}` →
 `kube-prometheus-stack-grafana` service on port 80 in namespace `monitoring`.
 Follow the pattern in `infrastructure/homelab/dns/pihole-ingressroute.yaml`.
 
-**MetalLB note:** If Traefik has been or will be migrated from `hostNetwork: true`
-to a MetalLB `LoadBalancer` service, verify that the Traefik service name and port
-still match before applying this IngressRoute. The IngressRoute resource itself is
-unchanged; only the backend service type differs.
+Traefik is already running as a MetalLB `LoadBalancer` at `${METALLB_TRAEFIK_IP}`.
+The IngressRoute approach is unchanged — this is purely a backend service type detail
+that does not affect how IngressRoutes are authored.
 
 ---
 
@@ -528,25 +534,52 @@ with filter `{job="unifi-siem"}` to search firewall/IDS events.
 
 ### Task 7.1 — Traefik metrics
 
+**Important:** Traefik's `traefik` entrypoint (port 9000) is configured with
+`expose: {default: false}`, which means it is intentionally **absent from the
+MetalLB LoadBalancer service**. The port is open on the pod itself but no
+`Service` port maps to it. A standard `ServiceMonitor` (which targets a Service)
+therefore cannot reach it — use a `PodMonitor` instead.
+
 **File to modify:**
 ```
 infrastructure/homelab/traefik/helmrelease.yaml
 ```
 
-Add to Traefik Helm values:
+Add to Traefik Helm values to enable Prometheus metrics on the traefik entrypoint:
 ```yaml
 metrics:
   prometheus:
-    entryPoint: traefik    # expose on the internal :9000 entrypoint
+    entryPoint: traefik    # serves /metrics on :9000 (pod-only, not LoadBalancer)
 ```
 
 **File to create:**
 ```
-infrastructure/homelab/monitoring/traefik-servicemonitor.yaml
+infrastructure/homelab/monitoring/traefik-podmonitor.yaml
 ```
 
-`ServiceMonitor` targeting the `traefik` service in namespace `traefik` on port
-`traefik` (9000). Set `namespaceSelector` to match the `traefik` namespace.
+`PodMonitor` (not `ServiceMonitor`) in namespace `monitoring`:
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: traefik
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames: [traefik]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  podMetricsEndpoints:
+    - port: traefik    # named port on the pod, port 9000
+      path: /metrics
+      interval: 30s
+```
+
+Also ensure `prometheusSpec.podMonitorSelectorNilUsesHelmValues: false` is set
+in the kube-prometheus-stack HelmRelease (alongside the existing
+`serviceMonitorSelectorNilUsesHelmValues: false`) so that all `PodMonitor`
+resources are picked up regardless of labels.
 
 **Dashboard file to create:**
 ```
@@ -842,7 +875,7 @@ infrastructure/homelab/monitoring/
 ├── unbound-servicemonitor.yaml
 ├── unpoller-secret.sops.yaml
 ├── unpoller.yaml
-├── traefik-servicemonitor.yaml
+├── traefik-podmonitor.yaml
 ├── flux-servicemonitor.yaml
 ├── alerting-rules.yaml
 ├── otel-helmrepo.yaml
