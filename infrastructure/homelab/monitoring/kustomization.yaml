@@ -6,3 +6,5 @@ resources:
   - prometheus-helmrepo.yaml
   - grafana-helmrepo.yaml
   - kube-prometheus-stack.yaml
+  - grafana-secret.sops.yaml
+  - grafana-ingressroute.yaml
