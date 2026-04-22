@@ -6,3 +6,4 @@ resources:
   - ./traefik
   - ./dns
   - ./system-upgrade-controller
+  - ./monitoring
