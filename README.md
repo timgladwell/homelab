@@ -8,7 +8,9 @@ Some cluster configuration must be applied directly on the host and is **not man
 
 ### K3s control-plane metrics exposure
 
-By default, K3s binds `kube-controller-manager`, `kube-scheduler`, and `etcd` metrics to `127.0.0.1`, making them unreachable from Prometheus. Apply the following to expose them on all interfaces:
+By default, K3s binds `kube-controller-manager` and `kube-scheduler` metrics to `127.0.0.1`, making them unreachable from Prometheus. Apply the following to expose them on all interfaces.
+
+Note: K3s uses SQLite as its datastore by default (not etcd), and does not run kube-proxy. Both are disabled in the Prometheus chart config — do not add `etcd-arg` or attempt to scrape kube-proxy.
 
 **File:** `/etc/rancher/k3s/config.yaml` on the K3s host
 
@@ -17,7 +19,6 @@ This file does not exist by default — K3s only reads it if present. Create it 
 ```yaml
 kube-controller-manager-arg: "bind-address=0.0.0.0"
 kube-scheduler-arg: "bind-address=0.0.0.0"
-etcd-arg: "listen-metrics-urls=http://0.0.0.0:2381"
 ```
 
 Before creating the file, check whether K3s was started with any existing flags so you don't accidentally drop them:
@@ -32,7 +33,7 @@ After creating the file, restart K3s:
 sudo systemctl restart k3s
 ```
 
-This is a prerequisite for the `kube-controller-manager`, `kube-scheduler`, and `kube-etcd` ServiceMonitors in `infrastructure/homelab/monitoring/k3s-controlplane-servicemonitors.yaml` to return data.
+This is a prerequisite for the `kube-controller-manager` and `kube-scheduler` Prometheus targets to show as `UP`.
 
 ### UniFi SIEM syslog forwarding
 
