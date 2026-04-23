@@ -52,6 +52,12 @@ spec:
           cpu: 300m
           memory: 512Mi
 
+    chunksCache:
+      enabled: false
+
+    resultsCache:
+      enabled: false
+
     backend:
       replicas: 0
     read:
