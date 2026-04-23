@@ -51,9 +51,9 @@ SOPS-encrypted secrets, subdomain routing via Traefik.
 
 ---
 
-## Phase 1 — Foundation
+## Phase 1 — Foundation ✅ COMPLETE
 
-### Task 1.1 — Create monitoring namespace and directory skeleton
+### Task 1.1 — Create monitoring namespace and directory skeleton ✅
 
 **Files to create:**
 ```
@@ -76,7 +76,7 @@ Add `- ./monitoring` to the resources list.
 
 ---
 
-### Task 1.2 — Add HelmRepositories
+### Task 1.2 — Add HelmRepositories ✅
 
 **Files to create:**
 ```
@@ -100,9 +100,9 @@ Add both to `kustomization.yaml`.
 
 ---
 
-## Phase 2 — Metrics Stack (Prometheus + Grafana + Alertmanager)
+## Phase 2 — Metrics Stack (Prometheus + Grafana + Alertmanager) ✅ COMPLETE
 
-### Task 2.1 — Deploy kube-prometheus-stack
+### Task 2.1 — Deploy kube-prometheus-stack ✅
 
 **Files to create:**
 ```
@@ -110,7 +110,7 @@ infrastructure/homelab/monitoring/kube-prometheus-stack.yaml
 ```
 
 `HelmRelease` targeting chart `kube-prometheus-stack` from the
-`prometheus-community` HelmRepository. Pin to the latest `~69.x` release.
+`prometheus-community` HelmRepository. Pinned to `~83.x`.
 
 Key Helm values:
 
@@ -172,7 +172,7 @@ Add to `kustomization.yaml`.
 
 ---
 
-### Task 2.2 — Grafana admin secret
+### Task 2.2 — Grafana admin secret ✅
 
 **File to create:**
 ```
@@ -194,7 +194,7 @@ Use `scripts/secrets-helper.sh` to encrypt.
 
 ---
 
-### Task 2.3 — Grafana IngressRoute
+### Task 2.3 — Grafana IngressRoute ✅
 
 **File to create:**
 ```
@@ -211,38 +211,66 @@ that does not affect how IngressRoutes are authored.
 
 ---
 
-### Task 2.4 — K3s control-plane scraping
+### Task 2.4 — K3s control-plane scraping ✅
 
-K3s binds controller-manager, scheduler, and etcd metrics to `127.0.0.1` by
-default, making them unreachable from Prometheus. Two options:
+K3s embeds controller-manager and scheduler in its own process (rather than
+running them as pods), and uses SQLite instead of etcd. This means:
+- `kubeEtcd` is disabled — K3s has no etcd
+- `kubeProxy` is disabled — K3s uses its own routing, not kube-proxy
+- Controller-manager and scheduler must be scraped via the **node IP**, not a
+  pod selector, because they are not Kubernetes pods
 
-**Option A (preferred) — patch K3s config:**
-Edit `/etc/rancher/k3s/config.yaml` on the host (outside GitOps) to expose
-metrics on all interfaces:
+**Host prerequisite (outside GitOps, done once):**
+Edit `/etc/rancher/k3s/config.yaml` on the host:
 ```yaml
 kube-controller-manager-arg: "bind-address=0.0.0.0"
 kube-scheduler-arg: "bind-address=0.0.0.0"
-etcd-arg: "listen-metrics-urls=http://0.0.0.0:2381"
 ```
-Document this as a host-level prerequisite (not managed by Flux).
+Then restart K3s. This exposes metrics on the node's network interface.
+No `etcd-arg` is needed — K3s uses SQLite.
 
-**Option B — additionalScrapeConfigs:**
-Add a `Secret` containing Prometheus `scrape_configs` that target the node IP
-directly; reference it in `prometheusSpec.additionalScrapeConfigsSecret`.
+**GitOps implementation — chart-native endpoints:**
+The `kube-prometheus-stack` chart has built-in support for this K3s pattern.
+Supply the node IP via `${NODE_IP}` and the chart creates headless Services and
+Endpoints automatically, along with its own ServiceMonitors. No custom
+ServiceMonitor files are needed.
 
-**File to create (Option B):**
+`NODE_IP: "10.6.1.3"` is defined in `clusters/homelab/cluster-vars.yaml`.
+
+Relevant section of `kube-prometheus-stack.yaml`:
+```yaml
+kubeControllerManager:
+  endpoints:
+    - ${NODE_IP}
+  service:
+    port: 10257
+    targetPort: 10257
+  serviceMonitor:
+    https: true
+    insecureSkipVerify: true
+
+kubeScheduler:
+  endpoints:
+    - ${NODE_IP}
+  service:
+    port: 10259
+    targetPort: 10259
+  serviceMonitor:
+    https: true
+    insecureSkipVerify: true
+
+kubeEtcd:
+  enabled: false
+
+kubeProxy:
+  enabled: false
 ```
-infrastructure/homelab/monitoring/k3s-scrape-configs-secret.sops.yaml
-```
-
-Whichever option is chosen, create matching `ServiceMonitor` or scrape-config
-entries for `kube-controller-manager`, `kube-scheduler`, and `etcd`.
 
 ---
 
-## Phase 3 — Log Aggregation (Loki + Promtail)
+## Phase 3 — Log Aggregation (Loki + Grafana Alloy)
 
-### Task 3.1 — Deploy Loki (single-binary)
+### Task 3.1 — Deploy Loki (single-binary) ✅
 
 **File to create:**
 ```
@@ -287,42 +315,113 @@ Loki images are multi-arch (ARM64 ✓).
 
 ---
 
-### Task 3.2 — Deploy Promtail
+### Task 3.2 — Deploy Grafana Alloy
+
+> **Note:** Promtail reached end-of-life and has been superseded by
+> [Grafana Alloy](https://grafana.com/docs/alloy/latest/). Alloy is a
+> unified collector for logs, metrics, and traces; it uses a River
+> (HCL-like) configuration language rather than YAML snippets.
 
 **File to create:**
 ```
-infrastructure/homelab/monitoring/promtail.yaml
+infrastructure/homelab/monitoring/alloy.yaml
 ```
 
-`HelmRelease` targeting chart `promtail` from the `grafana` HelmRepository.
-Runs as a DaemonSet; collects pod logs from `/var/log/pods/` and journal logs.
+`HelmRelease` targeting chart `alloy` from the `grafana` HelmRepository.
+Runs as a DaemonSet; collects pod logs via the Kubernetes API and journal
+logs via the systemd journal.
 
-Key values:
+Key Helm values:
 ```yaml
-config:
-  clients:
-    - url: http://loki:3100/loki/api/v1/push
-  snippets:
-    extraScrapeConfigs: |
-      - job_name: journal
-        journal:
-          labels:
-            job: systemd-journal
-        relabel_configs:
-          - source_labels: [__journal__systemd_unit]
-            target_label: unit
-          - source_labels: [__journal__hostname]
-            target_label: host
+controller:
+  type: daemonset
+
+mounts:
+  varlog: true
+  extra:
+    - name: journal
+      mountPath: /var/log/journal
+      readOnly: true
+    - name: machine-id
+      mountPath: /etc/machine-id
+      readOnly: true
+
+extraVolumes:
+  - name: journal
+    hostPath:
+      path: /var/log/journal
+      type: Directory
+  - name: machine-id
+    hostPath:
+      path: /etc/machine-id
+      type: File
+
 resources:
   requests: { cpu: 50m, memory: 64Mi }
   limits:   { cpu: 100m, memory: 128Mi }
+
+alloy:
+  configMap:
+    create: true
+    content: |
+      loki.write "default" {
+        endpoint {
+          url = "http://loki:3100/loki/api/v1/push"
+        }
+      }
+
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pod_logs.output
+        forward_to = [loki.write.default.receiver]
+      }
+
+      discovery.relabel "journal" {
+        targets = []
+        rule {
+          source_labels = ["__journal__systemd_unit"]
+          target_label  = "unit"
+        }
+        rule {
+          source_labels = ["__journal__hostname"]
+          target_label  = "host"
+        }
+      }
+
+      loki.source.journal "system" {
+        path          = "/var/log/journal"
+        forward_to    = [loki.write.default.receiver]
+        relabel_rules = discovery.relabel.journal.rules
+        labels = {
+          job = "systemd-journal",
+        }
+      }
 ```
 
-Promtail images are multi-arch (ARM64 ✓).
+Alloy images are multi-arch (ARM64 ✓).
 
 ---
 
-### Task 3.3 — Add Loki datasource to Grafana
+### Task 3.3 — Add Loki datasource to Grafana ✅
 
 Add to the kube-prometheus-stack HelmRelease values:
 ```yaml
@@ -494,31 +593,44 @@ Advanced → Remote Logging). This delivers real-time **event logs** (firewall r
 hit, IDS/IPS alerts, client auth, DHCP, VPN) that unpoller does not capture —
 unpoller only covers time-series metrics. The two are complementary.
 
-**Approach:** Add a Promtail syslog scrape config so Promtail listens on a UDP
-port on the host and forwards directly to Loki. No extra daemon required.
+**Approach:** Add a syslog listener to the Grafana Alloy config so Alloy listens
+on a UDP port on the host and forwards directly to Loki. No extra daemon required.
 
 **File to modify:**
 ```
-infrastructure/homelab/monitoring/promtail.yaml
+infrastructure/homelab/monitoring/alloy.yaml
 ```
 
-Add to `extraScrapeConfigs`:
-```yaml
-- job_name: unifi-siem
-  syslog:
-    listen_address: 0.0.0.0:1514
-    labels:
-      job: unifi-siem
-  relabel_configs:
-    - source_labels: [__syslog_message_hostname]
-      target_label: host
-    - source_labels: [__syslog_message_app_name]
-      target_label: app
+Add to the Alloy River config (inside `alloy.configMap.content`):
+```river
+loki.source.syslog "unifi_siem" {
+  listener {
+    address  = "0.0.0.0:1514"
+    protocol = "udp"
+  }
+  forward_to = [loki.process.unifi_siem.receiver]
+}
+
+loki.process "unifi_siem" {
+  stage.static_labels {
+    values = { job = "unifi-siem" }
+  }
+  forward_to = [loki.write.default.receiver]
+}
 ```
 
-Add a `hostPort: 1514` to the Promtail DaemonSet container so the UDM can reach
+Add a `hostPort: 1514` to the Alloy DaemonSet container so the UDM can reach
 the node on that port. No `hostNetwork` is needed — a `hostPort` alone binds the
 single port on the node's IP without giving the pod full host-network access.
+Configure via `alloy.extraPorts` in Helm values:
+```yaml
+alloy:
+  extraPorts:
+    - name: syslog-udp
+      port: 1514
+      targetPort: 1514
+      protocol: UDP
+```
 
 **UDM configuration (manual step):**
 In the UDM controller UI: Settings → System → Remote Logging →
@@ -868,7 +980,7 @@ After full deployment (via Flux reconciliation):
 |-----------|-------|-------|
 | kube-prometheus-stack (all) | prometheus-community | ✓ |
 | Loki | grafana/loki | ✓ |
-| Promtail | grafana/promtail | ✓ |
+| Alloy | grafana/alloy | ✓ |
 | pihole-exporter | ekofr/pihole-exporter | ✓ |
 | unbound-exporter | ar51an/unbound-exporter | verify tag |
 | unpoller | ghcr.io/unpoller/unpoller | ✓ |
@@ -888,9 +1000,8 @@ infrastructure/homelab/monitoring/
 ├── kube-prometheus-stack.yaml
 ├── grafana-secret.sops.yaml
 ├── grafana-ingressroute.yaml
-├── k3s-scrape-configs-secret.sops.yaml   (if Option B chosen for Task 2.4)
 ├── loki.yaml
-├── promtail.yaml
+├── alloy.yaml
 ├── pihole-exporter.yaml
 ├── unbound-servicemonitor.yaml
 ├── unpoller-secret.sops.yaml
@@ -913,7 +1024,7 @@ infrastructure/homelab/monitoring/
     ├── traefik-dashboard.yaml
     └── flux-dashboard.yaml
 
-infrastructure/homelab/kustomization.yaml   (add - ./monitoring)
+infrastructure/homelab/kustomization.yaml         (add - ./monitoring) ✅ DONE
 infrastructure/homelab/traefik/helmrelease.yaml   (add Prometheus metrics config)
 infrastructure/homelab/dns/unbound-configmap.yaml (add stats + remote-control)
 infrastructure/homelab/dns/unbound-deployment.yaml (add exporter sidecar)

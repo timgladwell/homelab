@@ -8,3 +8,5 @@ resources:
   - kube-prometheus-stack.yaml
   - grafana-secret.sops.yaml
   - grafana-ingressroute.yaml
+  - loki.yaml
+  - alloy.yaml

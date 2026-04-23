@@ -25,6 +25,12 @@ spec:
       persistence:
         enabled: true
         size: 2Gi
+      additionalDataSources:
+        - name: Loki
+          type: loki
+          url: http://loki:3100
+          access: proxy
+          isDefault: false
       sidecar:
         dashboards:
           enabled: true
