@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Principles
 
 - All changes to this repo go through PRs - do not work on the `main` branch directly
+- Do NOT push code to already merged PRs. Updating open PRs is okay.
 
 ### Validation
 
@@ -58,7 +59,8 @@ Requires `SOPS_AGE_KEY_FILE` to point to the age private key (defaults to `~/.co
 
 ## Architecture
 
-This is a single-node K3s homelab managed with **Flux CD + Kustomize + Helm**.
+- This is a single-node K3s homelab managed with **Flux CD + Kustomize + Helm**.
+- The local development machine is not connected to the homelab server. All commands are executed on the server via SSH session.
 
 ### Directory layout
 
