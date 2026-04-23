@@ -24,6 +24,7 @@ spec:
       compactor:
         retention_enabled: true
         retention_delete_delay: 2h
+        delete_request_store: filesystem
       limitsConfig:
         retention_period: 168h
       schemaConfig:
