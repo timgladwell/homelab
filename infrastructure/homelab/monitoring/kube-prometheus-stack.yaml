@@ -84,3 +84,32 @@ spec:
         limits:
           cpu: 200m
           memory: 256Mi
+
+    kubeControllerManager:
+      endpoints:
+        - ${NODE_IP}
+      service:
+        port: 10257
+        targetPort: 10257
+      serviceMonitor:
+        https: true
+        insecureSkipVerify: true
+
+    kubeScheduler:
+      endpoints:
+        - ${NODE_IP}
+      service:
+        port: 10259
+        targetPort: 10259
+      serviceMonitor:
+        https: true
+        insecureSkipVerify: true
+
+    kubeEtcd:
+      endpoints:
+        - ${NODE_IP}
+      service:
+        port: 2381
+        targetPort: 2381
+      serviceMonitor:
+        scheme: http
