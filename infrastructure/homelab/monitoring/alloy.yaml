@@ -1,0 +1,124 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy
+  namespace: monitoring
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: alloy
+      version: "~1.x"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: monitoring
+      interval: 12h
+  values:
+    controller:
+      type: daemonset
+
+    mounts:
+      varlog: true
+      extra:
+        - name: journal
+          mountPath: /var/log/journal
+          readOnly: true
+        - name: machine-id
+          mountPath: /etc/machine-id
+          readOnly: true
+
+    extraVolumes:
+      - name: journal
+        hostPath:
+          path: /var/log/journal
+          type: Directory
+      - name: machine-id
+        hostPath:
+          path: /etc/machine-id
+          type: File
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+    alloy:
+      extraPorts:
+        - name: syslog-udp
+          port: 1514
+          targetPort: 1514
+          protocol: UDP
+      configMap:
+        create: true
+        content: |
+          loki.write "default" {
+            endpoint {
+              url = "http://loki:3100/loki/api/v1/push"
+            }
+          }
+
+          discovery.kubernetes "pods" {
+            role = "pod"
+          }
+
+          discovery.relabel "pod_logs" {
+            targets = discovery.kubernetes.pods.targets
+            rule {
+              source_labels = ["__meta_kubernetes_namespace"]
+              target_label  = "namespace"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_name"]
+              target_label  = "pod"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_name"]
+              target_label  = "container"
+            }
+          }
+
+          loki.source.kubernetes "pods" {
+            targets    = discovery.relabel.pod_logs.output
+            forward_to = [loki.write.default.receiver]
+          }
+
+          discovery.relabel "journal" {
+            targets = []
+            rule {
+              source_labels = ["__journal__systemd_unit"]
+              target_label  = "unit"
+            }
+            rule {
+              source_labels = ["__journal__hostname"]
+              target_label  = "host"
+            }
+          }
+
+          loki.source.journal "system" {
+            path          = "/var/log/journal"
+            forward_to    = [loki.write.default.receiver]
+            relabel_rules = discovery.relabel.journal.rules
+            labels = {
+              job = "systemd-journal",
+            }
+          }
+
+          loki.source.syslog "unifi_siem" {
+            listener {
+              address  = "0.0.0.0:1514"
+              protocol = "udp"
+            }
+            forward_to = [loki.process.unifi_siem.receiver]
+          }
+
+          loki.process "unifi_siem" {
+            stage.static_labels {
+              values = { job = "unifi-siem" }
+            }
+            forward_to = [loki.write.default.receiver]
+          }

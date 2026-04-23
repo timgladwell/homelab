@@ -1,0 +1,59 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: loki
+  namespace: monitoring
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: loki
+      version: "~6.x"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: monitoring
+      interval: 12h
+  values:
+    loki:
+      commonConfig:
+        replication_factor: 1
+      storage:
+        type: filesystem
+      compactor:
+        retention_enabled: true
+        retention_delete_delay: 2h
+      limits_config:
+        retention_period: 168h
+      schema_config:
+        configs:
+          - from: "2024-01-01"
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: loki_index_
+              period: 24h
+
+    deploymentMode: SingleBinary
+
+    singleBinary:
+      replicas: 1
+      persistence:
+        enabled: true
+        size: 8Gi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 300m
+          memory: 512Mi
+
+    backend:
+      replicas: 0
+    read:
+      replicas: 0
+    write:
+      replicas: 0
