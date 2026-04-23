@@ -106,10 +106,7 @@ spec:
         insecureSkipVerify: true
 
     kubeEtcd:
-      endpoints:
-        - ${NODE_IP}
-      service:
-        port: 2381
-        targetPort: 2381
-      serviceMonitor:
-        scheme: http
+      enabled: false
+
+    kubeProxy:
+      enabled: false
