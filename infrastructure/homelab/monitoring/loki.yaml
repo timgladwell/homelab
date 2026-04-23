@@ -24,9 +24,9 @@ spec:
       compactor:
         retention_enabled: true
         retention_delete_delay: 2h
-      limits_config:
+      limitsConfig:
         retention_period: 168h
-      schema_config:
+      schemaConfig:
         configs:
           - from: "2024-01-01"
             store: tsdb
