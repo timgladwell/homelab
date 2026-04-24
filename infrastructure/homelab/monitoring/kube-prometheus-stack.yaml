@@ -94,24 +94,10 @@ spec:
           memory: 256Mi
 
     kubeControllerManager:
-      endpoints:
-        - ${NODE_IP}
-      service:
-        port: 10257
-        targetPort: 10257
-      serviceMonitor:
-        https: true
-        insecureSkipVerify: true
+      enabled: false
 
     kubeScheduler:
-      endpoints:
-        - ${NODE_IP}
-      service:
-        port: 10259
-        targetPort: 10259
-      serviceMonitor:
-        https: true
-        insecureSkipVerify: true
+      enabled: false
 
     kubeEtcd:
       enabled: false
