@@ -290,9 +290,10 @@ loki:
   compactor:
     retention_enabled: true
     retention_delete_delay: 2h
-  limits_config:
-    retention_period: 168h    # 7 days
-  schema_config:
+    delete_request_store: filesystem   # required when retention_enabled: true
+  limitsConfig:                        # camelCase — snake_case is silently ignored by chart v6
+    retention_period: 168h
+  schemaConfig:                        # camelCase — snake_case is silently ignored by chart v6
     configs:
       - from: "2024-01-01"
         store: tsdb
@@ -301,6 +302,9 @@ loki:
         index:
           prefix: loki_index_
           period: 24h
+
+deploymentMode: SingleBinary
+
 singleBinary:
   replicas: 1
   persistence:
@@ -309,7 +313,28 @@ singleBinary:
   resources:
     requests: { cpu: 100m, memory: 128Mi }
     limits:   { cpu: 300m, memory: 512Mi }
+
+chunksCache:
+  enabled: false    # memcached — too memory-hungry for RPi; no benefit in single-binary mode
+
+resultsCache:
+  enabled: false    # memcached — same reason
+
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
 ```
+
+> **Loki chart v6 gotchas (learned during deployment):**
+> - `schemaConfig` and `limitsConfig` must be **camelCase** — the chart's `validate.yaml` template
+>   reads these keys directly and silently ignores the snake_case equivalents, causing a startup failure.
+> - `compactor.delete_request_store` must be set when `retention_enabled: true` — omitting it
+>   causes Loki to exit immediately with a config error.
+> - The chart deploys `memcached` StatefulSets for `chunksCache` and `resultsCache` by default.
+>   On the RPi these fail to schedule (Insufficient memory). Disable both explicitly.
 
 Loki images are multi-arch (ARM64 ✓).
 
