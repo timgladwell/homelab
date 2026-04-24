@@ -12,7 +12,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Principles
 
 - All changes to this repo go through PRs - do not work on the `main` branch directly
-- Do NOT push code to already merged PRs. Updating open PRs is okay.
+- **Do NOT push to merged PRs.** Any deployment feedback (pod logs, Helm errors, `flux get` output) means the relevant PR is already merged. Always start a new branch for the fix.
+- **Always branch from `origin/main`.** Run `git fetch origin` then `git checkout -b <branch> origin/main` before starting any new change. Never branch from a previous feature branch — it will carry commits that are already merged and cause conflicts.
 
 ### Validation
 
