@@ -10,3 +10,4 @@ resources:
   - grafana-ingressroute.yaml
   - loki.yaml
   - alloy.yaml
+  - ./dashboards
