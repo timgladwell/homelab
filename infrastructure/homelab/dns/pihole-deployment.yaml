@@ -57,8 +57,6 @@ spec:
               value: "true"
             - name: FTLCONF_dns_specialDomains_designatedResolver
               value: "true"
-            - name: FTLCONF_dns_piholePTR
-              value: "NONE"
           envFrom:
             - secretRef:
                 name: pihole-secret
