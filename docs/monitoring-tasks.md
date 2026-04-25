@@ -34,7 +34,7 @@ SOPS-encrypted secrets, subdomain routing via Traefik.
 
 | Component | PVC | Retention |
 |-----------|-----|-----------|
-| Prometheus | 14 Gi | 14 days / 12 GB |
+| Prometheus | 14 Gi | ~~14 days / 12 GB~~ → **7 days / 6 GB** (tuned PR #50) |
 | Loki | 8 Gi | 7 days |
 | Grafana | 2 Gi | — |
 | OTel Collector | — (no persistent store) | — |
@@ -133,8 +133,8 @@ grafana:
 
 prometheus:
   prometheusSpec:
-    retention: 14d
-    retentionSize: 12GB
+    retention: 7d          # reduced from 14d in PR #50
+    retentionSize: 6GB     # reduced from 12GB in PR #50
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -146,7 +146,7 @@ prometheus:
     ruleSelectorNilUsesHelmValues: false              # pick up ALL PrometheusRules
     resources:
       requests: { cpu: 200m, memory: 512Mi }
-      limits:   { cpu: 500m, memory: 1Gi }
+      limits:   { cpu: 500m, memory: 2Gi }   # raised from 1Gi in PR #52
 
 alertmanager:
   alertmanagerSpec:
@@ -211,7 +211,7 @@ that does not affect how IngressRoutes are authored.
 
 ---
 
-### Task 2.4 — K3s control-plane scraping ✅
+### Task 2.4 — K3s control-plane scraping ✅ (partially reverted — see PR #51)
 
 K3s embeds controller-manager and scheduler in its own process (rather than
 running them as pods), and uses SQLite instead of etcd. This means:
@@ -265,6 +265,61 @@ kubeEtcd:
 kubeProxy:
   enabled: false
 ```
+
+> **PR #51 follow-up:** `kubeControllerManager` and `kubeScheduler` scrapers were
+> subsequently **disabled** on the deployed cluster. On K3s these components are
+> embedded in the k3s server binary and expose the full process metric set (~51K
+> samples/scrape); after relabeling only ~724 series survive — not worth the
+> overhead on a throttling RPi. The host prerequisite (bind-address config) was
+> left in place but the chart sections are now `enabled: false` in the deployed
+> `kube-prometheus-stack.yaml`.
+
+---
+
+### Task 2.5 — Node Exporter Full dashboard ✅ (done early — PR #49)
+
+Deployed ahead of Phase 9 to help diagnose RPi thermal throttling (CPU reaching
+81 °C with Prometheus compaction as the primary I/O driver).
+
+**Files created:**
+```
+infrastructure/homelab/monitoring/dashboards/kustomization.yaml   ← bootstrapped Phase 9.1
+infrastructure/homelab/monitoring/dashboards/node-exporter-full.json
+```
+
+Grafana dashboard **1860** (Node Exporter Full) — surfaces CPU temperature,
+throttling state, clock frequency, CPU/memory/disk/network for the RPi host via
+the already-deployed `node-exporter`.
+
+Used `configMapGenerator` (JSON file on disk) rather than embedding 468 KB of
+JSON inline in YAML. The `dashboards/kustomization.yaml` bootstrapped for this
+task is the same file Phase 9.1 would have created — Phase 9.1 only needs to
+add remaining dashboard entries.
+
+---
+
+### Task 2.6 — Prometheus operational tuning ✅ (PRs #50, #51, #52)
+
+Emergency tuning applied after initial deployment revealed the RPi was thermal
+throttling at 81 °C with sustained 250 MB/s SSD reads driven by Prometheus
+compaction.
+
+**Root cause (PR #52):** Memory was capped at 1 Gi. With 209K active series
+Prometheus hit the limit every 2–3 minutes, triggering premature head block
+flushes. Each flush produced a small Level 1 block; the compactor then merged
+them continuously, causing the I/O spike.
+
+| Change | PR | Before | After |
+|--------|----|--------|-------|
+| Scrape interval | #50 | 15s | 60s |
+| Evaluation interval | #50 | 15s | 60s |
+| Retention | #50 | 14d / 12 GB | 7d / 6 GB |
+| Prometheus memory limit | #52 | 1 Gi | 2 Gi |
+| kubeControllerManager scraper | #51 | enabled | disabled |
+| kubeScheduler scraper | #51 | enabled | disabled |
+
+Raising memory to 2 Gi restores the normal 2 h head compaction cycle (~40× less
+frequent than before), which should bring I/O back to baseline.
 
 ---
 
@@ -803,21 +858,11 @@ Alertmanager dashboard.
 
 ## Phase 9 — Dashboard Kustomization Wiring
 
-### Task 9.1 — Dashboard subdirectory kustomization
+### Task 9.1 — Dashboard subdirectory kustomization ✅ (bootstrapped in PR #49)
 
-**File to create:**
-```
-infrastructure/homelab/monitoring/dashboards/kustomization.yaml
-```
-
-Lists all dashboard ConfigMap files as resources.
-
-**File to modify:**
-```
-infrastructure/homelab/monitoring/kustomization.yaml
-```
-
-Add `- ./dashboards` to resources.
+`dashboards/kustomization.yaml` and `- ./dashboards` in the monitoring
+kustomization were created as part of Task 2.5 (Node Exporter dashboard). Add
+remaining dashboard files here as they are completed.
 
 All dashboard ConfigMaps must carry:
 - `metadata.namespace: monitoring`
@@ -1039,7 +1084,8 @@ infrastructure/homelab/monitoring/
 ├── otel-collector.yaml
 ├── otel-endpoints-configmap.yaml
 └── dashboards/
-    ├── kustomization.yaml
+    ├── kustomization.yaml                   ✅ DONE (PR #49)
+    ├── node-exporter-full.json              ✅ DONE (PR #49, configMapGenerator source)
     ├── pihole-dashboard.yaml
     ├── unbound-dashboard.yaml
     ├── unifi-uap-dashboard.yaml
