@@ -520,21 +520,39 @@ grafana:
 
 ### Task 4.1 — Deploy pihole-exporter
 
-**File to create:**
+> **Exporter selection note:** The originally planned `ekofr/pihole-exporter` is
+> unmaintained (no commits since mid-2025) and is broken against PiHole v6, which
+> shipped in February 2025 with a completely rewritten REST API and session-based
+> authentication (no static API keys). Use **`bazmonk/pihole6_exporter`** instead,
+> published as a multi-arch Docker image at `amonacoos/pihole6_exporter` on Docker Hub
+> (`amonacoos` is the Docker Hub identity of `peatonet`, the author of
+> [`peatonet/pihole6-exporter-docker`](https://github.com/peatonet/pihole6-exporter-docker),
+> the dedicated Docker packaging repo for this exporter).
+>
+> **PiHole v6 auth prerequisite (manual step):**
+> In the PiHole UI go to Settings → API → "App password" and generate a password.
+> Store it in a SOPS-encrypted secret (see below) — this replaces the old static API token.
+
+**Files to create:**
 ```
 infrastructure/homelab/monitoring/pihole-exporter.yaml
+infrastructure/homelab/monitoring/pihole-exporter-secret.sops.yaml
 ```
 
-Contains three resources in namespace `monitoring`:
+`pihole-exporter-secret.sops.yaml` — `Secret` in namespace `monitoring`,
+SOPS-encrypted field `PIHOLE_API_KEY` (the app password from the PiHole UI).
 
-1. `Deployment` — image `ekofr/pihole-exporter:latest` (ARM64 ✓)
-   - Env: `PIHOLE_HOSTNAME=pihole.dns.svc.cluster.local`, `PIHOLE_PORT=8080`,
-     `INTERVAL=30s`
+`pihole-exporter.yaml` contains three resources in namespace `monitoring`:
+
+1. `Deployment` — image `amonacoos/pihole6_exporter:latest` (ARM64 ✓)
+   - Env (plain): `PIHOLE_HOST=pihole.dns.svc.cluster.local`, `PIHOLE_PORT=8080`,
+     `PIHOLE_SCHEME=http`
+   - Env (from secret): `PIHOLE_API_KEY` from `pihole-exporter-secret`
    - Resources: `requests: {cpu: 20m, memory: 32Mi}`, `limits: {cpu: 50m, memory: 64Mi}`
 
-2. `Service` — port 9617
+2. `Service` — port 9666
 
-3. `ServiceMonitor` — targets the Service above, scrape interval 30s,
+3. `ServiceMonitor` — targets the Service above on port 9666, scrape interval 30s,
    namespace `monitoring`
 
 ---
@@ -547,8 +565,10 @@ infrastructure/homelab/monitoring/dashboards/pihole-dashboard.yaml
 ```
 
 `ConfigMap` in namespace `monitoring` with label `grafana_dashboard: "1"`.
-Fetch dashboard JSON from Grafana.com ID **10176**
-(PiHole Exporter dashboard for Prometheus).
+
+Fetch dashboard JSON from Grafana.com ID **21043** ("Pi-hole ver6 stats") — this
+dashboard is built specifically for `bazmonk/pihole6_exporter` so metric names
+match exactly. ID 10176 (the old `ekofr` dashboard) is incompatible.
 
 ---
 
@@ -1051,7 +1071,7 @@ After full deployment (via Flux reconciliation):
 | kube-prometheus-stack (all) | prometheus-community | ✓ |
 | Loki | grafana/loki | ✓ |
 | Alloy | grafana/alloy | ✓ |
-| pihole-exporter | ekofr/pihole-exporter | ✓ |
+| pihole-exporter | amonacoos/pihole6_exporter (bazmonk/pihole6_exporter) | ✓ |
 | unbound-exporter | ar51an/unbound-exporter | verify tag |
 | unpoller | ghcr.io/unpoller/unpoller | ✓ |
 | OTel Operator | ghcr.io/open-telemetry/opentelemetry-operator | ✓ |
@@ -1073,6 +1093,7 @@ infrastructure/homelab/monitoring/
 ├── loki.yaml
 ├── alloy.yaml
 ├── pihole-exporter.yaml
+├── pihole-exporter-secret.sops.yaml
 ├── unbound-servicemonitor.yaml
 ├── unpoller-secret.sops.yaml
 ├── unpoller.yaml
