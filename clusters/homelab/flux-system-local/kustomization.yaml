@@ -19,6 +19,7 @@ patches:
   #   deployment-strategy (source only)    — source-controller uses Recreate intentionally
   #                                          to avoid two instances writing to the same PVC
 
+  # yamllint disable rule:line-length
   - target:
       kind: Deployment
       name: source-controller
@@ -28,7 +29,6 @@ patches:
         path: /metadata/annotations
         value:
           kube-score/ignore: container-image-pull-policy,container-ephemeral-storage-request-and-limit,container-security-context-user-group-id,deployment-strategy,deployment-replicas
-
   - target:
       kind: Deployment
       name: kustomize-controller
@@ -38,7 +38,6 @@ patches:
         path: /metadata/annotations
         value:
           kube-score/ignore: container-image-pull-policy,container-ephemeral-storage-request-and-limit,container-security-context-user-group-id
-
   - target:
       kind: Deployment
       name: helm-controller
@@ -48,7 +47,6 @@ patches:
         path: /metadata/annotations
         value:
           kube-score/ignore: container-image-pull-policy,container-ephemeral-storage-request-and-limit,container-security-context-user-group-id
-
   - target:
       kind: Deployment
       name: notification-controller
@@ -58,3 +56,4 @@ patches:
         path: /metadata/annotations
         value:
           kube-score/ignore: container-image-pull-policy,container-ephemeral-storage-request-and-limit,container-security-context-user-group-id,deployment-replicas
+  # yamllint enable rule:line-length
