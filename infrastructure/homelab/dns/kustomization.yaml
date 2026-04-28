@@ -12,3 +12,4 @@ resources:
   - pihole-service.yaml
   - pihole-dns-service.yaml
   - pihole-ingressroute.yaml
+  - networkpolicy.yaml

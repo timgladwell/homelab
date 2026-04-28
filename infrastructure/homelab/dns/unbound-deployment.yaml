@@ -4,6 +4,13 @@ kind: Deployment
 metadata:
   name: unbound
   namespace: dns
+  annotations:
+    # unbound writes runtime state to /var/run/unbound; readOnlyRootFilesystem
+    # requires mapping those paths which is outside what the upstream image guarantees.
+    # Both probes intentionally query dnssec.works to confirm DNSSEC is active.
+    # This is a single node deployment; single replica is sufficient for now.
+    kube-score/ignore: >-
+      container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,pod-probes-identical,deployment-replicas
 spec:
   replicas: 1
   selector:
@@ -14,9 +21,12 @@ spec:
       labels:
         app: unbound
     spec:
+      securityContext:
+        runAsNonRoot: true
       containers:
         - name: unbound
           image: klutchell/unbound:1.24.2
+          imagePullPolicy: Always
           ports:
             - containerPort: 5335
               protocol: UDP
@@ -30,9 +40,16 @@ spec:
             requests:
               cpu: 50m
               memory: 32Mi
+              ephemeral-storage: 50Mi
             limits:
               cpu: 200m
               memory: 128Mi
+              ephemeral-storage: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           livenessProbe:
             exec:
               command: ["drill-hc", "-p", "5335", "@127.0.0.1", "dnssec.works"]
