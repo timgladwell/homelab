@@ -5,5 +5,5 @@ resources:
   - ./flux-system-local
   - ./cluster-vars.yaml
   - ./infrastructure.yaml
-  - ./infrastructure-config
+  - ./infrastructure-config.yaml
   - ./apps.yaml
