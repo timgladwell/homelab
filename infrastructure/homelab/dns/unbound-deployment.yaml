@@ -45,9 +45,6 @@ spec:
               ephemeral-storage: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
           livenessProbe:
             exec:
               command: ["drill-hc", "-p", "5335", "@127.0.0.1", "dnssec.works"]
