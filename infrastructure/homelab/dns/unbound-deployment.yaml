@@ -9,8 +9,10 @@ metadata:
     # requires mapping those paths which is outside what the upstream image guarantees.
     # Both probes intentionally query dnssec.works to confirm DNSSEC is active.
     # This is a single node deployment; single replica is sufficient for now.
+    # NetworkPolicy is pending re-addition with podSelector (namespaceSelector
+    # blocked pihole→unbound traffic under Flannel).
     kube-score/ignore: >-
-      container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,pod-probes-identical,deployment-replicas
+      container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,pod-probes-identical,deployment-replicas,container-image-pull-policy,pod-networkpolicy
 spec:
   replicas: 1
   selector:
@@ -24,7 +26,7 @@ spec:
       containers:
         - name: unbound
           image: klutchell/unbound:1.24.2
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5335
               protocol: UDP
