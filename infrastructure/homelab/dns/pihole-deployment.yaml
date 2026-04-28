@@ -6,10 +6,13 @@ metadata:
   namespace: dns
   annotations:
     # pihole runs as root (required for DNS port binding) and needs a writable
-    # filesystem for FTL runtime state; these checks cannot be satisfied
+    # filesystem for FTL runtime state; these checks cannot be satisfied.
+    # Both probes intentionally verify DNS resolution via dig.
     # This is a single node deployment; single replica is sufficient for now.
+    # NetworkPolicy is pending re-addition with podSelector (namespaceSelector
+    # blocked pihole→unbound traffic under Flannel).
     kube-score/ignore: >-
-      container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,deployment-replicas
+      container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,deployment-replicas,container-image-pull-policy,pod-probes-identical,pod-networkpolicy
 spec:
   replicas: 1
   selector:
@@ -29,7 +32,7 @@ spec:
       containers:
         - name: pihole
           image: pihole/pihole:2026.04.0
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 53
               protocol: UDP

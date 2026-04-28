@@ -24,12 +24,18 @@ misconfigurations:
       - "infrastructure/homelab/dns/pihole-deployment.yaml"
     statement: "pihole requires root access for DNS port 53 binding"
 
-  # klutchell/unbound writes a PID file and control socket to /var/run/unbound
-  # at runtime; mapping all writable paths is not feasible without image internals.
+  # klutchell/unbound starts as root then internally drops to the unbound user via
+  # setuid/setgid; runAsNonRoot cannot be set because the image entrypoint runs as
+  # root before the privilege drop. readOnlyRootFilesystem cannot be set because the
+  # image writes a PID file and control socket to /var/run/unbound at runtime.
   - id: AVD-KSV-0014
     paths:
       - "infrastructure/homelab/dns/unbound-deployment.yaml"
     statement: "klutchell/unbound writes runtime state to /var/run/unbound"
+  - id: AVD-KSV-0118
+    paths:
+      - "infrastructure/homelab/dns/unbound-deployment.yaml"
+    statement: "klutchell/unbound entrypoint runs as root before dropping privileges internally via setuid/setgid"
 
   # system-upgrade-controller.yaml is the upstream manifest from rancher/system-upgrade-controller.
   # KSV-0014: readOnlyRootFilesystem is enforced via deployment-patch.yaml (kustomize strategic merge).
