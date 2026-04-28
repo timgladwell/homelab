@@ -1,0 +1,15 @@
+---
+# Validation entry point for the full cluster manifest.
+# Used by scripts/validate/02-kustomize-build.sh only — not reconciled by Flux.
+#
+# Includes all four reconciliation layers so kubeconform, kube-score, and trivy
+# see the complete set of resources. New components added under infrastructure/homelab/
+# or apps/homelab/ are automatically included; new top-level Flux Kustomizations
+# require adding an entry here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../homelab                       # Flux bootstrap: controllers + Kustomization definitions
+  - ../../infrastructure/homelab     # Cluster infrastructure (HelmReleases, namespaces, etc.)
+  - ../../infrastructure-config/homelab  # Post-infrastructure config (MetalLB IP pools, etc.)
+  - ../../apps/homelab               # User-facing applications
