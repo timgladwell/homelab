@@ -5,3 +5,10 @@ resources:
   - crd.yaml
   - system-upgrade-controller.yaml
   - plans.yaml
+  - networkpolicy.yaml
+  - poddisruptionbudget.yaml
+patches:
+  - path: deployment-patch.yaml
+    target:
+      kind: Deployment
+      name: system-upgrade-controller

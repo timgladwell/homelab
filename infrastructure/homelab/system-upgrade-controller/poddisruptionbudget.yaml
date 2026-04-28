@@ -1,0 +1,11 @@
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: system-upgrade-controller
+  namespace: system-upgrade
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      upgrade.cattle.io/controller: system-upgrade-controller

@@ -4,6 +4,12 @@ kind: Deployment
 metadata:
   name: pihole
   namespace: dns
+  annotations:
+    # pihole runs as root (required for DNS port binding) and needs a writable
+    # filesystem for FTL runtime state; these checks cannot be satisfied
+    # This is a single node deployment; single replica is sufficient for now.
+    kube-score/ignore: >-
+      container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,deployment-replicas
 spec:
   replicas: 1
   selector:
@@ -23,6 +29,7 @@ spec:
       containers:
         - name: pihole
           image: pihole/pihole:2026.04.0
+          imagePullPolicy: Always
           ports:
             - containerPort: 53
               protocol: UDP
@@ -69,9 +76,13 @@ spec:
             requests:
               cpu: 100m
               memory: 128Mi
+              ephemeral-storage: 100Mi
             limits:
               cpu: 500m
               memory: 512Mi
+              ephemeral-storage: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
           readinessProbe:
             exec:
               command:
@@ -83,13 +94,9 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 15
           livenessProbe:
-            exec:
-              command:
-                - dig
-                - +norecurse
-                - +time=3
-                - "@127.0.0.1"
-                - pi.hole
+            httpGet:
+              path: /admin/login
+              port: 8080
             initialDelaySeconds: 60
             periodSeconds: 30
       volumes:
