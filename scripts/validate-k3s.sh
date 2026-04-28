@@ -62,13 +62,15 @@ else
     build_ok=false
 fi
 
-# Steps 3 and 4: depend on kustomize build output
+# Steps 3, 4, and 6: depend on kustomize build output
 if [[ "$build_ok" == true ]]; then
     run_step "Schema Validation" "$VALIDATE_DIR/03-schema-validate.sh"
     run_step "Best Practices" "$VALIDATE_DIR/04-best-practices.sh"
+    run_step "Variable References" "$VALIDATE_DIR/06-variable-check.sh"
 else
     skip_step "Schema Validation" "kustomize build failed"
     skip_step "Best Practices" "kustomize build failed"
+    skip_step "Variable References" "kustomize build failed"
 fi
 
 # Step 5: Security scan — independent
