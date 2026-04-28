@@ -21,8 +21,6 @@ spec:
       labels:
         app: unbound
     spec:
-      securityContext:
-        runAsNonRoot: true
       containers:
         - name: unbound
           image: klutchell/unbound:1.24.2
