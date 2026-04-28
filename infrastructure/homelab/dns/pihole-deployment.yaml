@@ -94,9 +94,13 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 15
           livenessProbe:
-            httpGet:
-              path: /admin/login
-              port: 8080
+            exec:
+              command:
+                - dig
+                - +norecurse
+                - +time=3
+                - "@127.0.0.1"
+                - pi.hole
             initialDelaySeconds: 60
             periodSeconds: 30
       volumes:
