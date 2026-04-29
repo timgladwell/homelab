@@ -75,13 +75,17 @@ spec:
               value: "true"
             - name: FTLCONF_dns_specialDomains_designatedResolver
               value: "true"
+            # PI.HOLE mode synthesizes BOTH a forward A record (pi.hole → pod IP)
+            # AND a PTR record (pod IP → pi.hole). The forward record overrides
+            # dns_hosts and dnsmasq address= entries. NONE stops all synthesis,
+            # leaving dns_hosts as the sole authoritative source for pi.hole.
             - name: FTLCONF_dns_piholePTR
-              value: "PI.HOLE"
+              value: "NONE"
           # The secret contains two DNS config keys with complementary roles:
           #
           # FTLCONF_dns_hosts (explicit records, e.g. "10.6.1.80 pi.hole"):
           #   Provides the authoritative A record for pi.hole now that FTL synthesis
-          #   is suppressed via FTLCONF_webserver_domain above.
+          #   is disabled via FTLCONF_dns_piholePTR=NONE above.
           #
           # FTLCONF_misc_dnsmasq_lines (wildcard, address=/${HOSTNAME}/...):
           #   Routes all *.homelab.home.arpa subdomains to Traefik automatically,
