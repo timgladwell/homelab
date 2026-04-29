@@ -68,7 +68,21 @@ spec:
             - name: FTLCONF_dns_specialDomains_designatedResolver
               value: "true"
             - name: FTLCONF_dns_piholePTR
-              value: "NONE"
+              value: "PI.HOLE"
+          # DNS host records are split across two secret keys because the two FTL
+          # mechanisms have complementary but non-overlapping capabilities:
+          #
+          # FTLCONF_dns_hosts (explicit records, e.g. "10.6.1.80 pi.hole"):
+          #   FTL intercepts pi.hole queries before dnsmasq processes them, so an
+          #   address= directive in dnsmasq_lines has no effect for this domain.
+          #   dns_hosts entries are applied at the FTL layer and do take effect.
+          #
+          # FTLCONF_misc_dnsmasq_lines (wildcard, address=/${HOSTNAME}/...):
+          #   Routes all *.homelab.home.arpa subdomains to Traefik automatically,
+          #   so new apps get DNS without a manual entry. FTLCONF_dns_hosts has no
+          #   wildcard support, so dnsmasq remains required for this. Do not remove
+          #   dnsmasq_lines without first adding explicit dns_hosts entries for every
+          #   app subdomain (pihole.homelab.home.arpa, grafana.homelab.home.arpa, ...).
           envFrom:
             - secretRef:
                 name: pihole-secret
