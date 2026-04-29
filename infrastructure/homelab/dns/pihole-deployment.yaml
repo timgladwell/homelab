@@ -67,9 +67,9 @@ spec:
               value: "true"
             - name: FTLCONF_dns_specialDomains_designatedResolver
               value: "true"
-            # The secret contains FTLCONF_misc_dnsmasq_lines with a wildcard
-            # address=/${HOSTNAME}/... that routes all *.homelab.home.arpa subdomains
-            # to Traefik automatically — new apps get DNS without a manual entry.
+              # The secret contains FTLCONF_misc_dnsmasq_lines with a wildcard
+              # address=/${HOSTNAME}/... that routes all *.homelab.home.arpa subdomains
+              # to Traefik automatically — new apps get DNS without a manual entry.
           envFrom:
             - secretRef:
                 name: pihole-secret
