@@ -54,14 +54,6 @@ spec:
               value: ""
             - name: FTLCONF_webserver_port
               value: "8080"
-            # FTL v6 automatically synthesizes a DNS A record for webserver.domain,
-            # pointing it at the pod's own IP. The default is "pi.hole", which causes
-            # pi.hole to always resolve to the pod IP regardless of dns_hosts or
-            # dnsmasq address= entries (both have lower priority than FTL synthesis).
-            # Setting this to localhost stops that synthesis, so the explicit
-            # dns_hosts entry in the secret becomes the sole source for pi.hole.
-            - name: FTLCONF_webserver_domain
-              value: "localhost"
             # PiHole is not the DHCP server
             - name: FTLCONF_dhcp_active
               value: "false"
@@ -75,24 +67,9 @@ spec:
               value: "true"
             - name: FTLCONF_dns_specialDomains_designatedResolver
               value: "true"
-            # PI.HOLE mode synthesizes BOTH a forward A record (pi.hole → pod IP)
-            # AND a PTR record (pod IP → pi.hole). The forward record overrides
-            # dns_hosts and dnsmasq address= entries. NONE stops all synthesis,
-            # leaving dns_hosts as the sole authoritative source for pi.hole.
-            - name: FTLCONF_dns_piholePTR
-              value: "NONE"
-          # The secret contains two DNS config keys with complementary roles:
-          #
-          # FTLCONF_dns_hosts (explicit records, e.g. "10.6.1.80 pi.hole"):
-          #   Provides the authoritative A record for pi.hole now that FTL synthesis
-          #   is disabled via FTLCONF_dns_piholePTR=NONE above.
-          #
-          # FTLCONF_misc_dnsmasq_lines (wildcard, address=/${HOSTNAME}/...):
-          #   Routes all *.homelab.home.arpa subdomains to Traefik automatically,
-          #   so new apps get DNS without a manual entry. FTLCONF_dns_hosts has no
-          #   wildcard support, so dnsmasq remains required for this. Do not remove
-          #   dnsmasq_lines without first adding explicit dns_hosts entries for every
-          #   app subdomain (pihole.homelab.home.arpa, grafana.homelab.home.arpa, ...).
+            # The secret contains FTLCONF_misc_dnsmasq_lines with a wildcard
+            # address=/${HOSTNAME}/... that routes all *.homelab.home.arpa subdomains
+            # to Traefik automatically — new apps get DNS without a manual entry.
           envFrom:
             - secretRef:
                 name: pihole-secret
