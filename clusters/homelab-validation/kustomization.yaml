@@ -9,7 +9,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../homelab                       # Flux bootstrap: controllers + Kustomization definitions
-  - ../../infrastructure/homelab     # Cluster infrastructure (HelmReleases, namespaces, etc.)
+  - ../homelab                           # Flux bootstrap: controllers + Kustomization definitions
+  - ../../infrastructure/homelab         # Cluster infrastructure (HelmReleases, namespaces, etc.)
+  - ../../infrastructure/homelab/pihole-sync  # Top-level Flux Kustomization (not under infrastructure/)
   - ../../infrastructure-config/homelab  # Post-infrastructure config (MetalLB IP pools, etc.)
-  - ../../apps/homelab               # User-facing applications
+  - ../../apps/homelab                   # User-facing applications
