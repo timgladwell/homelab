@@ -21,7 +21,7 @@ spec:
         runAsGroup: 65534
       containers:
         - name: sync
-          image: python:3.12-alpine
+          image: python:3.14.4-alpine3.23
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:
