@@ -224,9 +224,8 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
                 f"(id={lst['id']}, domains={lst.get('number', '?')}): {url}")
             continue
         groups = _resolve_group_ids(entry.get("groups", []), name_to_id)
-        status, resp = _request_with_retry("POST", "/api/lists", {
+        status, resp = _request_with_retry("POST", f"/api/lists?type={list_type}", {
             "address": url,
-            "type": list_type,
             "enabled": True,
             "groups": groups,
             "comment": entry.get("comment", ""),
