@@ -230,7 +230,9 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
             "groups": groups,
             "comment": entry.get("comment", ""),
         }, sid=sid)
-        if status in (200, 201) and "list" in resp:
+        if status in (200, 201):
+            if "list" not in resp and "lists" not in resp:
+                log(f"  WARNING: added {list_type}list but response missing 'list'/'lists': {resp}", err=True)
             log(f"  added {list_type}list: {url}")
             gravity_needed = True
         elif status == 409:
@@ -278,7 +280,9 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
                 "groups": groups,
                 "comment": entry.get("comment", ""),
             }, sid=sid)
-        if status in (200, 201) and "domain" in resp:
+        if status in (200, 201):
+            if "domain" not in resp:
+                log(f"  WARNING: added {domain_type} domain but response missing 'domain': {resp}", err=True)
             log(f"  added {domain_type} domain: {domain}")
         elif status == 409:
             log(f"  {domain_type} domain already existed (race): {domain}")
@@ -317,7 +321,9 @@ def sync_clients(cfg, sid, name_to_id):
             "groups": groups,
             "comment": entry.get("comment", ""),
         }, sid=sid)
-        if status in (200, 201) and "client" in resp:
+        if status in (200, 201):
+            if "client" not in resp:
+                log(f"  WARNING: added client but response missing 'client': {resp}", err=True)
             log(f"  added client: {address} ({entry.get('comment', '')})")
         elif status == 409:
             log(f"  client already existed (race): {address}")
