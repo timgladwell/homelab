@@ -1,0 +1,75 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pihole-sync
+  namespace: dns
+  annotations:
+    # Needs egress to pihole-web and external list sources (no NetworkPolicy).
+    # IfNotPresent is intentional — image is pinned; repulling on every run is wasteful.
+    kube-score/ignore: pod-networkpolicy,container-image-pull-policy
+spec:
+  # Flux force-recreates this Job when the ConfigMap hash changes (i.e. when
+  # pihole-config.yaml or sync.py changes). The 7-day TTL prevents completed
+  # pods accumulating indefinitely.
+  ttlSecondsAfterFinished: 604800
+  backoffLimit: 2
+  # Gravity takes ~10 min; 45 min gives 3 full sync+gravity attempts.
+  activeDeadlineSeconds: 2700
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      containers:
+        - name: sync
+          image: python:3.14.4-alpine3.23
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              pip install --quiet --no-cache-dir --retries 5 --timeout 60 \
+                --target=/tmp/pydeps pyyaml
+              PYTHONPATH=/tmp/pydeps python /sync/sync.py
+          env:
+            - name: PIHOLE_URL
+              value: "http://pihole-web.dns.svc.cluster.local"
+            - name: CONFIG_PATH
+              value: "/sync/pihole-config.yaml"
+            - name: STATE_DIR
+              value: "/tmp/state"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: PIHOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pihole-secret
+                  key: FTLCONF_webserver_api_password
+          volumeMounts:
+            - name: sync
+              mountPath: /sync
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+              ephemeral-storage: 50Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+              ephemeral-storage: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: sync
+          configMap:
+            name: pihole-sync
+        - name: tmp
+          emptyDir: {}
