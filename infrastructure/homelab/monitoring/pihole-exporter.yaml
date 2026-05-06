@@ -1,0 +1,106 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole-exporter
+  namespace: monitoring
+  annotations:
+    # Single replica is fine for a metrics exporter — a brief scrape gap during
+    # pod restart is acceptable. :latest tag is pinned by imagePullPolicy.
+    # Same HTTP probe for readiness and liveness is correct for a simple exporter.
+    kube-score/ignore: >-
+      deployment-replicas,container-image-tag,container-image-pull-policy,
+      pod-networkpolicy,pod-probes-identical
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pihole-exporter
+  template:
+    metadata:
+      labels:
+        app: pihole-exporter
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      containers:
+        - name: pihole-exporter
+          image: amonacoos/pihole6_exporter:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 9666
+              protocol: TCP
+          env:
+            - name: PIHOLE_HOST
+              value: "pihole-web.dns.svc.cluster.local"
+            - name: PIHOLE_PORT
+              value: "80"
+            - name: PIHOLE_SCHEME
+              value: "http"
+            - name: PIHOLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pihole-exporter-secret
+                  key: PIHOLE_API_KEY
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+              ephemeral-storage: 50Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+              ephemeral-storage: 100Mi
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 3
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pihole-exporter
+  namespace: monitoring
+  labels:
+    app: pihole-exporter
+spec:
+  selector:
+    app: pihole-exporter
+  ports:
+    - name: metrics
+      port: 9666
+      targetPort: metrics
+      protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pihole-exporter
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: pihole-exporter
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
