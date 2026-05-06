@@ -1556,7 +1556,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_GRAFANACLOUD-BAZMONKEY-PROM}"
+            "uid": "${datasource}"
           },
           "description": "",
           "gridPos": {
