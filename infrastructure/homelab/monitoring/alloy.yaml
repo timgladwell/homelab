@@ -86,6 +86,10 @@ spec:
               source_labels = ["__meta_kubernetes_pod_container_name"]
               target_label  = "container"
             }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app"]
+              target_label  = "app"
+            }
           }
 
           loki.source.kubernetes "pods" {

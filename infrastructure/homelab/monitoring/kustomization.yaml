@@ -10,4 +10,6 @@ resources:
   - grafana-ingressroute.yaml
   - loki.yaml
   - alloy.yaml
+  - pihole-exporter-secret.sops.yaml
+  - pihole-exporter.yaml
   - ./dashboards
