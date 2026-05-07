@@ -14,7 +14,11 @@ metadata:
 data:
   unbound.conf: |
     server:
-      verbosity: 2
+      # "Gives query level information, output per query"
+      verbosity: 3
+      # "Print log lines that say why queries return SERVFAIL to clients."
+      log-servfail: yes
+
       interface: 0.0.0.0
       port: 5335
       do-ip4: yes
