@@ -4,6 +4,8 @@ kind: Service
 metadata:
   name: unbound
   namespace: dns
+  labels:
+    app: unbound
 spec:
   selector:
     app: unbound
