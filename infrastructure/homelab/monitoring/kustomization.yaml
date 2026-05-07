@@ -12,4 +12,5 @@ resources:
   - alloy.yaml
   - pihole-exporter-secret.sops.yaml
   - pihole-exporter.yaml
+  - unbound-servicemonitor.yaml
   - ./dashboards
