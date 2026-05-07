@@ -24,6 +24,29 @@ spec:
         app: unbound
     spec:
       containers:
+        - name: unbound-exporter
+          image: cyb3rjak3/unbound-exporter:0.6.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --unbound.host=tcp://127.0.0.1:8953
+            - --unbound.ca=
+            - --unbound.cert=
+            - --unbound.key=
+          ports:
+            - name: metrics
+              containerPort: 9167
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+              ephemeral-storage: 50Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+              ephemeral-storage: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
         - name: unbound
           image: klutchell/unbound:v1.25.0
           imagePullPolicy: IfNotPresent

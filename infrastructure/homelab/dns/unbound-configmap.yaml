@@ -49,5 +49,12 @@ data:
       num-threads: 1
       so-rcvbuf: 1m
 
+      statistics-interval: 0
+      extended-statistics: yes
+      statistics-cumulative: no
+
     remote-control:
-      control-enable: no
+      control-enable: yes
+      control-use-cert: no
+      control-interface: 127.0.0.1
+      control-port: 8953
