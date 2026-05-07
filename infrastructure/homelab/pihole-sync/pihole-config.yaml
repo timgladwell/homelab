@@ -14,6 +14,11 @@ allow_domains:
     comment: Otherwise Paramount Plus doesn't remember where you left off
     groups:
       - Streaming Devices
+  - domain: ontariomenopauseclinic.ca
+    comment: So I can work on this website even though it's a new domain
+    groups:
+      - Streaming Devices
+      - Default
 
 block_domains: []
 
