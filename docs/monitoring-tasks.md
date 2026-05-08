@@ -4,9 +4,9 @@
 
 Add metrics collection, log aggregation, and Grafana dashboards to the homelab.
 The stack is **Prometheus + Loki + Grafana + OTel Collector** (PLG+OTel — the practical
-subset of LGTM for a single-node cluster; Mimir is skipped in favour of Prometheus;
-Tempo/distributed tracing is a natural Phase 11 follow-on once the OTel Collector is
-in place).
+LGTM subset for a small cluster. Mimir/Thanos for HA metrics storage and Tempo for
+distributed tracing are natural Phase 11/12 follow-ons; skipped here to keep the initial
+footprint small, not as a permanent architectural decision).
 
 All work follows the existing GitOps pattern: Flux CD + Kustomize + HelmReleases,
 SOPS-encrypted secrets, subdomain routing via Traefik.
@@ -323,7 +323,59 @@ frequent than before), which should bring I/O back to baseline.
 
 ---
 
-## Phase 3 — Log Aggregation (Loki + Grafana Alloy)
+### Task 2.7 — Fix: enable PodMonitor discovery in kube-prometheus-stack
+
+**Fixup for Task 2.1.** The deployed `kube-prometheus-stack.yaml` sets
+`serviceMonitorSelectorNilUsesHelmValues: false` and `ruleSelectorNilUsesHelmValues: false`
+but is missing the equivalent for PodMonitors. Without it, Prometheus applies the chart's
+own Helm label selector to PodMonitor discovery, silently ignoring any PodMonitor not
+bearing the chart's release label — including the unpoller PodMonitor added in Task 6.2.
+
+**File to modify:**
+```
+infrastructure/homelab/monitoring/kube-prometheus-stack.yaml
+```
+
+Add to `prometheus.prometheusSpec`:
+```yaml
+podMonitorSelectorNilUsesHelmValues: false   # scrape ALL PodMonitors (e.g. unpoller)
+```
+
+---
+
+### Task 2.8 — Fix: human-readable instance labels on node-exporter metrics
+
+**Fixup for Task 2.1.** By default, node-exporter metrics carry `instance="<node-ip>:9100"`.
+In Grafana, dashboard variables that use `instance` as a label show raw IP:port values
+(e.g. `10.6.1.3:9100`) rather than hostnames. On a multi-node cluster this is unreadable.
+
+**File to modify:**
+```
+infrastructure/homelab/monitoring/kube-prometheus-stack.yaml
+```
+
+Add a relabeling rule to the `nodeExporter` serviceMonitor to replace the `instance`
+label with the Kubernetes node name:
+```yaml
+nodeExporter:
+  enabled: true
+  serviceMonitor:
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_node_name]
+        targetLabel: instance
+```
+
+This makes all node-exporter dashboards (Node Exporter Full, etc.) display node names
+in their host/instance dropdowns instead of IP addresses.
+
+> **Other exporters:** PiHole, Unbound, and unpoller ServiceMonitors/PodMonitors should
+> include equivalent relabeling when they are created (Tasks 4.1, 5.1, 6.2). Apply the
+> same pattern: map a human-readable identifier (pod name, node name, or service name)
+> onto the `instance` label in each exporter's ServiceMonitor/PodMonitor spec.
+
+---
+
+## Phase 3 — Log Aggregation (Loki + Grafana Alloy) ✅ COMPLETE
 
 ### Task 3.1 — Deploy Loki (single-binary) ✅
 
@@ -333,7 +385,8 @@ infrastructure/homelab/monitoring/loki.yaml
 ```
 
 `HelmRelease` targeting chart `loki` from the `grafana` HelmRepository.
-Use `SingleBinary` deployment mode (appropriate for single-node).
+Use `SingleBinary` deployment mode (appropriate for small clusters; scale to
+`SimpleScalable` with 3 replicas or full microservices mode as log volume grows).
 
 Key values:
 ```yaml
@@ -370,10 +423,10 @@ singleBinary:
     limits:   { cpu: 300m, memory: 512Mi }
 
 chunksCache:
-  enabled: false    # memcached — too memory-hungry for RPi; no benefit in single-binary mode
+  enabled: false    # memcached — unnecessary overhead in SingleBinary mode; enable when scaling to SimpleScalable
 
 resultsCache:
-  enabled: false    # memcached — same reason
+  enabled: false    # memcached — same reason; re-evaluate when query volume justifies the cost
 
 backend:
   replicas: 0
@@ -395,7 +448,7 @@ Loki images are multi-arch (ARM64 ✓).
 
 ---
 
-### Task 3.2 — Deploy Grafana Alloy
+### Task 3.2 — Deploy Grafana Alloy ✅
 
 > **Note:** Promtail reached end-of-life and has been superseded by
 > [Grafana Alloy](https://grafana.com/docs/alloy/latest/). Alloy is a
@@ -516,9 +569,9 @@ grafana:
 
 ---
 
-## Phase 4 — PiHole Metrics
+## Phase 4 — PiHole Metrics ✅ COMPLETE
 
-### Task 4.1 — Deploy pihole-exporter
+### Task 4.1 — Deploy pihole-exporter ✅
 
 > **Exporter selection note:** The originally planned `ekofr/pihole-exporter` is
 > unmaintained (no commits since mid-2025) and is broken against PiHole v6, which
@@ -557,7 +610,7 @@ SOPS-encrypted field `PIHOLE_API_KEY` (the app password from the PiHole UI).
 
 ---
 
-### Task 4.2 — PiHole Grafana dashboard
+### Task 4.2 — PiHole Grafana dashboard ✅
 
 **File to create:**
 ```
@@ -572,9 +625,9 @@ match exactly. ID 10176 (the old `ekofr` dashboard) is incompatible.
 
 ---
 
-## Phase 5 — Unbound Metrics
+## Phase 5 — Unbound Metrics ✅ COMPLETE
 
-### Task 5.1 — Enable Unbound statistics and add exporter sidecar
+### Task 5.1 — Enable Unbound statistics and add exporter sidecar ✅
 
 **File to modify:**
 ```
@@ -619,7 +672,7 @@ infrastructure/homelab/monitoring/unbound-servicemonitor.yaml
 
 ---
 
-### Task 5.2 — Unbound Grafana dashboard
+### Task 5.2 — Unbound Grafana dashboard ✅
 
 **File to create:**
 ```
@@ -631,22 +684,107 @@ Grafana.com dashboard ID **11705**.
 
 ---
 
+### Task 5.3 — Fix: human-readable instance label on Unbound ServiceMonitor
+
+**Fixup for Task 5.1.** The deployed `unbound-servicemonitor.yaml` has no relabeling
+rules, so Prometheus records Unbound metrics with `instance="<pod-ip>:9167"`. Follow
+the pattern from Task 2.8.
+
+**File to modify:**
+```
+infrastructure/homelab/monitoring/unbound-servicemonitor.yaml
+```
+
+Add to the `endpoints` entry:
+```yaml
+relabelings:
+  - replacement: unbound
+    targetLabel: instance
+```
+
+---
+
+### Task 4.3 — Fix: human-readable instance label on PiHole ServiceMonitor
+
+**Fixup for Task 4.1.** The deployed `pihole-exporter.yaml` ServiceMonitor has no
+relabeling rules, so Prometheus records PiHole metrics with `instance="<pod-ip>:9666"`.
+Follow the pattern from Task 2.8.
+
+**File to modify:**
+```
+infrastructure/homelab/monitoring/pihole-exporter.yaml
+```
+
+Add to the `ServiceMonitor` endpoints entry:
+```yaml
+relabelings:
+  - replacement: pihole
+    targetLabel: instance
+```
+
+---
+
 ## Phase 6 — UniFi Network Metrics
 
-### Task 6.1 — UniFi credentials secret
+### Task 6.1 — Add unpoller HelmRepository and credentials secret
 
 Create a **read-only local user** in the UDM controller UI (Settings →
 Admins & Users → Add Admin, select read-only role).
 
 **File to create:**
 ```
+infrastructure/homelab/monitoring/unpoller-helmrepo.yaml
+```
+
+`HelmRepository` in namespace `monitoring`:
+- Name: `unpoller`
+- URL: `https://unpoller.github.io/helm-chart`
+- interval: `24h`
+
+Add to `kustomization.yaml`.
+
+**File to create:**
+```
 infrastructure/homelab/monitoring/unpoller-secret.sops.yaml
 ```
 
-`Secret` in namespace `monitoring`, SOPS-encrypted fields:
-- `UP_UNIFI_DEFAULT_URL` — `https://<udm-ip>`
-- `UP_UNIFI_DEFAULT_USER`
-- `UP_UNIFI_DEFAULT_PASS`
+The unpoller Helm chart configures the exporter via a single TOML file (`up.conf`)
+generated from the `upConfig` Helm value. Store the entire TOML block as a
+SOPS-encrypted `stringData` field so it can be injected into the HelmRelease via
+`valuesFrom`:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: unpoller-config
+  namespace: monitoring
+stringData:
+  upConfig: |
+    [unifi]
+    dynamic = false
+
+    [[unifi.controller]]
+    url              = "https://<udm-ip>"   # no :8443 on UDM/UDM-Pro running UniFi OS
+    user             = "<read-only-user>"
+    pass             = "<password>"
+    verify_ssl       = false
+    sites            = ["all"]              # auto-discover all sites on this controller
+```
+
+> **UDM/UDM-Pro URL note:** UniFi OS devices (UDM, UDM-Pro, UXG) use `https://<ip>`
+> without `:8443`. Legacy CloudKey / self-hosted Network Application use `https://<ip>:8443`.
+> The unifi library auto-detects the login endpoint from the URL format.
+
+> **Multi-site note:** This task configures the local homelab site only (`sites = ["all"]`
+> auto-discovers every site on that controller). Additional controllers (other three sites)
+> will each get a separate `[[unifi.controller]]` block appended to `upConfig` in a
+> future task — the chart supports an arbitrary number of controller stanzas.
+
+> **Remote/cloud API mode:** Unpoller supports a `remote = true` mode that uses a
+> Fabric API key from `api.ui.com` to auto-discover all consoles. As of chart v2.1.0
+> this mode is not yet stable (rate-limit crashes, nil-pointer panics on NVR/Protect
+> consoles). Use the local username/password mode above.
 
 ---
 
@@ -657,32 +795,80 @@ infrastructure/homelab/monitoring/unpoller-secret.sops.yaml
 infrastructure/homelab/monitoring/unpoller.yaml
 ```
 
-Contains three resources in namespace `monitoring`:
+`HelmRelease` targeting chart `unpoller` from the `unpoller` HelmRepository.
+Pinned to `~2.x`.
 
-1. `Deployment` — image `ghcr.io/unpoller/unpoller:latest` (ARM64 ✓)
-   - Env from `unpoller-secret`: `UP_UNIFI_DEFAULT_URL`, `UP_UNIFI_DEFAULT_USER`,
-     `UP_UNIFI_DEFAULT_PASS`
-   - Additional env (plain): `UP_UNIFI_DEFAULT_VERIFY_SSL=false`,
-     `UP_INFLUXDB_DISABLE=true`, `UP_PROMETHEUS_NAMESPACE=unpoller`
-   - Resources: `requests: {cpu: 50m, memory: 64Mi}`, `limits: {cpu: 100m, memory: 128Mi}`
+Key Helm values:
 
-2. `Service` — port 9130
+```yaml
+podMonitor:
+  enabled: true       # chart creates a PodMonitor for scraping (not a ServiceMonitor)
+  interval: 30s
+  relabelings:
+    - replacement: unpoller
+      targetLabel: instance
 
-3. `ServiceMonitor` — targets the Service, scrape interval 30s
+service:
+  enabled: false      # metrics are scraped via pod IP through the PodMonitor
+
+dashboards:
+  create: false       # requires Grafana Operator CRDs; use configmap sidecar instead (Task 6.3)
+
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits:   { cpu: 100m, memory: 128Mi }
+```
+
+Inject the TOML config from the SOPS secret via `valuesFrom`:
+
+```yaml
+valuesFrom:
+  - kind: Secret
+    name: unpoller-config
+    valuesKey: upConfig
+    targetPath: upConfig
+```
+
+The chart stores `upConfig` in a Kubernetes `Secret` and mounts it as `/etc/unpoller/up.conf`
+inside the container. ARM64 image: `ghcr.io/unpoller/unpoller` ✓.
+
+Add to `kustomization.yaml`.
 
 ---
 
 ### Task 6.3 — UniFi Grafana dashboards
 
+There are **6 official Prometheus dashboards** for unpoller. The original task doc listed
+only 4 and had two IDs mislabelled. The complete set:
+
+Download each dashboard JSON from Grafana.com and add to `dashboards/`:
+
 **Files to create:**
 ```
-infrastructure/homelab/monitoring/dashboards/unifi-uap-dashboard.yaml    # ID 11314 (APs)
-infrastructure/homelab/monitoring/dashboards/unifi-usw-dashboard.yaml    # ID 11315 (switches)
-infrastructure/homelab/monitoring/dashboards/unifi-usg-dashboard.yaml    # ID 11313 (gateway/UDM)
-infrastructure/homelab/monitoring/dashboards/unifi-clients-dashboard.yaml # ID 11310 (clients)
+infrastructure/homelab/monitoring/dashboards/unifi-client-dpi-dashboard.json  # ID 11310 (client DPI)
+infrastructure/homelab/monitoring/dashboards/unifi-sites-dashboard.json       # ID 11311 (sites)
+infrastructure/homelab/monitoring/dashboards/unifi-usw-dashboard.json         # ID 11312 (switches)
+infrastructure/homelab/monitoring/dashboards/unifi-usg-dashboard.json         # ID 11313 (gateway/UDM)
+infrastructure/homelab/monitoring/dashboards/unifi-uap-dashboard.json         # ID 11314 (APs)
+infrastructure/homelab/monitoring/dashboards/unifi-clients-dashboard.json     # ID 11315 (clients)
 ```
 
-Each is a `ConfigMap` with label `grafana_dashboard: "1"` in namespace `monitoring`.
+Add each as a `configMapGenerator` entry in `dashboards/kustomization.yaml` (same
+pattern as the existing `node-exporter-full`, `pihole`, and `unbound` entries):
+```yaml
+- name: dashboard-unifi-client-dpi
+  files: [unifi-client-dpi-dashboard.json]
+  options:
+    disableNameSuffixHash: true
+    labels:
+      grafana_dashboard: "1"
+```
+Repeat for each of the six dashboards.
+
+> **Note:** The unpoller Helm chart's built-in dashboard provisioning (`dashboards.create: true`)
+> uses Grafana Operator CRs and omits dashboard 11310 (Client DPI). Provisioning via the
+> kube-prometheus-stack configmap sidecar gives full control over all 6 dashboards
+> and avoids the Grafana Operator dependency.
 
 ---
 
@@ -693,48 +879,63 @@ Advanced → Remote Logging). This delivers real-time **event logs** (firewall r
 hit, IDS/IPS alerts, client auth, DHCP, VPN) that unpoller does not capture —
 unpoller only covers time-series metrics. The two are complementary.
 
-**Approach:** Add a syslog listener to the Grafana Alloy config so Alloy listens
-on a UDP port on the host and forwards directly to Loki. No extra daemon required.
+**Approach:** Alloy listens on a UDP syslog port; a MetalLB `LoadBalancer` Service
+gives it a stable virtual IP that remains correct regardless of how many nodes are
+in the cluster and which node the pod is scheduled on. A DNS A record makes the
+target address human-readable and refactorable without reconfiguring the UDM.
 
-**File to modify:**
+**Note:** The Alloy River config for syslog is already implemented in
+`alloy.yaml` (syslog listener + `unifi-siem` labels). The remaining work is the
+MetalLB Service and DNS record described below.
+
+**File to create:**
 ```
-infrastructure/homelab/monitoring/alloy.yaml
-```
-
-Add to the Alloy River config (inside `alloy.configMap.content`):
-```river
-loki.source.syslog "unifi_siem" {
-  listener {
-    address  = "0.0.0.0:1514"
-    protocol = "udp"
-  }
-  forward_to = [loki.process.unifi_siem.receiver]
-}
-
-loki.process "unifi_siem" {
-  stage.static_labels {
-    values = { job = "unifi-siem" }
-  }
-  forward_to = [loki.write.default.receiver]
-}
+infrastructure/homelab/monitoring/alloy-syslog-service.yaml
 ```
 
-Add a `hostPort: 1514` to the Alloy DaemonSet container so the UDM can reach
-the node on that port. No `hostNetwork` is needed — a `hostPort` alone binds the
-single port on the node's IP without giving the pod full host-network access.
-Configure via `alloy.extraPorts` in Helm values:
+A `LoadBalancer` `Service` in namespace `monitoring` that exposes the syslog port
+via a dedicated MetalLB IP:
+
 ```yaml
-alloy:
-  extraPorts:
+apiVersion: v1
+kind: Service
+metadata:
+  name: alloy-syslog
+  namespace: monitoring
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: ${METALLB_SYSLOG_IP}
+spec:
+  selector:
+    app.kubernetes.io/name: alloy
+  type: LoadBalancer
+  ports:
     - name: syslog-udp
       port: 1514
       targetPort: 1514
       protocol: UDP
 ```
 
+**Variable to add** to `clusters/homelab/cluster-vars.yaml`:
+```yaml
+METALLB_SYSLOG_IP: "10.6.1.XX"   # pick a free IP from the MetalLB pool
+```
+
+**Remove** the `alloy.extraPorts` `hostPort` block from `alloy.yaml` — it is
+superseded by the LoadBalancer Service and is not appropriate for multi-node clusters
+(a hostPort binds only on the node where the pod happens to run).
+
+**DNS record (manual step):** Add a static A record in PiHole so the UDM can use
+a hostname rather than a raw IP. Edit the PiHole SOPS secret to append a directive
+to `FTLCONF_misc_dnsmasq_lines`:
+```
+address=/syslog.${HOSTNAME}/${METALLB_SYSLOG_IP}
+```
+This record is explicit and takes precedence over any wildcard in the same dnsmasq
+config, so no existing records need to be changed.
+
 **UDM configuration (manual step):**
 In the UDM controller UI: Settings → System → Remote Logging →
-set target to `<node-ip>:1514`, protocol `UDP`, format `syslog`.
+set target to `syslog.${HOSTNAME}:1514`, protocol `UDP`, format `syslog`.
 
 **Grafana:** No dedicated dashboard needed — use the built-in Loki Explore panel
 with filter `{job="unifi-siem"}` to search firewall/IDS events.
@@ -808,17 +1009,19 @@ spec:
     - port: metrics
       path: /metrics
       interval: 30s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: instance
 ```
-
-Remove `podMonitorSelectorNilUsesHelmValues: false` from the kube-prometheus-stack
-values added in Task 2.1 — it is no longer needed.
 
 **Dashboard file to create:**
-```
-infrastructure/homelab/monitoring/dashboards/traefik-dashboard.yaml
-```
 
-Grafana.com dashboard ID **17346**.
+Download dashboard JSON from Grafana.com ID **17346** and add to `dashboards/`:
+```
+infrastructure/homelab/monitoring/dashboards/traefik-dashboard.json
+```
+Add a `configMapGenerator` entry to `dashboards/kustomization.yaml` following the
+existing pattern.
 
 ---
 
@@ -832,13 +1035,17 @@ infrastructure/homelab/monitoring/flux-servicemonitor.yaml
 `ServiceMonitor` (or multiple) targeting the Flux controller services in
 `flux-system` namespace: `source-controller`, `kustomize-controller`,
 `helm-controller`, `notification-controller`. Each exposes `:8080/metrics`.
+Include a relabeling rule to set `instance` to the controller name
+(use `__meta_kubernetes_pod_label_app` or a static `replacement` per endpoint).
 
 **Dashboard file to create:**
-```
-infrastructure/homelab/monitoring/dashboards/flux-dashboard.yaml
-```
 
-Grafana.com dashboard ID **16714**.
+Download dashboard JSON from Grafana.com ID **16714** and add to `dashboards/`:
+```
+infrastructure/homelab/monitoring/dashboards/flux-dashboard.json
+```
+Add a `configMapGenerator` entry to `dashboards/kustomization.yaml` following the
+existing pattern.
 
 ---
 
@@ -1083,20 +1290,22 @@ After full deployment (via Flux reconciliation):
 
 ```
 infrastructure/homelab/monitoring/
-├── kustomization.yaml
-├── namespace.yaml
-├── prometheus-helmrepo.yaml
-├── grafana-helmrepo.yaml
-├── kube-prometheus-stack.yaml
-├── grafana-secret.sops.yaml
-├── grafana-ingressroute.yaml
-├── loki.yaml
-├── alloy.yaml
-├── pihole-exporter.yaml
-├── pihole-exporter-secret.sops.yaml
-├── unbound-servicemonitor.yaml
+├── kustomization.yaml                            ✅ DONE
+├── namespace.yaml                                ✅ DONE
+├── prometheus-helmrepo.yaml                      ✅ DONE
+├── grafana-helmrepo.yaml                         ✅ DONE
+├── kube-prometheus-stack.yaml                    ✅ DONE (fixups: Tasks 2.7, 2.8)
+├── grafana-secret.sops.yaml                      ✅ DONE
+├── grafana-ingressroute.yaml                     ✅ DONE
+├── loki.yaml                                     ✅ DONE
+├── alloy.yaml                                    ✅ DONE (fixup: Task 6.4 hostPort removal)
+├── pihole-exporter.yaml                          ✅ DONE (fixup: Task 4.3)
+├── pihole-exporter-secret.sops.yaml              ✅ DONE
+├── unbound-servicemonitor.yaml                   ✅ DONE (fixup: Task 5.3)
+├── unpoller-helmrepo.yaml
 ├── unpoller-secret.sops.yaml
 ├── unpoller.yaml
+├── alloy-syslog-service.yaml
 ├── traefik-servicemonitor.yaml
 ├── flux-servicemonitor.yaml
 ├── alerting-rules.yaml
@@ -1105,19 +1314,22 @@ infrastructure/homelab/monitoring/
 ├── otel-collector.yaml
 ├── otel-endpoints-configmap.yaml
 └── dashboards/
-    ├── kustomization.yaml                   ✅ DONE (PR #49)
-    ├── node-exporter-full.json              ✅ DONE (PR #49, configMapGenerator source)
-    ├── pihole-dashboard.yaml
-    ├── unbound-dashboard.yaml
-    ├── unifi-uap-dashboard.yaml
-    ├── unifi-usw-dashboard.yaml
-    ├── unifi-usg-dashboard.yaml
-    ├── unifi-clients-dashboard.yaml
-    ├── traefik-dashboard.yaml
-    └── flux-dashboard.yaml
+    ├── kustomization.yaml                        ✅ DONE (PR #49)
+    ├── node-exporter-full.json                   ✅ DONE (PR #49)
+    ├── pihole-dashboard.json                     ✅ DONE
+    ├── unbound-dashboard.json                    ✅ DONE
+    ├── unifi-client-dpi-dashboard.json           # ID 11310
+    ├── unifi-sites-dashboard.json                # ID 11311
+    ├── unifi-usw-dashboard.json                  # ID 11312
+    ├── unifi-usg-dashboard.json                  # ID 11313
+    ├── unifi-uap-dashboard.json                  # ID 11314
+    ├── unifi-clients-dashboard.json              # ID 11315
+    ├── traefik-dashboard.json                    # ID 17346
+    └── flux-dashboard.json                       # ID 16714
 
-infrastructure/homelab/kustomization.yaml         (add - ./monitoring) ✅ DONE
+infrastructure/homelab/kustomization.yaml         ✅ DONE
 infrastructure/homelab/traefik/helmrelease.yaml   (add Prometheus metrics config)
-infrastructure/homelab/dns/unbound-configmap.yaml (add stats + remote-control)
-infrastructure/homelab/dns/unbound-deployment.yaml (add exporter sidecar)
+infrastructure/homelab/dns/unbound-configmap.yaml ✅ DONE
+infrastructure/homelab/dns/unbound-deployment.yaml ✅ DONE
+clusters/homelab/cluster-vars.yaml                (add METALLB_SYSLOG_IP)
 ```
