@@ -104,3 +104,6 @@ spec:
     - port: metrics
       path: /metrics
       interval: 30s
+      relabelings:
+        - replacement: pihole
+          targetLabel: instance
