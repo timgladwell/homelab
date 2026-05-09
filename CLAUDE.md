@@ -23,15 +23,17 @@ After any change to manifests, run the full validation pipeline from the repo ro
 ./scripts/validate-k3s.sh
 ```
 
-This runs six steps in order:
+This runs eight steps in order:
 1. **YAML lint** — `yamllint` against all files (ignores `flux-system/` and `*.sops.yaml`)
-2. **Kustomize build** — `kustomize build ./clusters/homelab-validation` → `$TMPDIR/k3s-built.yaml`
-3. **Schema validation** — `kubeconform -summary` against the built output
-4. **Best practices** — `kube-score score` against the built output
-5. **Security scan** — `trivy config ./ --severity HIGH,CRITICAL`
-6. **Variable references** — every `${VAR}` in the build output must be defined in `cluster-vars.yaml`
+2. **Flux build** — `flux build kustomization --dry-run` for each top-level Flux Kustomization
+3. **Kustomize build** — `kustomize build ./clusters/homelab-validation` → `$TMPDIR/k3s-built.yaml`
+4. **Schema validation** — `kubeconform -summary` against the built output
+5. **Best practices** — `kube-score score` against the built output
+6. **Security scan** — `trivy config ./ --severity HIGH,CRITICAL`
+7. **Variable references** — every `${VAR}` in the build output must be defined in `cluster-vars.yaml`
+8. **Policy** — `conftest test` against the built output using policies in `policy/`
 
-Steps 3, 4, and 6 are skipped if step 2 fails. All other steps run independently.
+Step 2 gates steps 3–5 and 7–8. Step 3 additionally gates steps 4, 5, 7, and 8. Steps 1 and 6 always run independently.
 
 You can also check a specific kustomization in isolation:
 
@@ -114,9 +116,9 @@ If workload resources were included here, the `flux-system` Kustomization would 
 
 `cluster-vars.yaml` defines `${DNS_DOMAIN}`, `${HOSTNAME}`, `${METALLB_ADDRESS_RANGE}`, `${METALLB_TRAEFIK_IP}`, `${METALLB_PIHOLE_IP}`, `${NODE_IP}`. Use these placeholders directly in manifests — Flux substitutes them at reconcile time via `postBuild.substituteFrom`.
 
-Plain `kustomize build` does not perform this substitution, so the validation pipeline will always contain `${VAR}` literals in its output. Validation step 6 catches any `${VAR}` reference that is not defined in `cluster-vars.yaml`.
+Plain `kustomize build` does not perform this substitution, so the validation pipeline will always contain `${VAR}` literals in its output. Validation step 7 catches any `${VAR}` reference that is not defined in `cluster-vars.yaml`.
 
-**When adding a new variable:** add it to `cluster-vars.yaml` before (or in the same PR as) the manifest that uses it. If the variable is missing, step 6 will fail.
+**When adding a new variable:** add it to `cluster-vars.yaml` before (or in the same PR as) the manifest that uses it. If the variable is missing, step 7 will fail.
 
 ### Adding components to existing Kustomizations
 
@@ -146,13 +148,14 @@ A new top-level Kustomization is needed when resources require a different `depe
    - `<name>.yaml` — the Flux `Kustomization` object with appropriate `dependsOn`, `postBuild`, etc.
 3. Add `- ./<name>` to `clusters/homelab/kustomization.yaml`
 4. Add `- ../../<type>/homelab` to `clusters/homelab-validation/kustomization.yaml`
+5. Add a `case` entry and loop entry in `scripts/validate/02-flux-build.sh`
 
-Step 4 is the only case where `clusters/homelab-validation/kustomization.yaml` needs to be updated. Resources added within an existing top-level path are automatically included in validation.
+Steps 4 and 5 are the only cases where `clusters/homelab-validation/kustomization.yaml` and `02-flux-build.sh` need to be updated. Resources added within an existing top-level path are automatically included in validation.
 
 ### Removing a Kustomization
 
 - **Component within an existing Kustomization:** remove it from the parent `kustomization.yaml`. Flux's `prune: true` will delete the resources from the cluster on the next reconciliation.
-- **Top-level Flux Kustomization:** remove its folder from `clusters/homelab/`, remove its entry from `clusters/homelab/kustomization.yaml`, and remove its resource path from `clusters/homelab-validation/kustomization.yaml`.
+- **Top-level Flux Kustomization:** remove its folder from `clusters/homelab/`, remove its entry from `clusters/homelab/kustomization.yaml`, remove its resource path from `clusters/homelab-validation/kustomization.yaml`, and remove its entry from `scripts/validate/02-flux-build.sh`.
 
 ### Ingress pattern
 

@@ -55,28 +55,42 @@ skip_step() {
 # Step 1: YAML lint — independent
 run_step "YAML Lint" "$VALIDATE_DIR/01-yaml-lint.sh"
 
-# Step 2: Kustomize build — independent, but steps 3 and 4 depend on its output
-if run_step "Kustomize Build" "$VALIDATE_DIR/02-kustomize-build.sh"; then
-    build_ok=true
+# Step 2: Flux build — gates kustomize build and all downstream steps
+if run_step "Flux Build" "$VALIDATE_DIR/02-flux-build.sh"; then
+    flux_build_ok=true
 else
-    build_ok=false
+    flux_build_ok=false
 fi
 
-# Steps 3, 4, 6, and 7: depend on kustomize build output
-if [[ "$build_ok" == true ]]; then
-    run_step "Schema Validation" "$VALIDATE_DIR/03-schema-validate.sh"
-    run_step "Best Practices" "$VALIDATE_DIR/04-best-practices.sh"
-    run_step "Variable References" "$VALIDATE_DIR/06-variable-check.sh"
-    run_step "Policy (conftest)" "$VALIDATE_DIR/07-conftest.sh"
+if [[ "$flux_build_ok" == true ]]; then
+    # Step 3: Kustomize build — gates schema, best practices, variable refs, conftest
+    if run_step "Kustomize Build" "$VALIDATE_DIR/03-kustomize-build.sh"; then
+        build_ok=true
+    else
+        build_ok=false
+    fi
+
+    if [[ "$build_ok" == true ]]; then
+        run_step "Schema Validation" "$VALIDATE_DIR/04-schema-validate.sh"
+        run_step "Best Practices" "$VALIDATE_DIR/05-best-practices.sh"
+        run_step "Variable References" "$VALIDATE_DIR/07-variable-check.sh"
+        run_step "Policy (conftest)" "$VALIDATE_DIR/08-conftest.sh"
+    else
+        skip_step "Schema Validation" "kustomize build failed"
+        skip_step "Best Practices" "kustomize build failed"
+        skip_step "Variable References" "kustomize build failed"
+        skip_step "Policy (conftest)" "kustomize build failed"
+    fi
 else
-    skip_step "Schema Validation" "kustomize build failed"
-    skip_step "Best Practices" "kustomize build failed"
-    skip_step "Variable References" "kustomize build failed"
-    skip_step "Policy (conftest)" "kustomize build failed"
+    skip_step "Kustomize Build" "flux build failed"
+    skip_step "Schema Validation" "flux build failed"
+    skip_step "Best Practices" "flux build failed"
+    skip_step "Variable References" "flux build failed"
+    skip_step "Policy (conftest)" "flux build failed"
 fi
 
-# Step 5: Security scan — independent
-run_step "Security Scan" "$VALIDATE_DIR/05-security-scan.sh"
+# Step 6: Security scan — independent
+run_step "Security Scan" "$VALIDATE_DIR/06-security-scan.sh"
 
 # Summary
 echo ""
