@@ -66,6 +66,7 @@ spec:
                   storage: 14Gi
         serviceMonitorSelectorNilUsesHelmValues: false
         ruleSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
         resources:
           requests:
             cpu: 200m
@@ -86,6 +87,10 @@ spec:
 
     nodeExporter:
       enabled: true
+      serviceMonitor:
+        relabelings:
+          - sourceLabels: [__meta_kubernetes_node_name]
+            targetLabel: instance
 
     kubeStateMetrics:
       enabled: true
