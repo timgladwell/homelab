@@ -323,7 +323,7 @@ frequent than before), which should bring I/O back to baseline.
 
 ---
 
-### Task 2.7 — Fix: enable PodMonitor discovery in kube-prometheus-stack
+### Task 2.7 — Fix: enable PodMonitor discovery in kube-prometheus-stack ✅
 
 **Fixup for Task 2.1.** The deployed `kube-prometheus-stack.yaml` sets
 `serviceMonitorSelectorNilUsesHelmValues: false` and `ruleSelectorNilUsesHelmValues: false`
@@ -343,7 +343,7 @@ podMonitorSelectorNilUsesHelmValues: false   # scrape ALL PodMonitors (e.g. unpo
 
 ---
 
-### Task 2.8 — Fix: human-readable instance labels on node-exporter metrics
+### Task 2.8 — Fix: human-readable instance labels on node-exporter metrics ✅
 
 **Fixup for Task 2.1.** By default, node-exporter metrics carry `instance="<node-ip>:9100"`.
 In Grafana, dashboard variables that use `instance` as a label show raw IP:port values
@@ -684,7 +684,7 @@ Grafana.com dashboard ID **11705**.
 
 ---
 
-### Task 5.3 — Fix: human-readable instance label on Unbound ServiceMonitor
+### Task 5.3 — Fix: human-readable instance label on Unbound ServiceMonitor ✅
 
 **Fixup for Task 5.1.** The deployed `unbound-servicemonitor.yaml` has no relabeling
 rules, so Prometheus records Unbound metrics with `instance="<pod-ip>:9167"`. Follow
@@ -704,7 +704,7 @@ relabelings:
 
 ---
 
-### Task 4.3 — Fix: human-readable instance label on PiHole ServiceMonitor
+### Task 4.3 — Fix: human-readable instance label on PiHole ServiceMonitor ✅
 
 **Fixup for Task 4.1.** The deployed `pihole-exporter.yaml` ServiceMonitor has no
 relabeling rules, so Prometheus records PiHole metrics with `instance="<pod-ip>:9666"`.
@@ -1254,6 +1254,10 @@ After each phase, run the validation pipeline:
 ./scripts/validate-k3s.sh
 ```
 
+The pipeline now has 7 steps. Step 7 runs `conftest` against `policy/` and enforces
+that every `ServiceMonitor` and `PodMonitor` endpoint has a `targetLabel: instance`
+relabeling rule (PR #99). Any new monitor missing this will fail the build.
+
 After full deployment (via Flux reconciliation):
 
 - [ ] `kubectl get pods -n monitoring` — all pods `Running`
@@ -1327,6 +1331,8 @@ infrastructure/homelab/monitoring/
     ├── traefik-dashboard.json                    # ID 17346
     └── flux-dashboard.json                       # ID 16714
 
+policy/servicemonitor_instance_label.rego         ✅ DONE (PR #99)
+scripts/validate/07-conftest.sh                   ✅ DONE (PR #99)
 infrastructure/homelab/kustomization.yaml         ✅ DONE
 infrastructure/homelab/traefik/helmrelease.yaml   (add Prometheus metrics config)
 infrastructure/homelab/dns/unbound-configmap.yaml ✅ DONE
