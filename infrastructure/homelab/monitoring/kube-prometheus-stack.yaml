@@ -37,6 +37,10 @@ spec:
           url: http://loki:3100
           access: proxy
           isDefault: false
+      grafana.ini:
+        analytics:
+          reporting_enabled: false
+          check_for_updates: false
       sidecar:
         dashboards:
           enabled: true

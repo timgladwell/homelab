@@ -43,6 +43,10 @@ spec:
           env:
             - name: TZ
               value: "America/Toronto"
+            - name: FTLCONF_DNS_DOMAINNEEDED
+              value: "true"
+            - name: FTLCONF_DNS_BOGUSPRIV
+              value: "true"
             # Unbound is the sole upstream DNS resolver. Using the pinned
             # ClusterIP directly avoids a circular dependency at startup:
             # dnsmasq would fail to resolve the hostname before the pod network
