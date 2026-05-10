@@ -726,12 +726,51 @@ relabelings:
 
 ## Phase 6 — UniFi Network Metrics
 
-### Task 6.1 — Add unpoller HelmRepository and credentials secret
+### Multi-Site Deployment Pattern
 
-Create a **read-only local user** in the UDM controller UI (Settings →
-Admins & Users → Add Admin, select read-only role).
+Phase 6 and 6.5 together form a **per-site UniFi support suite**: one unpoller instance
+(time-series metrics), one NetworkOptimizer instance (security audits, RF analysis, speed
+tests, threat intelligence), and SIEM logs forwarded to the shared Alloy syslog endpoint.
+Each new UniFi site gets its own instances of both; the shared Prometheus/Loki/Grafana stack
+collects from all sites.
 
-**File to create:**
+**Naming convention:** `<component>-<site>` (e.g. `unpoller-homelab`, `unpoller-remote`,
+`network-optimizer-homelab`). Use short, stable site names. All per-site secrets, HelmReleases,
+and app directories follow this pattern.
+
+**Why one instance per site:**
+- Unpoller supports multiple `[[unifi.controller]]` stanzas in a single TOML config, but at
+  chart v2.1.x the multi-controller code path has known stability issues (race conditions on
+  scrape, stale data after controller reconnect). One HelmRelease per site is safer until
+  upstream stabilises.
+- NetworkOptimizer is explicitly single-site per deployment (multi-site is upstream issue #204,
+  open and not yet in a stable release).
+- Per-instance deployment gives independent `instance` labels, independent PodMonitors, and
+  independent crash domains — a broken credential for one site doesn't affect the others.
+
+**Remote/cloud API mode:** Unpoller's `remote = true` mode uses a Fabric API key from
+`api.ui.com` to auto-discover all consoles. As of chart v2.1.0 this is not yet stable
+(rate-limit crashes, nil-pointer panics on NVR/Protect consoles). Use the local
+username/password mode for every site.
+
+---
+
+### Task 6.1 — Add unpoller HelmRepository and per-site credentials secrets
+
+Create **one shared read-only local user per site** in each UDM controller UI
+(Settings → Admins & Users → Add Admin, select read-only role). Name it something
+stable like `monitoring-ro`. Both unpoller and NetworkOptimizer use this same account
+— they have identical permission requirements and the same trust level. One account
+means one password to rotate per site.
+
+> **Sharing mechanics:** The credentials cannot share a single Kubernetes Secret because
+> the two tools consume them differently. Unpoller gets them injected at deploy time via
+> `valuesFrom` (the SOPS secret below). NetworkOptimizer gets them entered via its web UI
+> on first launch and stored in SQLite — there is no Secret to reference at deploy time
+> for the UniFi credentials. "Sharing" just means using the same username/password values
+> in both places; do not create a second UniFi account.
+
+**File to create (shared, once):**
 ```
 infrastructure/homelab/monitoring/unpoller-helmrepo.yaml
 ```
@@ -743,21 +782,20 @@ infrastructure/homelab/monitoring/unpoller-helmrepo.yaml
 
 Add to `kustomization.yaml`.
 
-**File to create:**
+**File to create (one per site):**
 ```
-infrastructure/homelab/monitoring/unpoller-secret.sops.yaml
+infrastructure/homelab/monitoring/unpoller-homelab-secret.sops.yaml
+infrastructure/homelab/monitoring/unpoller-remote-secret.sops.yaml   # repeat pattern for each site
 ```
 
-The unpoller Helm chart configures the exporter via a single TOML file (`up.conf`)
-generated from the `upConfig` Helm value. Store the entire TOML block as a
-SOPS-encrypted `stringData` field so it can be injected into the HelmRelease via
-`valuesFrom`:
+Each secret is a SOPS-encrypted `stringData` field holding the TOML config block
+for that site's controller:
 
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
-  name: unpoller-config
+  name: unpoller-homelab-config   # name matches the site; referenced in the HelmRelease valuesFrom
   namespace: monitoring
 stringData:
   upConfig: |
@@ -776,36 +814,30 @@ stringData:
 > without `:8443`. Legacy CloudKey / self-hosted Network Application use `https://<ip>:8443`.
 > The unifi library auto-detects the login endpoint from the URL format.
 
-> **Multi-site note:** This task configures the local homelab site only (`sites = ["all"]`
-> auto-discovers every site on that controller). Additional controllers (other three sites)
-> will each get a separate `[[unifi.controller]]` block appended to `upConfig` in a
-> future task — the chart supports an arbitrary number of controller stanzas.
-
-> **Remote/cloud API mode:** Unpoller supports a `remote = true` mode that uses a
-> Fabric API key from `api.ui.com` to auto-discover all consoles. As of chart v2.1.0
-> this mode is not yet stable (rate-limit crashes, nil-pointer panics on NVR/Protect
-> consoles). Use the local username/password mode above.
+Add both secrets to `kustomization.yaml`.
 
 ---
 
-### Task 6.2 — Deploy unpoller
+### Task 6.2 — Deploy unpoller (one HelmRelease per site)
 
-**File to create:**
+**Files to create (one per site):**
 ```
-infrastructure/homelab/monitoring/unpoller.yaml
+infrastructure/homelab/monitoring/unpoller-homelab.yaml
+infrastructure/homelab/monitoring/unpoller-remote.yaml   # repeat pattern for each site
 ```
 
-`HelmRelease` targeting chart `unpoller` from the `unpoller` HelmRepository.
-Pinned to `~2.x`.
+Each is a `HelmRelease` targeting chart `unpoller` from the `unpoller` HelmRepository,
+pinned to `~2.x`. The only differences between site files are the `metadata.name`,
+the `instance` replacement label, and the `valuesFrom` secret name.
 
-Key Helm values:
+Key Helm values (example for `unpoller-homelab`):
 
 ```yaml
 podMonitor:
   enabled: true       # chart creates a PodMonitor for scraping (not a ServiceMonitor)
   interval: 30s
   relabelings:
-    - replacement: unpoller
+    - replacement: unpoller-homelab   # use the site name so Grafana variables are human-readable
       targetLabel: instance
 
 service:
@@ -819,12 +851,12 @@ resources:
   limits:   { cpu: 100m, memory: 128Mi }
 ```
 
-Inject the TOML config from the SOPS secret via `valuesFrom`:
+Inject the TOML config from the site-specific SOPS secret via `valuesFrom`:
 
 ```yaml
 valuesFrom:
   - kind: Secret
-    name: unpoller-config
+    name: unpoller-homelab-config   # matches the secret name from Task 6.1
     valuesKey: upConfig
     targetPath: upConfig
 ```
@@ -832,7 +864,7 @@ valuesFrom:
 The chart stores `upConfig` in a Kubernetes `Secret` and mounts it as `/etc/unpoller/up.conf`
 inside the container. ARM64 image: `ghcr.io/unpoller/unpoller` ✓.
 
-Add to `kustomization.yaml`.
+Add all site HelmReleases to `kustomization.yaml`.
 
 ---
 
@@ -869,6 +901,12 @@ Repeat for each of the six dashboards.
 > uses Grafana Operator CRs and omits dashboard 11310 (Client DPI). Provisioning via the
 > kube-prometheus-stack configmap sidecar gives full control over all 6 dashboards
 > and avoids the Grafana Operator dependency.
+
+> **Multi-site in dashboards:** Unpoller already attaches a `site` label to every metric
+> (the UniFi site name from the controller). The official dashboards expose a `site` Grafana
+> variable; with per-instance deployment you will also have an `instance` variable
+> (`unpoller-homelab`, `unpoller-remote`, etc.). No dashboard edits are needed — the existing
+> variable filters work across all instances automatically.
 
 ---
 
@@ -933,12 +971,147 @@ address=/syslog.${HOSTNAME}/${METALLB_SYSLOG_IP}
 This record is explicit and takes precedence over any wildcard in the same dnsmasq
 config, so no existing records need to be changed.
 
-**UDM configuration (manual step):**
-In the UDM controller UI: Settings → System → Remote Logging →
+**UDM configuration (manual step, one per site):**
+In each UDM controller UI: Settings → System → Remote Logging →
 set target to `syslog.${HOSTNAME}:1514`, protocol `UDP`, format `syslog`.
 
-**Grafana:** No dedicated dashboard needed — use the built-in Loki Explore panel
-with filter `{job="unifi-siem"}` to search firewall/IDS events.
+The single Alloy syslog endpoint receives from all UDMs. Alloy captures the syslog
+`hostname` field as the `host` label, so events from different sites are automatically
+distinguishable in Loki without any per-site configuration.
+
+**Grafana:** No dedicated dashboard needed — use the built-in Loki Explore panel.
+Filter by site using the `host` label:
+- All UniFi SIEM events: `{job="unifi-siem"}`
+- Single site: `{job="unifi-siem", host="<udm-hostname>"}`
+
+---
+
+## Phase 6.5 — NetworkOptimizer (per-site)
+
+NetworkOptimizer ([Ozark-Connect/NetworkOptimizer](https://github.com/Ozark-Connect/NetworkOptimizer))
+is the second component of the per-site UniFi support suite. It complements unpoller:
+
+| Tool | What it provides |
+|------|-----------------|
+| unpoller | Time-series metrics (throughput, client counts, signal strength) → Prometheus |
+| NetworkOptimizer | Security audits (83+ checks), RF analysis, speed testing, threat intelligence, firewall review → built-in web UI |
+
+NetworkOptimizer is a Blazor Server app backed by SQLite (no external database). It is
+single-site per deployment by design (multi-site is upstream issue #204, not yet stable).
+Deploy one instance per UniFi site in `apps/homelab/`, following the same
+`<component>-<site>` naming convention as unpoller.
+
+**License:** BSL 1.1 — free for personal/non-commercial use on up to 3 sites. Converts to
+Apache 2.0 on 2028-01-01.
+
+**No Prometheus metrics endpoint** — the planned InfluxDB integration is not yet implemented.
+Alloy collects NetworkOptimizer container logs automatically via the existing Kubernetes pod
+log discovery configured in `alloy.yaml` (no per-app Alloy config needed).
+
+**UniFi credentials** are set via the NetworkOptimizer web UI on first launch and stored in
+SQLite — they are not injected via environment variables. The only secret to manage is
+`APP_PASSWORD` (the initial admin password for the NetworkOptimizer UI itself).
+
+---
+
+### Task 6.5.1 — Deploy NetworkOptimizer (one per site)
+
+**Directory to create (one per site):**
+```
+apps/homelab/network-optimizer-homelab/
+apps/homelab/network-optimizer-remote/   # repeat pattern for each site
+```
+
+Each directory contains a `kustomization.yaml` plus the following resources.
+
+**Files per site:**
+```
+apps/homelab/network-optimizer-homelab/
+├── kustomization.yaml
+├── deployment.yaml
+├── service.yaml
+├── pvc.yaml
+├── ingressroute.yaml
+└── secret.sops.yaml
+```
+
+**`pvc.yaml`** — `PersistentVolumeClaim` in namespace `apps`:
+```yaml
+accessModes: [ReadWriteOnce]
+resources:
+  requests:
+    storage: 10Gi   # SQLite DB + speed test history + JSON logs
+```
+
+**`deployment.yaml`** — `Deployment` in namespace `apps`:
+- Image: `ozarkconnect/network-optimizer:latest` (ARM64 ✓)
+- Ports: 8042 (web UI), 3005 (OpenSpeedTest) — omit 5201 (iperf3) unless needed
+- Volume mount: `/data` → the 10Gi PVC
+- Liveness/readiness probe: `GET /api/health` port 8042, initialDelaySeconds: 30
+- Resources: `requests: {cpu: 100m, memory: 256Mi}`, `limits: {cpu: 500m, memory: 512Mi}`
+
+Key env vars:
+```yaml
+env:
+  - name: BIND_LOCALHOST_ONLY
+    value: "false"
+  - name: HOST_IP
+    value: "${NODE_IP}"           # node IP used for speed test STUN; substitute at reconcile time
+  - name: HOST_NAME
+    value: "network-optimizer-homelab.${HOSTNAME}"   # canonical FQDN for this instance
+  - name: REVERSE_PROXIED_HOST_NAME
+    value: "network-optimizer-homelab.${HOSTNAME}"   # same as HOST_NAME when behind Traefik
+  - name: TZ
+    value: "UTC"
+  - name: APP_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: network-optimizer-homelab-secret
+        key: admin-password
+```
+
+**`secret.sops.yaml`** — `Secret` in namespace `apps`, SOPS-encrypted:
+```yaml
+metadata:
+  name: network-optimizer-homelab-secret
+stringData:
+  admin-password: "<initial-admin-password>"
+```
+
+**`service.yaml`** — `ClusterIP` `Service` in namespace `apps`:
+- Port 8042 (web UI) — named `http`
+- Port 3005 (OpenSpeedTest) — named `speedtest` (optional)
+
+**`ingressroute.yaml`** — Traefik `IngressRoute` routing
+`network-optimizer-homelab.${HOSTNAME}` → port 8042.
+Follow the pattern in `infrastructure/homelab/dns/pihole-ingressroute.yaml`.
+
+**Wire into Flux:**
+Add `- ./network-optimizer-homelab` to `apps/homelab/kustomization.yaml`.
+
+> **First-run:** After the pod starts, log in with `admin` / `<APP_PASSWORD>` and configure
+> the UniFi controller URL, username, and password via the UI. These are persisted in
+> SQLite (the 10Gi PVC) and survive pod restarts.
+
+> **Remote site access:** NetworkOptimizer needs network reachability to the remote UDM's
+> HTTPS management port. If the remote site is not on the same L3 network, a site-to-site
+> VPN or UniFi Teleport tunnel is required before this will work.
+
+---
+
+### Task 6.5.2 — Confirm Alloy log collection for NetworkOptimizer
+
+No additional Alloy config is needed. The existing `loki.source.kubernetes "pods"` block
+in `alloy.yaml` already discovers and ships all pod logs (including NetworkOptimizer's JSON
+logs) to Loki with `namespace`, `pod`, and `container` labels.
+
+To query NetworkOptimizer logs in Loki Explore:
+```
+{namespace="apps", pod=~"network-optimizer-homelab.*"}
+```
+
+NetworkOptimizer writes structured JSON logs — filter by severity, operation, or site using
+Loki's `| json` parser and label filters.
 
 ---
 
@@ -1285,12 +1458,16 @@ After full deployment (via Flux reconciliation):
 | pihole-exporter | amonacoos/pihole6_exporter (bazmonk/pihole6_exporter) | ✓ |
 | unbound-exporter | ar51an/unbound-exporter | verify tag |
 | unpoller | ghcr.io/unpoller/unpoller | ✓ |
+| NetworkOptimizer | ozarkconnect/network-optimizer | ✓ |
 | OTel Operator | ghcr.io/open-telemetry/opentelemetry-operator | ✓ |
 | OTel Collector | ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib | ✓ |
 
 ---
 
 ## Files to Create (complete list)
+
+Files marked `[×N]` are created once per UniFi site. The examples below use `homelab`
+and `remote` as site names; substitute the actual site names when implementing.
 
 ```
 infrastructure/homelab/monitoring/
@@ -1306,9 +1483,11 @@ infrastructure/homelab/monitoring/
 ├── pihole-exporter.yaml                          ✅ DONE (fixup: Task 4.3)
 ├── pihole-exporter-secret.sops.yaml              ✅ DONE
 ├── unbound-servicemonitor.yaml                   ✅ DONE (fixup: Task 5.3)
-├── unpoller-helmrepo.yaml
-├── unpoller-secret.sops.yaml
-├── unpoller.yaml
+├── unpoller-helmrepo.yaml                        # shared, once
+├── unpoller-homelab-secret.sops.yaml             [×N] one per site
+├── unpoller-remote-secret.sops.yaml              [×N]
+├── unpoller-homelab.yaml                         [×N] one HelmRelease per site
+├── unpoller-remote.yaml                          [×N]
 ├── alloy-syslog-service.yaml
 ├── traefik-servicemonitor.yaml
 ├── flux-servicemonitor.yaml
@@ -1330,6 +1509,18 @@ infrastructure/homelab/monitoring/
     ├── unifi-clients-dashboard.json              # ID 11315
     ├── traefik-dashboard.json                    # ID 17346
     └── flux-dashboard.json                       # ID 16714
+
+apps/homelab/
+├── kustomization.yaml                            (add network-optimizer-* entries)
+├── network-optimizer-homelab/                    [×N] one directory per site
+│   ├── kustomization.yaml
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   ├── pvc.yaml
+│   ├── ingressroute.yaml
+│   └── secret.sops.yaml
+└── network-optimizer-remote/                     [×N]
+    └── ...
 
 policy/servicemonitor_instance_label.rego         ✅ DONE (PR #99)
 scripts/validate/07-conftest.sh                   ✅ DONE (PR #99)
