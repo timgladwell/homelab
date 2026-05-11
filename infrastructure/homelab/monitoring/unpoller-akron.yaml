@@ -39,6 +39,8 @@ spec:
 
     dashboards:
       create: false
+      grafana:
+        create: false
 
     resources:
       requests:
