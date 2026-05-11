@@ -24,3 +24,45 @@ configMapGenerator:
       disableNameSuffixHash: true
       labels:
         grafana_dashboard: "1"
+  - name: dashboard-unifi-client-dpi
+    files:
+      - unifi-client-dpi-dashboard.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  - name: dashboard-unifi-sites
+    files:
+      - unifi-sites-dashboard.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  - name: dashboard-unifi-usw
+    files:
+      - unifi-usw-dashboard.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  - name: dashboard-unifi-usg
+    files:
+      - unifi-usg-dashboard.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  - name: dashboard-unifi-uap
+    files:
+      - unifi-uap-dashboard.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+  - name: dashboard-unifi-clients
+    files:
+      - unifi-clients-dashboard.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
