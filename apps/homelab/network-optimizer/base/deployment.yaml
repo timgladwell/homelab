@@ -5,6 +5,19 @@ metadata:
   name: network-optimizer
   namespace: apps
   annotations:
+    # container-security-context-readonlyrootfilesystem: Blazor Server runtime writes
+    #   ASP.NET temp files and logs outside /data; readOnlyRootFilesystem requires
+    #   remapping all write paths upstream in the image.
+    # container-security-context-user-group-id: Runtime UID/GID is managed internally
+    #   by the image entrypoint; cannot set runAsUser/runAsGroup without inspecting
+    #   the image to determine the correct values.
+    # pod-probes-identical: /api/health is the only health endpoint exposed by the
+    #   app; using different endpoints would require upstream changes.
+    # pod-networkpolicy: No NetworkPolicy yet — pending a follow-up task.
+    # deployment-replicas: Single replica is intentional; NetworkOptimizer is
+    #   single-site per deployment and SQLite does not support concurrent writers.
+    # container-image-pull-policy: Tag is pinned to a semver release; IfNotPresent
+    #   avoids redundant pulls on an RPi with limited bandwidth.
     kube-score/ignore: >-
       container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,pod-probes-identical,pod-networkpolicy,deployment-replicas,container-image-pull-policy
 spec:
@@ -17,9 +30,12 @@ spec:
       labels:
         app: network-optimizer
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: network-optimizer
-          image: ozarkconnect/network-optimizer:1.16.4
+          image: ghcr.io/ozark-connect/network-optimizer:v1.16.4
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -61,6 +77,7 @@ spec:
               ephemeral-storage: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
       volumes:
         - name: data
           persistentVolumeClaim:

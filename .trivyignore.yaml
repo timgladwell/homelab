@@ -49,4 +49,40 @@ misconfigurations:
     paths:
       - "infrastructure/homelab/system-upgrade-controller/system-upgrade-controller.yaml"
     statement: "Pod-level securityContext added via deployment-patch.yaml; container already enforces runAsNonRoot: true"
+
+  #
+  # NetworkOptimizer
+  # ----------------------------
+  #
+  # Base
+  # ----------------------------
+  # NetworkOptimizer is a Blazor Server app that writes ASP.NET temp files and logs
+  # outside the mounted /data PVC. readOnlyRootFilesystem cannot be set to true without
+  # remapping all runtime write paths, which requires upstream image changes.
+  # The image runtime user is managed internally; runAsNonRoot cannot be safely asserted
+  # without inspecting the image entrypoint.
+  - id: AVD-KSV-0014
+    paths:
+      - "apps/homelab/network-optimizer/base/deployment.yaml"
+    statement: "Blazor runtime writes ASP.NET temp files and logs outside the /data PVC mount"
+  - id: AVD-KSV-0118
+    paths:
+      - "apps/homelab/network-optimizer/base/deployment.yaml"
+    statement: "Runtime user is managed internally by the image; cannot assert runAsNonRoot without image inspection"
+  #
+  # Akron
+  # ----------------------------
+  # NetworkOptimizer is a Blazor Server app that writes ASP.NET temp files and logs
+  # outside the mounted /data PVC. readOnlyRootFilesystem cannot be set to true without
+  # remapping all runtime write paths, which requires upstream image changes.
+  # The image runtime user is managed internally; runAsNonRoot cannot be safely asserted
+  # without inspecting the image entrypoint.
+  - id: AVD-KSV-0014
+    paths:
+      - "apps/homelab/network-optimizer/akron/patch-env.yaml"
+    statement: "Blazor runtime writes ASP.NET temp files and logs outside the /data PVC mount"
+  - id: AVD-KSV-0118
+    paths:
+      - "apps/homelab/network-optimizer/akron/patch-env.yaml"
+    statement: "Runtime user is managed internally by the image; cannot assert runAsNonRoot without image inspection"
 # yamllint enable rule:line-length
