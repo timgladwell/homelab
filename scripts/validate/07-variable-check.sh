@@ -11,8 +11,11 @@ fi
 
 CLUSTER_VARS="${REPO_ROOT}/clusters/homelab/cluster-vars.yaml"
 
-# All ${VAR} references in the built manifest (uppercase + underscore convention)
-used=$(grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "$BUILD_OUTPUT" | sort -u | sed 's/[${}]//g')
+# All ${VAR} references in the built manifest (uppercase + underscore convention).
+# Exclude DS_* variables — Grafana datasource UID template variables in dashboard JSON
+# ConfigMaps; they use the same ${} syntax but are not Flux substitution variables.
+# Flux leaves undefined variables as-is, so these are safe to skip here.
+used=$(grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "$BUILD_OUTPUT" | sort -u | sed 's/[${}]//g' | grep -v '^DS_')
 
 if [[ -z "$used" ]]; then
     echo "No \${VAR} references found in manifest — nothing to check."
