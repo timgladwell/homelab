@@ -39,6 +39,6 @@ This is a prerequisite for the `kube-controller-manager` and `kube-scheduler` Pr
 
 Once Promtail is deployed (Phase 6), configure the UDM to forward syslog events to Promtail:
 
-In the UDM controller UI: **Settings → System → Remote Logging** → set target to `<node-ip>:1514`, protocol `UDP`, format `syslog`.
+In the UDM controller UI: **Settings → System → Remote Logging** → set target to `syslog.${HOSTNAME}:1514`, protocol `UDP`, format `syslog`.
 
 This is a prerequisite for the `{job="unifi-siem"}` log stream in Loki/Grafana Explore.

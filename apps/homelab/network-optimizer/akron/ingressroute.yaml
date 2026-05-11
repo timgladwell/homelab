@@ -1,0 +1,15 @@
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: network-optimizer
+  namespace: apps
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`network-optimizer-akron.${HOSTNAME}`)
+      kind: Rule
+      services:
+        - name: network-optimizer-akron
+          port: 8042
