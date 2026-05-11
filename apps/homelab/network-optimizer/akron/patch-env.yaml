@@ -16,10 +16,6 @@ spec:
       containers:
         - name: network-optimizer
           env:
-            - name: HOST_NAME
-              value: "network-optimizer-akron.${HOSTNAME}"
-            - name: REVERSE_PROXIED_HOST_NAME
-              value: "network-optimizer-akron.${HOSTNAME}"
             - name: APP_PASSWORD
               valueFrom:
                 secretKeyRef:
