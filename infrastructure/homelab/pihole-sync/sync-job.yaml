@@ -17,6 +17,9 @@ spec:
   # Gravity takes ~10 min; 45 min gives 3 full sync+gravity attempts.
   activeDeadlineSeconds: 2700
   template:
+    metadata:
+      labels:
+        app: pihole-sync
     spec:
       restartPolicy: OnFailure
       securityContext:
