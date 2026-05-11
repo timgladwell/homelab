@@ -6,6 +6,9 @@ metadata:
   namespace: system-upgrade
 spec:
   template:
+    metadata:
+      labels:
+        app: system-upgrade-controller
     spec:
       securityContext:
         runAsNonRoot: true
