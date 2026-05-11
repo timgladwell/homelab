@@ -54,11 +54,6 @@ spec:
         memory: 128Mi
 
     alloy:
-      extraPorts:
-        - name: syslog-udp
-          port: 1514
-          targetPort: 1514
-          protocol: UDP
       configMap:
         create: true
         content: |
