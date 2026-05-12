@@ -11,6 +11,8 @@ spec:
       relabelings:
         - replacement: unpoller-akron
           targetLabel: instance
+        - replacement: akron
+          targetLabel: site
   selector:
     matchLabels:
       app.kubernetes.io/instance: unpoller-akron

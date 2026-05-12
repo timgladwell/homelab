@@ -21,3 +21,36 @@ patches:
             name: unpoller-config-akron
             valuesKey: upConfig
             targetPath: upConfig
+        postRenderers:
+          - kustomize:
+              patches:
+                - target:
+                    kind: Deployment
+                    labelSelector: "app.kubernetes.io/name=unpoller"
+                  patch: |
+                    apiVersion: apps/v1
+                    kind: Deployment
+                    metadata:
+                      name: unpoller-akron
+                    spec:
+                      template:
+                        spec:
+                          containers:
+                            - name: unpoller
+                              env:
+                                - name: UP_UNIFI_DYNAMIC
+                                  value: "false"
+                                - name: UP_UNIFI_DEFAULT_VERIFY_SSL
+                                  value: "false"
+                                - name: UP_UNIFI_DEFAULT_SAVE_DPI
+                                  value: "true"
+                                - name: UP_UNIFI_DEFAULT_SAVE_SYSLOG
+                                  value: "true"
+                                - name: UP_UNIFI_DEFAULT_SAVE_IDS
+                                  value: "true"
+                                - name: UP_UNIFI_DEFAULT_SITE_0
+                                  value: "all"
+                                - name: UP_LOKI_DISABLE
+                                  value: "false"
+                                - name: UP_LOKI_URL
+                                  value: "http://loki.monitoring.svc.cluster.local:3100"
