@@ -4,7 +4,7 @@ kind: Kustomization
 resources:
   - ../base
   - secret.sops.yaml
-nameSuffix: -akron
+nameSuffix: -eastbank
 patches:
   - target:
       kind: HelmRelease
@@ -17,11 +17,11 @@ patches:
       spec:
         valuesFrom:
           - kind: Secret
-            name: unpoller-config-akron
+            name: unpoller-config-eastbank
             valuesKey: upConfig
             targetPath: upConfig
         values:
           podMonitor:
             relabelings:
-              - replacement: unpoller-akron
+              - replacement: unpoller-eastbank
                 targetLabel: instance
