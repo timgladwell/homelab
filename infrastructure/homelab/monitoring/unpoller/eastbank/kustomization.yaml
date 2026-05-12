@@ -47,7 +47,7 @@ patches:
                                 - name: UP_UNIFI_DEFAULT_SAVE_SYSLOG
                                   value: "true"
                                 - name: UP_UNIFI_DEFAULT_SAVE_IDS
-                                  value: "true"
+                                  value: "false"
                                 - name: UP_UNIFI_DEFAULT_SITE_0
                                   value: "all"
                                 - name: UP_LOKI_DISABLE
