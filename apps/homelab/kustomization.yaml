@@ -5,3 +5,5 @@ resources:
   - namespace.yaml
   - ./podinfo
   - ./network-optimizer/akron
+  - ./network-optimizer/eastbank
+  - ./network-optimizer/lottage
