@@ -7,11 +7,11 @@ metadata:
 spec:
   selector:
     matchLabels:
-      site: akron
+      site: eastbank
   template:
     metadata:
       labels:
-        site: akron
+        site: eastbank
     spec:
       containers:
         - name: network-optimizer
@@ -30,4 +30,4 @@ metadata:
 spec:
   selector:
     app: network-optimizer
-    site: akron
+    site: eastbank
