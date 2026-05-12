@@ -11,6 +11,8 @@ spec:
       relabelings:
         - replacement: unpoller-lottage
           targetLabel: instance
+        - replacement: lottage
+          targetLabel: site
   selector:
     matchLabels:
       app.kubernetes.io/instance: unpoller-lottage

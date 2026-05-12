@@ -11,6 +11,8 @@ spec:
       relabelings:
         - replacement: unpoller-eastbank
           targetLabel: instance
+        - replacement: eastbank
+          targetLabel: site
   selector:
     matchLabels:
       app.kubernetes.io/instance: unpoller-eastbank
