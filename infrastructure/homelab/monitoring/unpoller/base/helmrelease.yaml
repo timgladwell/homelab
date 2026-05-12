@@ -23,8 +23,7 @@ spec:
       interval: 12h
   values:
     podMonitor:
-      enabled: true
-      interval: 30s
+      enabled: false
     service:
       enabled: false
     dashboards:
