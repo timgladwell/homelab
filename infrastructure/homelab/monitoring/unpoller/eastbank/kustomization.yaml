@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ../base
   - secret.sops.yaml
+  - podmonitor.yaml
 nameSuffix: -eastbank
 patches:
   - target:
@@ -20,8 +21,3 @@ patches:
             name: unpoller-config-eastbank
             valuesKey: upConfig
             targetPath: upConfig
-        values:
-          podMonitor:
-            relabelings:
-              - replacement: unpoller-eastbank
-                targetLabel: instance
