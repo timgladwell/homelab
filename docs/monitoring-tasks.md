@@ -724,7 +724,7 @@ relabelings:
 
 ---
 
-## Phase 6 — UniFi Network Metrics
+## Phase 6 — UniFi Network Metrics ✅ COMPLETE
 
 ### Multi-Site Deployment Pattern
 
@@ -755,7 +755,7 @@ username/password mode for every site.
 
 ---
 
-### Task 6.1 — Add unpoller HelmRepository and per-site credentials secrets
+### Task 6.1 — Add unpoller HelmRepository and per-site credentials secrets ✅
 
 Create **one shared read-only local user per site** in each UDM controller UI
 (Settings → Admins & Users → Add Admin, select read-only role). Name it something
@@ -818,7 +818,7 @@ Add both secrets to `kustomization.yaml`.
 
 ---
 
-### Task 6.2 — Deploy unpoller (one HelmRelease per site)
+### Task 6.2 — Deploy unpoller (one HelmRelease per site) ✅
 
 **Files to create (one per site):**
 ```
@@ -868,7 +868,7 @@ Add all site HelmReleases to `kustomization.yaml`.
 
 ---
 
-### Task 6.3 — UniFi Grafana dashboards
+### Task 6.3 — UniFi Grafana dashboards ✅
 
 There are **6 official Prometheus dashboards** for unpoller. The original task doc listed
 only 4 and had two IDs mislabelled. The complete set:
@@ -910,7 +910,7 @@ Repeat for each of the six dashboards.
 
 ---
 
-### Task 6.4 — UniFi SIEM syslog ingestion
+### Task 6.4 — UniFi SIEM syslog ingestion ✅
 
 The UDM has a built-in SIEM / syslog forwarding option (Settings → System →
 Advanced → Remote Logging). This delivers real-time **event logs** (firewall rules
@@ -986,7 +986,7 @@ Filter by site using the `host` label:
 
 ---
 
-## Phase 6.5 — NetworkOptimizer (per-site)
+## Phase 6.5 — NetworkOptimizer (per-site) ✅ COMPLETE
 
 NetworkOptimizer ([Ozark-Connect/NetworkOptimizer](https://github.com/Ozark-Connect/NetworkOptimizer))
 is the second component of the per-site UniFi support suite. It complements unpoller:
@@ -1014,7 +1014,7 @@ SQLite — they are not injected via environment variables. The only secret to m
 
 ---
 
-### Task 6.5.1 — Deploy NetworkOptimizer (one per site)
+### Task 6.5.1 — Deploy NetworkOptimizer (one per site) ✅
 
 **Directory to create (one per site):**
 ```
@@ -1099,7 +1099,7 @@ Add `- ./network-optimizer-homelab` to `apps/homelab/kustomization.yaml`.
 
 ---
 
-### Task 6.5.2 — Confirm Alloy log collection for NetworkOptimizer
+### Task 6.5.2 — Confirm Alloy log collection for NetworkOptimizer ✅
 
 No additional Alloy config is needed. The existing `loki.source.kubernetes "pods"` block
 in `alloy.yaml` already discovers and ships all pod logs (including NetworkOptimizer's JSON
@@ -1483,12 +1483,14 @@ infrastructure/homelab/monitoring/
 ├── pihole-exporter.yaml                          ✅ DONE (fixup: Task 4.3)
 ├── pihole-exporter-secret.sops.yaml              ✅ DONE
 ├── unbound-servicemonitor.yaml                   ✅ DONE (fixup: Task 5.3)
-├── unpoller-helmrepo.yaml                        # shared, once
-├── unpoller-homelab-secret.sops.yaml             [×N] one per site
-├── unpoller-remote-secret.sops.yaml              [×N]
-├── unpoller-homelab.yaml                         [×N] one HelmRelease per site
-├── unpoller-remote.yaml                          [×N]
-├── alloy-syslog-service.yaml
+├── unpoller/                                     ✅ DONE (base/overlay pattern)
+│   ├── kustomization.yaml
+│   ├── helmrepository.yaml                       # shared HelmRepository
+│   ├── base/helmrelease.yaml                     # shared base HelmRelease
+│   ├── akron/{kustomization,podmonitor,secret.sops}.yaml
+│   ├── eastbank/{kustomization,podmonitor,secret.sops}.yaml
+│   └── lottage/{kustomization,podmonitor,secret.sops}.yaml
+├── alloy-syslog-service.yaml                     ✅ DONE
 ├── traefik-servicemonitor.yaml
 ├── flux-servicemonitor.yaml
 ├── alerting-rules.yaml
@@ -1511,16 +1513,12 @@ infrastructure/homelab/monitoring/
     └── flux-dashboard.json                       # ID 16714
 
 apps/homelab/
-├── kustomization.yaml                            (add network-optimizer-* entries)
-├── network-optimizer-homelab/                    [×N] one directory per site
-│   ├── kustomization.yaml
-│   ├── deployment.yaml
-│   ├── service.yaml
-│   ├── pvc.yaml
-│   ├── ingressroute.yaml
-│   └── secret.sops.yaml
-└── network-optimizer-remote/                     [×N]
-    └── ...
+├── kustomization.yaml                            ✅ DONE (includes network-optimizer sites)
+└── network-optimizer/                            ✅ DONE (base/overlay pattern)
+    ├── base/{deployment,service,pvc,kustomization}.yaml
+    ├── akron/{ingressroute,patch-env,secret.sops,kustomization}.yaml
+    ├── eastbank/{ingressroute,patch-env,secret.sops,kustomization}.yaml
+    └── lottage/{ingressroute,patch-env,secret.sops,kustomization}.yaml
 
 policy/servicemonitor_instance_label.rego         ✅ DONE (PR #99)
 scripts/validate/07-conftest.sh                   ✅ DONE (PR #99)
