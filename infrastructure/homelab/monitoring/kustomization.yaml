@@ -13,8 +13,6 @@ resources:
   - pihole-exporter-secret.sops.yaml
   - pihole-exporter.yaml
   - unbound-servicemonitor.yaml
-  - unpoller-helmrepo.yaml
-  - unpoller-akron-secret.sops.yaml
-  - unpoller-akron.yaml
+  - ./unpoller
   - alloy-syslog-service.yaml
   - ./dashboards
