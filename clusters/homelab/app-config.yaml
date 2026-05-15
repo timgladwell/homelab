@@ -2,14 +2,14 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: pihole-sync
+  name: app-config
   namespace: flux-system
 spec:
   interval: 10m
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ../infrastructure/homelab/pihole-sync
+  path: ../app-config/homelab/
   prune: true
   # force allows Flux to delete and recreate the Job when its spec changes
   # (Jobs are immutable once created). This happens automatically whenever
@@ -20,7 +20,7 @@ spec:
   # Gravity update takes ~10 minutes; 20 minutes provides enough headroom.
   timeout: 20m
   dependsOn:
-    - name: infrastructure
+    - name: apps
   decryption:
     provider: sops
     secretRef:

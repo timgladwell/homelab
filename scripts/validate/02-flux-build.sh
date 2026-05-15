@@ -5,12 +5,12 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 fail=0
-for ks in infrastructure infrastructure-config pihole-sync apps; do
+for ks in infrastructure infrastructure-config apps app-config; do
     case "$ks" in
         infrastructure)        path="./infrastructure/homelab" ;;
         infrastructure-config) path="./infrastructure-config/homelab" ;;
-        pihole-sync)           path="./infrastructure/homelab/pihole-sync" ;;
         apps)                  path="./apps/homelab" ;;
+        app-config)            path="./app-config/homelab" ;;
     esac
     output=$(flux build kustomization "$ks" \
         --path "$path" \
