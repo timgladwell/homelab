@@ -11,6 +11,6 @@ kind: Kustomization
 resources:
   - ../homelab                           # Flux bootstrap: controllers + Kustomization definitions
   - ../../infrastructure/homelab         # Cluster infrastructure (HelmReleases, namespaces, etc.)
-  - ../../infrastructure/homelab/pihole-sync  # Top-level Flux Kustomization (not under infrastructure/)
   - ../../infrastructure-config/homelab  # Post-infrastructure config (MetalLB IP pools, etc.)
   - ../../apps/homelab                   # User-facing applications
+  - ../../app-config/homelab             # Post-apps config (pihole-sync, etc.)

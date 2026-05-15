@@ -76,10 +76,11 @@ clusters/homelab/               # Flux entry point — managed by the flux-syste
   infrastructure-config/        # Flux Kustomization object for infrastructure-config/homelab/
   infrastructure.yaml           # Flux Kustomization object for infrastructure/homelab/
   apps.yaml                     # Flux Kustomization object for apps/homelab/
+  app-config.yaml               # Flux Kustomization object for app-config/homelab/
   cluster-vars.yaml             # ConfigMap injected into all manifests via postBuild.substituteFrom
 
 clusters/homelab-validation/    # Validation-only kustomize entry point (not reconciled by Flux)
-  kustomization.yaml            # Includes all four resource layers for kubeconform/kube-score/trivy
+  kustomization.yaml            # Includes all five resource layers for kubeconform/kube-score/trivy
 
 infrastructure/homelab/         # Cluster infrastructure (namespaces, Helm releases, CRDs)
   kustomization.yaml            # Add new infrastructure subdirs here
@@ -94,11 +95,15 @@ infrastructure-config/homelab/  # Post-infrastructure config (depends on CRDs fr
   metallb-config/               # MetalLB IP pools (IPAddressPool + L2Advertisement)
 
 apps/homelab/                   # User-facing applications (deployed after infrastructure)
+
+app-config/homelab/             # Post-apps config (depends on apps being deployed)
+  kustomization.yaml            # Add new app-config subdirs here
+  pihole-sync/                  # Syncs DNS blocklists into PiHole
 ```
 
 ### Why there are two `clusters/homelab*` directories
 
-`clusters/homelab/kustomization.yaml` is processed by the `flux-system` Flux Kustomization (path: `./clusters/homelab`). It must only contain **Flux bootstrap objects**: the Flux controller overlay and the four Flux Kustomization definitions. It must not reference raw workload resources (HelmReleases, namespaces, IPAddressPools, etc.) directly.
+`clusters/homelab/kustomization.yaml` is processed by the `flux-system` Flux Kustomization (path: `./clusters/homelab`). It must only contain **Flux bootstrap objects**: the Flux controller overlay and the five Flux Kustomization definitions. It must not reference raw workload resources (HelmReleases, namespaces, IPAddressPools, etc.) directly.
 
 If workload resources were included here, the `flux-system` Kustomization would apply them without variable substitution (it has no `postBuild.substituteFrom`) and without the `dependsOn` ordering that ensures MetalLB CRDs exist before IPAddressPool resources are applied. It would also create duplicate resource ownership between `flux-system` and the dedicated `infrastructure`/`infrastructure-config` Kustomizations — both with `prune: true` — causing reconciliation conflicts.
 
@@ -107,10 +112,11 @@ If workload resources were included here, the `flux-system` Kustomization would 
 ### Reconciliation flow
 
 1. Flux watches the Git repo and reconciles `clusters/homelab/` via the `flux-system` Kustomization
-2. `flux-system` applies: Flux controllers, `cluster-vars` ConfigMap, and the four Kustomization objects below
+2. `flux-system` applies: Flux controllers, `cluster-vars` ConfigMap, and the five Kustomization objects below
 3. `infrastructure` reconciles `infrastructure/homelab/` — SOPS decryption + `cluster-vars` substitution
 4. `infrastructure-config` reconciles `infrastructure-config/homelab/` — only after `infrastructure` is healthy (`dependsOn`)
 5. `apps` reconciles `apps/homelab/` — only after both `infrastructure` and `infrastructure-config` are healthy (`dependsOn`)
+6. `app-config` reconciles `app-config/homelab/` — only after `apps` is healthy (`dependsOn`)
 
 ### Variable substitution
 
@@ -136,6 +142,11 @@ Plain `kustomize build` does not perform this substitution, so the validation pi
 **Apps:**
 1. Create `apps/homelab/<app>/` with a `kustomization.yaml` listing its resources
 2. Add `- ./<app>` to `apps/homelab/kustomization.yaml`
+3. No changes needed to `clusters/` or `clusters/homelab-validation/`
+
+**Post-apps config (resources that require apps to be deployed first):**
+1. Create `app-config/homelab/<component>/` with a `kustomization.yaml` listing its resources
+2. Add `- ./<component>` to `app-config/homelab/kustomization.yaml`
 3. No changes needed to `clusters/` or `clusters/homelab-validation/`
 
 ### Adding a new top-level Flux Kustomization

@@ -7,4 +7,4 @@ resources:
   - ./infrastructure.yaml
   - ./infrastructure-config.yaml
   - ./apps.yaml
-  - ./pihole-sync.yaml
+  - ./app-config.yaml
