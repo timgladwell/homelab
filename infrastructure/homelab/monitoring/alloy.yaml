@@ -54,6 +54,8 @@ spec:
         memory: 128Mi
 
     alloy:
+      extraArgs:
+        - --disable-reporting
       configMap:
         create: true
         content: |

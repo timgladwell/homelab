@@ -41,6 +41,8 @@ spec:
         analytics:
           reporting_enabled: false
           check_for_updates: false
+        security:
+          disable_gravatar: true
       sidecar:
         dashboards:
           enabled: true
