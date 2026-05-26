@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: network-optimizer
-          image: ghcr.io/ozark-connect/network-optimizer:1.16.8
+          image: ghcr.io/ozark-connect/network-optimizer:1.17.7
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
