@@ -3,7 +3,6 @@ version: 2
 updates:
   - package-ecosystem: docker
     directories:
-      - "/apps/homelab/podinfo"
       - "/apps/homelab/network-optimizer/base"
       - "/infrastructure/homelab/dns"
       - "/infrastructure/homelab/metaldb"
