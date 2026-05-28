@@ -98,6 +98,43 @@ spec:
             cpu: 100m
             memory: 128Mi
 
+    kubelet:
+      serviceMonitor:
+        cAdvisorMetricRelabelings:
+          # Drop the cgroup id label — full cgroup paths are not used in dashboards
+          # and contribute disproportionately to series cardinality
+          - action: labeldrop
+            regex: id
+          # Drop metric families not referenced by any configured dashboard
+          - sourceLabels: [__name__]
+            regex: "container_(tasks_state|cpu_load_average_10s|memory_failures_total|memory_mapped_file)"
+            action: drop
+          - sourceLabels: [__name__]
+            regex: "container_(network_tcp_usage_total|network_udp_usage_total|blkio_device_usage_total)"
+            action: drop
+          - sourceLabels: [__name__]
+            regex: "container_(fs_io_current|fs_io_time_seconds_total|fs_io_time_weighted_seconds_total)"
+            action: drop
+          - sourceLabels: [__name__]
+            regex: "container_(fs_reads_merged_total|fs_sector_reads_total|fs_sector_writes_total)"
+            action: drop
+          - sourceLabels: [__name__]
+            regex: container_fs_writes_merged_total
+            action: drop
+
+    kubeApiServer:
+      serviceMonitor:
+        metricRelabelings:
+          # Drop histogram bucket series — these account for most apiserver cardinality.
+          # _sum and _count are retained so average latency remains queryable;
+          # percentile queries (histogram_quantile) will no longer work.
+          - sourceLabels: [__name__]
+            regex: "apiserver_(request_duration_seconds_bucket|response_sizes_bucket)"
+            action: drop
+          - sourceLabels: [__name__]
+            regex: "apiserver_(watch_events_sizes_bucket|request_filter_duration_seconds_bucket)"
+            action: drop
+
     nodeExporter:
       enabled: true
       serviceMonitor:
