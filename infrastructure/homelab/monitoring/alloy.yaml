@@ -119,7 +119,7 @@ spec:
             listener {
               address  = "0.0.0.0:1514"
               protocol = "udp"
-              format   = "rfc3164"
+              syslog_format = "rfc3164"
             }
             forward_to = [loki.process.unifi_siem.receiver]
           }
