@@ -10,8 +10,6 @@ resources:
   - grafana-ingressroute.yaml
   - loki.yaml
   - alloy.yaml
-  - pihole-exporter-secret.sops.yaml
-  - pihole-exporter.yaml
   - unbound-servicemonitor.yaml
   - ./unpoller
   - alloy-syslog-service.yaml

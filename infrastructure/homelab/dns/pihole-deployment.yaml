@@ -54,7 +54,7 @@ spec:
             - name: FTLCONF_dns_upstreams
               value: "10.43.0.53#5335"
             - name: FTLCONF_webserver_session_timeout
-              value: "604800" # 7 days
+              value: "604800"  # 7 days
             - name: FTLCONF_webserver_session_restore
               value: "false"
             - name: FTLCONF_webserver_port
