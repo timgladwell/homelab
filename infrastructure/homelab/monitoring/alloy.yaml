@@ -59,6 +59,7 @@ spec:
         - --stability.level=public-preview
       configMap:
         create: true
+        # yamllint disable rule:line-length
         content: |
           loki.write "default" {
             endpoint {
@@ -152,5 +153,33 @@ spec:
             stage.static_labels {
               values = { job = "unifi-cef" }
             }
+
+            // Parse syslog hostname as site label, and the 7 CEF header fields.
+            // CEF format: CEF:Version|Vendor|Product|DeviceVersion|SignatureID|Name|Severity|Extension
+            // Vendor is constant ("Ubiquiti") so it is not captured.
+            stage.regex {
+              expression = `^(?:\w{3}\s+\d+\s+\d+:\d+:\d+\s+)?(?P<site>\S+)\s+CEF:\d+\|[^|]+\|(?P<cef_product>[^|]+)\|(?P<cef_device_version>[^|]+)\|(?P<cef_sig_id>[^|]+)\|(?P<cef_name>[^|]+)\|(?P<cef_severity>\d+)\|(?P<extension>.*)$`
+            }
+
+            stage.labels {
+              values = { site = "" }
+            }
+
+            stage.structured_metadata {
+              values = {
+                cef_product        = "",
+                cef_device_version = "",
+                cef_sig_id         = "",
+                cef_name           = "",
+                cef_severity       = "",
+              }
+            }
+
+            // Replace the full syslog line with just the CEF extension string.
+            stage.output {
+              source = "extension"
+            }
+
             forward_to = [loki.write.default.receiver]
           }
+        # yamllint enable rule:line-length
