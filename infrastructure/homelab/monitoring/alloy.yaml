@@ -56,6 +56,7 @@ spec:
     alloy:
       extraArgs:
         - --disable-reporting
+        - --stability.level=public-preview
       configMap:
         create: true
         content: |
@@ -127,6 +128,29 @@ spec:
           loki.process "unifi_siem" {
             stage.static_labels {
               values = { job = "unifi-siem" }
+            }
+            forward_to = [loki.write.default.receiver]
+          }
+
+          otelcol.receiver.syslog "unifi_cef" {
+            udp {
+              listen_address = "0.0.0.0:1515"
+            }
+            protocol              = "rfc3164"
+            allow_skip_pri_header = true
+
+            output {
+              logs = [otelcol.exporter.loki.unifi_cef.input]
+            }
+          }
+
+          otelcol.exporter.loki "unifi_cef" {
+            forward_to = [loki.process.unifi_cef.receiver]
+          }
+
+          loki.process "unifi_cef" {
+            stage.static_labels {
+              values = { job = "unifi-cef" }
             }
             forward_to = [loki.write.default.receiver]
           }
