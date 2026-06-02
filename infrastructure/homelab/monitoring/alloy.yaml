@@ -56,6 +56,7 @@ spec:
     alloy:
       extraArgs:
         - --disable-reporting
+        - --stability.level=public-preview
       configMap:
         create: true
         content: |
