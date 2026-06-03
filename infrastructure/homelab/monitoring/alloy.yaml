@@ -163,23 +163,39 @@ spec:
             }
 
             // Parse syslog hostname as site label, and the 7 CEF header fields.
-            // CEF format: CEF:Version|Vendor|Product|DeviceVersion|SignatureID|Name|Severity|Extension
+            // CEF format: CEF:Version|Vendor|Product|ProductVersion|SignatureID|Name|Severity|Extension
             // Vendor is constant ("Ubiquiti") so it is not captured.
             stage.regex {
-              expression = `^(?:\w{3}\s+\d+\s+\d+:\d+:\d+\s+)?(?P<site>\S+)\s+CEF:\d+\|[^|]+\|(?P<cef_product>[^|]+)\|(?P<cef_device_version>[^|]+)\|(?P<cef_sig_id>[^|]+)\|(?P<cef_name>[^|]+)\|(?P<cef_severity>\d+)\|(?P<extension>.*)$`
+              expression = `^(?:\w{3}\s+\d+\s+\d+:\d+:\d+\s+)?(?P<Site>\S+)\s+CEF:\d+\|(?P<Vendor>[^|]+)\|(?P<Product>[^|]+)\|(?P<ProductVersion>[^|]+)\|(?P<EventSignatureId>[^|]+)\|(?P<EventName>[^|]+)\|(?P<Severity>[^|]+)\|(?P<extension>.*)$`
+            }
+
+            // Map CEF severity to Grafana log level values (unknown/info/warning/error/critical).
+            // First template handles numeric input (CEF: 0=Unknown, 1-3=Low, 4-6=Medium, 7-8=High, 9-10=Very-High).
+            // Second template handles string input (CEF alphanumeric labels); numeric inputs are already mapped.
+            stage.template {
+              source   = "Severity"
+              template = `{{ if eq .Value "0" }}unknown{{ else if eq .Value "1" }}info{{ else if eq .Value "2" }}info{{ else if eq .Value "3" }}info{{ else if eq .Value "4" }}warning{{ else if eq .Value "5" }}warning{{ else if eq .Value "6" }}warning{{ else if eq .Value "7" }}error{{ else if eq .Value "8" }}error{{ else if eq .Value "9" }}critical{{ else if eq .Value "10" }}critical{{ else }}{{ .Value }}{{ end }}`
+            }
+
+            stage.template {
+              source   = "Severity"
+              template = `{{ if eq .Value "Unknown" }}unknown{{ else if eq .Value "Low" }}info{{ else if eq .Value "Medium" }}warning{{ else if eq .Value "High" }}error{{ else if eq .Value "Very-High" }}critical{{ else }}{{ .Value }}{{ end }}`
             }
 
             stage.labels {
-              values = { site = "" }
+              values = {
+                Site  = "",
+                level = "Severity",
+              }
             }
 
             stage.structured_metadata {
               values = {
-                cef_product        = "",
-                cef_device_version = "",
-                cef_sig_id         = "",
-                cef_name           = "",
-                cef_severity       = "",
+                Vendor           = "",
+                Product          = "",
+                ProductVersion   = "",
+                EventSignatureId = "",
+                EventName        = "",
               }
             }
 
