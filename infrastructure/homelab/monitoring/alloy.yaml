@@ -154,6 +154,14 @@ spec:
               values = { job = "unifi-cef" }
             }
 
+            // otelcol.exporter.loki wraps the OTel log body as JSON: {"body":"<syslog line>"}
+            stage.json {
+              expressions = { message = "body" }
+            }
+            stage.output {
+              source = "message"
+            }
+
             // Parse syslog hostname as site label, and the 7 CEF header fields.
             // CEF format: CEF:Version|Vendor|Product|DeviceVersion|SignatureID|Name|Severity|Extension
             // Vendor is constant ("Ubiquiti") so it is not captured.
