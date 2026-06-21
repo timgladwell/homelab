@@ -93,8 +93,7 @@ spec:
       - "--providers.kubernetesingress.ingressclass=traefik"
 
     # Logging for troubleshooting
-    logs:
-      general:
-        level: INFO
-      access:
-        enabled: true
+    log:
+      level: INFO
+    accessLog:
+      enabled: true
