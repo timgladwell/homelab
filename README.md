@@ -35,6 +35,31 @@ sudo systemctl restart k3s
 
 This is a prerequisite for the `kube-controller-manager` and `kube-scheduler` Prometheus targets to show as `UP`.
 
+### DNS fallback for cluster hosts
+
+The k3s node must have a fallback DNS server that does not depend on pods running on the cluster. Without this, a DNS pod outage (pihole, CoreDNS pending during an upgrade) leaves the node unable to resolve names, blocking it from pulling images or self-healing.
+
+Two equivalent approaches — pick one:
+
+**Option A: Dedicated server VLAN (recommended)**
+
+Put the k3s node(s) on a separate network segment. On a Linux-only VLAN you can safely configure two DNS servers — Linux resolvers use strict ordered failover (second server only contacted on timeout), unlike macOS/iOS which race servers and may bypass pihole.
+
+In UniFi Network controller: **Settings → Networks → [server network] → DHCP** → add pihole's static IP and `1.1.1.1` to the DNS server list. UniFi presents these as an unordered list with no primary/secondary distinction, and RFC 2132 only says clients SHOULD use them in order. Linux clients (ordered failover) will reliably try pihole first; this approach is only safe on a Linux-only VLAN.
+
+**Option B: Host-level fallback DNS**
+
+If a separate VLAN is not in place, configure `FallbackDNS` directly on the host. This only activates when all per-interface DNS servers are unreachable — it will not receive queries under normal operation.
+
+```bash
+sudo mkdir -p /etc/systemd/resolved.conf.d
+sudo tee /etc/systemd/resolved.conf.d/fallback.conf << 'EOF'
+[Resolve]
+FallbackDNS=1.1.1.1
+EOF
+sudo systemctl restart systemd-resolved
+```
+
 ### UniFi SIEM syslog forwarding
 
 Two separate UniFi settings feed logs into Loki via Alloy. Configure both after the monitoring stack is deployed.
