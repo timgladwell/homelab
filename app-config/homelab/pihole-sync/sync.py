@@ -244,7 +244,9 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
     for url, lst in existing.items():
         if url not in desired:
             status, resp = _request_with_retry(
-                "DELETE", f"/api/lists/{lst['id']}?type={list_type}", sid=sid)
+                "DELETE",
+                f"/api/lists/{urllib.parse.quote(url, safe='')}?type={list_type}",
+                sid=sid)
             if status in (200, 204):
                 log(f"  removed {list_type}list (id={lst['id']}): {url}")
                 gravity_needed = True
@@ -289,10 +291,12 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
         else:
             log(f"  ERROR adding {domain_type} domain '{domain}' ({status}): {resp}", err=True)
 
-    for domain, domain_id in existing.items():
+    for domain in existing:
         if domain not in desired:
             status, resp = _request_with_retry(
-                "DELETE", f"/api/domains/{domain_type}/exact/{domain_id}", sid=sid)
+                "DELETE",
+                f"/api/domains/{domain_type}/exact/{urllib.parse.quote(domain, safe='')}",
+                sid=sid)
             if status in (200, 204):
                 log(f"  removed {domain_type} domain: {domain}")
             else:
