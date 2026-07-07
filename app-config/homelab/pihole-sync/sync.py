@@ -82,7 +82,8 @@ def _request(method, path, body=None, sid=None, timeout=60):
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status, json.loads(resp.read())
+            raw = resp.read()
+            return resp.status, json.loads(raw) if raw else {}
     except urllib.error.HTTPError as e:
         raw = e.read().decode(errors="replace")
         try:
