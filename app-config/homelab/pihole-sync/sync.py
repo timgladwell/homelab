@@ -82,7 +82,8 @@ def _request(method, path, body=None, sid=None, timeout=60):
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status, json.loads(resp.read())
+            raw = resp.read()
+            return resp.status, json.loads(raw) if raw else {}
     except urllib.error.HTTPError as e:
         raw = e.read().decode(errors="replace")
         try:
@@ -161,8 +162,8 @@ def sync_groups(cfg, sid):
             continue
         status, resp = _request_with_retry(
             "POST", "/api/groups", {"name": name, "enabled": True}, sid=sid)
-        if status in (200, 201) and "group" in resp:
-            name_to_id[name] = resp["group"]["id"]
+        if status in (200, 201) and ("group" in resp or "groups" in resp):
+            name_to_id[name] = resp["group"]["id"] if "group" in resp else resp["groups"][0]["id"]
             log(f"  created group '{name}' (id={name_to_id[name]})")
         elif status == 409:
             _, resp2 = _request_with_retry("GET", "/api/groups", sid=sid)
@@ -244,7 +245,9 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
     for url, lst in existing.items():
         if url not in desired:
             status, resp = _request_with_retry(
-                "DELETE", f"/api/lists/{lst['id']}", sid=sid)
+                "DELETE",
+                f"/api/lists/{urllib.parse.quote(url, safe='')}?type={list_type}",
+                sid=sid)
             if status in (200, 204):
                 log(f"  removed {list_type}list (id={lst['id']}): {url}")
                 gravity_needed = True
@@ -281,18 +284,20 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
                 "comment": entry.get("comment", ""),
             }, sid=sid)
         if status in (200, 201):
-            if "domain" not in resp:
-                log(f"  WARNING: added {domain_type} domain but response missing 'domain': {resp}", err=True)
+            if "domain" not in resp and "domains" not in resp:
+                log(f"  WARNING: added {domain_type} domain but response missing 'domain'/'domains': {resp}", err=True)
             log(f"  added {domain_type} domain: {domain}")
         elif status == 409:
             log(f"  {domain_type} domain already existed (race): {domain}")
         else:
             log(f"  ERROR adding {domain_type} domain '{domain}' ({status}): {resp}", err=True)
 
-    for domain, domain_id in existing.items():
+    for domain in existing:
         if domain not in desired:
             status, resp = _request_with_retry(
-                "DELETE", f"/api/domains/{domain_type}/exact/{domain_id}", sid=sid)
+                "DELETE",
+                f"/api/domains/{domain_type}/exact/{urllib.parse.quote(domain, safe='')}",
+                sid=sid)
             if status in (200, 204):
                 log(f"  removed {domain_type} domain: {domain}")
             else:
@@ -322,8 +327,8 @@ def sync_clients(cfg, sid, name_to_id):
             "comment": entry.get("comment", ""),
         }, sid=sid)
         if status in (200, 201):
-            if "client" not in resp:
-                log(f"  WARNING: added client but response missing 'client': {resp}", err=True)
+            if "client" not in resp and "clients" not in resp:
+                log(f"  WARNING: added client but response missing 'client'/'clients': {resp}", err=True)
             log(f"  added client: {address} ({entry.get('comment', '')})")
         elif status == 409:
             log(f"  client already existed (race): {address}")
