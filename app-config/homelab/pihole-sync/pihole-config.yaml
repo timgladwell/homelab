@@ -65,42 +65,27 @@ block_lists:
       - Default
       - Streaming Devices
 
-  - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nrd7.txt
+  - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd7.txt
     groups:
       - Default
       - Streaming Devices
 
-  - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nrd14-8.txt
+  - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd14-8.txt
     groups:
       - Default
       - Streaming Devices
 
-  - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nrd21-15.txt
+  - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd21-15.txt
     groups:
       - Default
       - Streaming Devices
 
-  - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nrd28-22.txt
+  - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd28-22.txt
     groups:
       - Default
       - Streaming Devices
 
-  - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/nrd35-29.txt
-    groups:
-      - Default
-      - Streaming Devices
-
-  - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/dga7.txt
-    groups:
-      - Default
-      - Streaming Devices
-
-  - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/dga14.txt
-    groups:
-      - Default
-      - Streaming Devices
-
-  - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/dga30.txt
+  - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd35-29.txt
     groups:
       - Default
       - Streaming Devices
