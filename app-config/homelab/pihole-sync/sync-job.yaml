@@ -47,11 +47,6 @@ spec:
               value: "1"
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
-            - name: PIHOLE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: pihole-secret
-                  key: FTLCONF_webserver_api_password
           volumeMounts:
             - name: sync
               mountPath: /sync
