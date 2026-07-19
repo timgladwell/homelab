@@ -119,7 +119,14 @@ def _request_with_retry(method, path, body=None, sid=None, timeout=60):
 
 
 def authenticate():
-    log(f"Authenticating with Pi-hole at {PIHOLE_URL}...")
+    log(f"Checking auth requirements at {PIHOLE_URL}...")
+    status, resp = _request_with_retry("GET", "/api/auth")
+    session = resp.get("session", {})
+    if session.get("valid") and not session.get("sid"):
+        log(f"  {session.get('message', 'no password set')} — proceeding without a session.")
+        return ""
+
+    log("Authenticating with Pi-hole...")
     status, resp = _request_with_retry("POST", "/api/auth", {"password": PIHOLE_PASSWORD})
     if status not in (200, 201):
         raise RuntimeError(f"Auth failed ({status}): {resp}")
