@@ -75,6 +75,12 @@ spec:
               # The secret contains FTLCONF_misc_dnsmasq_lines with a wildcard
               # address=/${HOSTNAME}/... that routes all *.homelab.home.arpa subdomains
               # to Traefik automatically — new apps get DNS without a manual entry.
+            # Explicitly blank, not just omitted: FTLCONF_ vars are the source
+            # of truth only while set. Omitting this var leaves whatever
+            # password hash is already persisted in pihole.toml on the PVC
+            # in effect; an empty string is required to actively clear it.
+            - name: FTLCONF_webserver_api_password
+              value: ""
           envFrom:
             - secretRef:
                 name: pihole-secret
