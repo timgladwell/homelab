@@ -1,21 +1,18 @@
 ---
-# Deploys MetalLB configuration (IPAddressPool + L2Advertisement).
-# Runs after the infrastructure Kustomization so MetalLB CRDs are guaranteed
-# to be installed before these resources are applied.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: infrastructure-config
+  name: infrastructure-akron-only
   namespace: flux-system
 spec:
   interval: 10m
   sourceRef:
     kind: GitRepository
-    name: flux-system
-  path: ../infrastructure-config/core
+    name: flux-system  # References the GitRepository that Flux created during bootstrap
+  path: ../infrastructure/akron-only  # Akron-only workloads (monitoring) — not deployed to other sites
   prune: true
   wait: true
-  timeout: 2m
+  timeout: 5m
   dependsOn:
     - name: infrastructure
   decryption:

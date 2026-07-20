@@ -9,7 +9,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ../app-config/homelab/
+  path: ../app-config/core/
   prune: true
   # force allows Flux to delete and recreate the Job when its spec changes
   # (Jobs are immutable once created). This happens automatically whenever

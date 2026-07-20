@@ -16,6 +16,7 @@ spec:
   # TODO - uncomment when infrastructure is ready
   dependsOn:  # Critical: apps only deploy after infrastructure is ready and MetalLB IPs are assigned
     - name: infrastructure
+    - name: infrastructure-akron-only  # PodMonitor CRD (kube-prometheus-stack) needed by app PodMonitors
     - name: infrastructure-config
   decryption:
     provider: sops

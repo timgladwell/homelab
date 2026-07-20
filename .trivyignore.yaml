@@ -6,22 +6,22 @@ misconfigurations:
   # types and to access secrets for SOPS decryption and image pull credentials.
   - id: AVD-KSV-0041
     paths:
-      - "clusters/homelab/flux-system/gotk-components.yaml"
+      - "clusters/akron/flux-system/gotk-components.yaml"
     statement: "Flux bootstrap ClusterRole requires secrets access for SOPS decryption and image pull credentials"
   - id: AVD-KSV-0046
     paths:
-      - "clusters/homelab/flux-system/gotk-components.yaml"
+      - "clusters/akron/flux-system/gotk-components.yaml"
     statement: "Flux bootstrap ClusterRoles require wildcard resource access to manage all Flux CRD types"
 
   # pihole runs as root (required for DNS port 53 binding) and FTL writes runtime
   # state to /var/log/pihole and /run/pihole, so readOnlyRootFilesystem cannot be set.
   - id: AVD-KSV-0014
     paths:
-      - "infrastructure/homelab/dns/pihole-deployment.yaml"
+      - "infrastructure/core/dns/pihole-deployment.yaml"
     statement: "pihole FTL writes runtime state to /var/log/pihole and /run/pihole"
   - id: AVD-KSV-0118
     paths:
-      - "infrastructure/homelab/dns/pihole-deployment.yaml"
+      - "infrastructure/core/dns/pihole-deployment.yaml"
     statement: "pihole requires root access for DNS port 53 binding"
 
   # klutchell/unbound starts as root then internally drops to the unbound user via
@@ -30,11 +30,11 @@ misconfigurations:
   # image writes a PID file and control socket to /var/run/unbound at runtime.
   - id: AVD-KSV-0014
     paths:
-      - "infrastructure/homelab/dns/unbound-deployment.yaml"
+      - "infrastructure/core/dns/unbound-deployment.yaml"
     statement: "klutchell/unbound writes runtime state to /var/run/unbound"
   - id: AVD-KSV-0118
     paths:
-      - "infrastructure/homelab/dns/unbound-deployment.yaml"
+      - "infrastructure/core/dns/unbound-deployment.yaml"
     statement: "klutchell/unbound entrypoint runs as root before dropping privileges internally via setuid/setgid"
 
   # system-upgrade-controller.yaml is the upstream manifest from rancher/system-upgrade-controller.
@@ -43,11 +43,11 @@ misconfigurations:
   #           sets runAsNonRoot: true and runAsUser: 65534. Trivy scans raw source, not patched output.
   - id: AVD-KSV-0014
     paths:
-      - "infrastructure/homelab/system-upgrade-controller/system-upgrade-controller.yaml"
+      - "infrastructure/core/system-upgrade-controller/system-upgrade-controller.yaml"
     statement: "readOnlyRootFilesystem set to true via deployment-patch.yaml kustomize patch"
   - id: AVD-KSV-0118
     paths:
-      - "infrastructure/homelab/system-upgrade-controller/system-upgrade-controller.yaml"
+      - "infrastructure/core/system-upgrade-controller/system-upgrade-controller.yaml"
     statement: "Pod-level securityContext added via deployment-patch.yaml; container already enforces runAsNonRoot: true"
 
   #
