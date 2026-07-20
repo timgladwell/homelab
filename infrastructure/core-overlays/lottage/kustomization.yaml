@@ -9,3 +9,4 @@ resources:
 patches:
   - path: delete-lottage-resources.yaml
   - path: pihole-hostnetwork-patch.yaml
+  - path: pihole-revservers-secret.sops.yaml

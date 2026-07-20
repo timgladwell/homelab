@@ -28,8 +28,8 @@ check akron infrastructure-config ./infrastructure-config/core
 check akron apps ./apps/homelab
 check akron app-config ./app-config/core
 
-# Eastbank: shared core + pihole-sync only
-check eastbank infrastructure ./infrastructure/core
+# Eastbank: shared core (patched with its own pihole values) + pihole-sync only
+check eastbank infrastructure ./infrastructure/core-overlays/eastbank
 check eastbank infrastructure-config ./infrastructure-config/core
 check eastbank app-config ./app-config/core
 

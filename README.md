@@ -60,6 +60,22 @@ EOF
 sudo systemctl restart systemd-resolved
 ```
 
+### Generating a SOPS age keypair
+
+Each site (Akron, Eastbank, Lottage) has its own age keypair — see `.sops.yaml` for how secrets are scoped per site. Generate a new one when bootstrapping a site that doesn't have a key yet:
+
+```bash
+age-keygen -o <site>.agekey
+```
+
+This prints the public key (`age1...`) to stderr and writes both the private and public key to the file. If you already have the file and just need the public key again:
+
+```bash
+age-keygen -y <site>.agekey
+```
+
+Keep the private key off any machine that doesn't need it — it only needs to exist on the site's own K3s host (installed as the `sops-age` Secret) and wherever you run `sops` locally to encrypt/decrypt for that site. Put the public key in `.sops.yaml`; see `docs/runbooks.md` → "Bootstrapping a New Remote Site" for the full flow (re-encrypting existing secrets, installing the key on the cluster, running `flux bootstrap`).
+
 ### UniFi SIEM syslog forwarding
 
 Two separate UniFi settings feed logs into Loki via Alloy. Configure both after the monitoring stack is deployed.
