@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-vars
+  namespace: flux-system
+data:
+  DNS_DOMAIN: home.arpa
+  HOSTNAME: eastbank.home.arpa
+  # PLACEHOLDER — fill in with Eastbank's actual LAN subnet before bootstrapping.
+  # MetalLB IP allocations - must be static IPs outside your router's DHCP range,
+  # within your home network subnet (e.g. 192.168.1.x).
+  METALLB_ADDRESS_RANGE: "CHANGEME-10.x.x.10-10.x.x.99"
+  METALLB_TRAEFIK_IP: "CHANGEME-10.x.x.80"
+  METALLB_PIHOLE_IP: "CHANGEME-10.x.x.53"
+  NODE_IP: "CHANGEME-10.x.x.3"

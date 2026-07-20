@@ -7,10 +7,14 @@ misconfigurations:
   - id: AVD-KSV-0041
     paths:
       - "clusters/akron/flux-system/gotk-components.yaml"
+      - "clusters/eastbank/flux-system/gotk-components.yaml"
+      - "clusters/lottage/flux-system/gotk-components.yaml"
     statement: "Flux bootstrap ClusterRole requires secrets access for SOPS decryption and image pull credentials"
   - id: AVD-KSV-0046
     paths:
       - "clusters/akron/flux-system/gotk-components.yaml"
+      - "clusters/eastbank/flux-system/gotk-components.yaml"
+      - "clusters/lottage/flux-system/gotk-components.yaml"
     statement: "Flux bootstrap ClusterRoles require wildcard resource access to manage all Flux CRD types"
 
   # pihole runs as root (required for DNS port 53 binding) and FTL writes runtime
@@ -72,5 +76,20 @@ misconfigurations:
       - "apps/homelab/network-optimizer/eastbank/patch-env.yaml"
       - "apps/homelab/network-optimizer/lottage/patch-env.yaml"
     statement: "Runtime user is managed internally by the image; cannot assert runAsNonRoot without image inspection"
+
+  #
+  # Lottage hostNetwork PiHole (2GB RAM site — see infrastructure/core-overlays/lottage)
+  # -----------------------------------------------------------------------------------
+  # hostNetwork is an intentional tradeoff to avoid Traefik+MetalLB's surge-memory
+  # footprint on a RAM-constrained device; same root-privilege requirement as the
+  # base pihole-deployment.yaml (DNS port 53 binding).
+  - id: AVD-KSV-0009
+    paths:
+      - "infrastructure/core-overlays/lottage/pihole-hostnetwork-patch.yaml"
+    statement: "hostNetwork intentional: avoids Traefik+MetalLB memory overhead on 2GB Lottage device"
+  - id: AVD-KSV-0118
+    paths:
+      - "infrastructure/core-overlays/lottage/pihole-hostnetwork-patch.yaml"
+    statement: "pihole requires root access for DNS port 53 binding (same as base pihole-deployment.yaml)"
 
 # yamllint enable rule:line-length

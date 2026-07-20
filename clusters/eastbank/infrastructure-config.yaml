@@ -1,0 +1,28 @@
+---
+# Deploys MetalLB configuration (IPAddressPool + L2Advertisement).
+# Runs after the infrastructure Kustomization so MetalLB CRDs are guaranteed
+# to be installed before these resources are applied.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-config
+  namespace: flux-system
+spec:
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ../infrastructure-config/core
+  prune: true
+  wait: true
+  timeout: 2m
+  dependsOn:
+    - name: infrastructure
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-vars

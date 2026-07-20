@@ -3,6 +3,8 @@ extends: default
 
 ignore: |
   **/clusters/akron/flux-system
+  **/clusters/eastbank/flux-system
+  **/clusters/lottage/flux-system
   **/infrastructure/core/system-upgrade-controller
   **/*.sops.yaml
 

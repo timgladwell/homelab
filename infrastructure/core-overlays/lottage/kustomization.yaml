@@ -1,0 +1,11 @@
+---
+# Lottage (2GB RAM, 4Mb/s DSL): no Traefik/MetalLB — see the plan doc
+# ("Remote-site baseline: split by RAM, not one-size-fits-all") for why.
+# PiHole runs on hostNetwork instead of behind a MetalLB LoadBalancer.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../core/dns
+patches:
+  - path: delete-lottage-resources.yaml
+  - path: pihole-hostnetwork-patch.yaml
