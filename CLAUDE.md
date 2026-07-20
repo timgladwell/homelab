@@ -188,6 +188,19 @@ Steps 3 and 4 are the only cases where `clusters/*-validation/kustomization.yaml
 - **Component within an existing Kustomization:** remove it from the parent `kustomization.yaml`. Flux's `prune: true` will delete the resources from the cluster on the next reconciliation.
 - **Top-level Flux Kustomization:** remove its file(s) from the affected `clusters/<site>/`, remove its entry from `clusters/<site>/kustomization.yaml`, remove its resource path from the affected `clusters/<site>-validation/kustomization.yaml`, and remove its `check` line(s) from `scripts/validate/02-flux-build.sh`.
 
+### Moving resources between Kustomizations
+
+**This is not safe by default and has caused real data loss.** Each Flux `Kustomization` with `prune: true` tracks its own inventory of what it last applied. If a resource (e.g. a whole component's directory) moves from one Kustomization's manifest into a different one, the *source* Kustomization's inventory still remembers owning it from its last reconcile — on its next reconcile it sees the resource is no longer in its manifest and **prunes (deletes) it**, racing against the *destination* Kustomization trying to create it fresh. For a `Namespace`, that prune cascade-deletes everything inside it, including PVCs.
+
+This happened when `infrastructure/homelab/monitoring/` moved into its own `infrastructure/akron-only` Kustomization: the old `infrastructure` Kustomization pruned `Namespace/monitoring` right as the new one tried to recreate it, wiping Prometheus/Loki's PVC-backed history. Grafana's dashboards survived only because they're provisioned from ConfigMaps in git, not stored in a PVC.
+
+**A `kustomize build` diff of rendered manifests cannot catch this.** The YAML content is identical either way — same Namespace, same resources — the risk is entirely in live Flux reconciliation/inventory state, not in what's committed to git. Don't treat a manifest diff as proof that a Kustomization-boundary change is safe.
+
+Before moving a resource across a Kustomization boundary, check whether it's a `Namespace` or anything with PVC-backed state. If so, pick one:
+- Accept reprovisioning/data loss explicitly if it's acceptable (e.g. stateless resources, or data that isn't valuable).
+- Temporarily set `prune: false` on the source Kustomization for the PR that does the move, then restore it once the source's inventory no longer references the moved resource (its next successful reconcile after the resource is gone from its manifest).
+- Sequence the change so the source Kustomization reconciles (and updates its inventory) before the destination Kustomization's first apply, rather than merging both in a way that lets them race.
+
 ### Ingress pattern
 
 Apps are exposed via Traefik `IngressRoute` CRs using subdomain routing (`<app>.${HOSTNAME}`). Traefik is a MetalLB `LoadBalancer` at `${METALLB_TRAEFIK_IP}`. See `infrastructure/core/dns/pihole-ingressroute.yaml` for the canonical pattern. Not available on Lottage (no Traefik/MetalLB) — see `infrastructure/core-overlays/lottage/`.
