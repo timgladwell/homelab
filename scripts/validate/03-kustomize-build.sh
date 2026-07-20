@@ -1,5 +1,14 @@
 #!/bin/bash
-# Build kustomizations and write output to /tmp/k3s-built.yaml.
+# Build each site's kustomization and write output to $K3S_BUILD_DIR/k3s-built-<site>.yaml.
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
-kustomize build ./clusters/homelab-validation > "${K3S_BUILD_OUTPUT:-${TMPDIR:-/tmp}/k3s-built.yaml}"
+BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
+
+fail=0
+for site in akron eastbank lottage; do
+    if ! kustomize build "./clusters/${site}-validation" > "${BUILD_DIR}/k3s-built-${site}.yaml"; then
+        echo "✗ [$site] kustomize build failed"
+        fail=1
+    fi
+done
+exit $fail
