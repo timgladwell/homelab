@@ -1,0 +1,18 @@
+---
+# Validation entry point for Akron's full cluster manifest.
+# Used by scripts/validate/03-kustomize-build.sh only — not reconciled by Flux.
+#
+# Includes every layer Akron actually reconciles. New components added under
+# infrastructure/core/, infrastructure/akron-only/, or apps/homelab/ are
+# automatically included; new top-level Flux Kustomizations require adding
+# an entry here (see clusters/eastbank-validation, clusters/lottage-validation
+# for the other sites).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../akron                             # Flux bootstrap: controllers + Kustomization definitions
+  - ../../infrastructure/core            # Shared infrastructure (all sites)
+  - ../../infrastructure/akron-only      # Akron-only infrastructure (monitoring)
+  - ../../infrastructure-config/core     # Post-infrastructure config (MetalLB IP pools, etc.)
+  - ../../apps/homelab                   # User-facing applications
+  - ../../app-config/core                # Post-apps config (pihole-sync, etc.)

@@ -1,0 +1,22 @@
+---
+# hostNetwork binds port 53/80 directly to the node — no MetalLB LoadBalancer
+# needed, but old/new pods can't coexist on the same host ports, so
+# RollingUpdate deadlocks. Recreate is required here.
+#
+# IMPORTANT: Recreate means DNS goes down for the duration of the image pull
+# (no old pod left running to serve queries). A backup DNS resolver MUST be
+# configured on the Lottage LAN (e.g. router/ISP fallback DNS) before
+# deploying changes to this site, or every PiHole/Unbound rollout is a
+# DNS outage. See feedback_pihole_recreate_strategy memory.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole
+  namespace: dns
+spec:
+  strategy:
+    type: Recreate
+  template:
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet

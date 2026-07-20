@@ -2,8 +2,10 @@
 extends: default
 
 ignore: |
-  **/clusters/homelab/flux-system
-  **/infrastructure/homelab/system-upgrade-controller
+  **/clusters/akron/flux-system
+  **/clusters/eastbank/flux-system
+  **/clusters/lottage/flux-system
+  **/infrastructure/core/system-upgrade-controller
   **/*.sops.yaml
 
 rules:

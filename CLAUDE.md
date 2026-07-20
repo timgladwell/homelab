@@ -23,35 +23,36 @@ After any change to manifests, run the full validation pipeline from the repo ro
 ./scripts/validate-k3s.sh
 ```
 
-This runs eight steps in order:
-1. **YAML lint** — `yamllint` against all files (ignores `flux-system/` and `*.sops.yaml`)
-2. **Flux build** — `flux build kustomization --dry-run` for each top-level Flux Kustomization
-3. **Kustomize build** — `kustomize build ./clusters/homelab-validation` → `$TMPDIR/k3s-built.yaml`
-4. **Schema validation** — `kubeconform -summary` against the built output
-5. **Best practices** — `kube-score score` against the built output
-6. **Security scan** — `trivy config ./ --severity HIGH,CRITICAL`
-7. **Variable references** — every `${VAR}` in the build output must be defined in `cluster-vars.yaml`
-8. **Policy** — `conftest test` against the built output using policies in `policy/`
+This runs eight steps in order, **per site** (Akron, Eastbank, Lottage — each site reconciles a different subset of the repo, see Directory layout below):
+1. **YAML lint** — `yamllint` against all files (ignores each site's `flux-system/` and `*.sops.yaml`)
+2. **Flux build** — `flux build kustomization --dry-run` for each Flux Kustomization, for each site
+3. **Kustomize build** — `kustomize build ./clusters/<site>-validation` → `$K3S_BUILD_DIR/k3s-built-<site>.yaml`, for each site
+4. **Schema validation** — `kubeconform -summary` against each site's built output
+5. **Best practices** — `kube-score score` against each site's built output
+6. **Security scan** — `trivy config ./ --severity HIGH,CRITICAL` (whole repo, not per-site)
+7. **Variable references** — every `${VAR}` in each site's build output must be defined in that site's `cluster-vars.yaml`
+8. **Policy** — `conftest test` against each site's built output using policies in `policy/`
 
 Step 2 gates steps 3–5 and 7–8. Step 3 additionally gates steps 4, 5, 7, and 8. Steps 1 and 6 always run independently.
 
 You can also check a specific kustomization in isolation:
 
 ```bash
-kustomize build infrastructure/homelab/
-kustomize build infrastructure/homelab/monitoring/
-kustomize build infrastructure-config/homelab/
+kustomize build infrastructure/core/
+kustomize build infrastructure/akron-only/monitoring/
+kustomize build infrastructure/core-overlays/lottage/
+kustomize build infrastructure-config/core/
 ```
 
 ## Secrets
 
-All secrets follow the `*secret.sops.yaml` naming convention and must be SOPS-encrypted before committing. The `.sops.yaml` rule encrypts `data` and `stringData` fields in any file matching `.*secret\.sops\.yaml$` using an age key.
+All secrets follow the `*secret.sops.yaml` naming convention and must be SOPS-encrypted before committing. `.sops.yaml` has path-scoped rules: secrets under `infrastructure/akron-only/` encrypt to Akron's age key only; everything else matching `*secret.sops.yaml` (shared infra, e.g. PiHole) encrypts to all three sites' age keys, so each site's Flux can only decrypt what it actually needs.
 
 To create or edit a secret:
 
 ```bash
 # Edit (decrypt → edit → re-encrypt in place)
-./scripts/secrets-helper.sh edit infrastructure/homelab/monitoring/grafana-secret.sops.yaml
+./scripts/secrets-helper.sh edit infrastructure/akron-only/monitoring/grafana-secret.sops.yaml
 
 # Encrypt a plaintext file in place
 ./scripts/secrets-helper.sh encrypt <file>
@@ -60,117 +61,136 @@ To create or edit a secret:
 ./scripts/secrets-helper.sh view <file>
 ```
 
-Requires `SOPS_AGE_KEY_FILE` to point to the age private key (defaults to `~/.config/sops/age/keys.txt`).
+Requires `SOPS_AGE_KEY_FILE` to point to an age private key that can decrypt the secret (defaults to `~/.config/sops/age/keys.txt`). Any site's key can decrypt shared secrets; only Akron's key can decrypt `infrastructure/akron-only/` secrets.
 
 ## Architecture
 
-- This is a single-node K3s homelab managed with **Flux CD + Kustomize + Helm**.
-- The local development machine is not connected to the homelab server. All commands are executed on the server via SSH session.
+- Three independent single-node K3s sites, each managed with **Flux CD + Kustomize + Helm**, sharing this one repo (Flux's standard multi-cluster monorepo pattern — no cluster federation, no shared control plane):
+  - **Akron** (local, 8GB RAM) — gets everything: shared DNS core + Akron-only monitoring/apps. Deploys first.
+  - **Eastbank** (remote, 8GB RAM) — shared DNS core only, Traefik+MetalLB (matches Akron's ingress pattern).
+  - **Lottage** (remote, 2GB RAM, 4Mb/s DSL) — shared DNS core only, but *without* Traefik/MetalLB — PiHole runs on `hostNetwork` instead, to avoid rollout surge-memory OOM risk. See `infrastructure/core-overlays/lottage/`.
+- The local development machine is not connected to any site. All commands are executed on the server via SSH session.
+- **Rollout gating (Akron first):** Akron's Flux `GitRepository` watches `main`. Eastbank's and Lottage's watch a `stable` branch. After merging to `main` and confirming Akron is healthy, fast-forward `stable` (`git push origin main:stable`) to promote to the remote sites. There is no automatic cross-cluster gate — this is a manual, explicit step.
 
 ### Directory layout
 
 ```
-clusters/homelab/               # Flux entry point — managed by the flux-system Kustomization
-  flux-system/                  # Flux's own manifests (managed by flux bootstrap, do not edit)
-  flux-system-local/            # Patches applied over flux-system/ (kube-score ignores, etc.)
-  infrastructure-config/        # Flux Kustomization object for infrastructure-config/homelab/
-  infrastructure.yaml           # Flux Kustomization object for infrastructure/homelab/
-  apps.yaml                     # Flux Kustomization object for apps/homelab/
-  app-config.yaml               # Flux Kustomization object for app-config/homelab/
-  cluster-vars.yaml             # ConfigMap injected into all manifests via postBuild.substituteFrom
+clusters/<site>/                 # Flux entry point for this site — managed by the flux-system Kustomization
+  flux-system/                   # Flux's own manifests (managed by flux bootstrap, do not edit)
+  flux-system-local/             # Patches applied over flux-system/ (kube-score ignores, etc.)
+  cluster-vars.yaml              # Per-site ConfigMap (DNS_DOMAIN, HOSTNAME, METALLB_*, NODE_IP) injected via postBuild.substituteFrom
+  infrastructure.yaml            # Flux Kustomization object — path varies per site (see below)
+  infrastructure-akron-only.yaml # Akron only — path: infrastructure/akron-only
+  infrastructure-config.yaml     # Akron + Eastbank only — path: infrastructure-config/core
+  apps.yaml                      # Akron only — path: apps/homelab
+  app-config.yaml                # All sites — path: app-config/core (pihole-sync)
 
-clusters/homelab-validation/    # Validation-only kustomize entry point (not reconciled by Flux)
-  kustomization.yaml            # Includes all five resource layers for kubeconform/kube-score/trivy
+clusters/<site>-validation/      # Validation-only kustomize entry point per site (not reconciled by Flux)
+  kustomization.yaml             # Includes exactly the layers that site reconciles
 
-infrastructure/homelab/         # Cluster infrastructure (namespaces, Helm releases, CRDs)
-  kustomization.yaml            # Add new infrastructure subdirs here
-  dns/                          # PiHole + Unbound
-  traefik/                      # Ingress controller
-  metallb/                      # L2 load balancer
-  monitoring/                   # Prometheus + Grafana + Loki + OTel (in progress)
+infrastructure/core/             # Shared infrastructure — reconciled by Akron and Eastbank
+  kustomization.yaml             # Add new shared infrastructure subdirs here
+  dns/                           # PiHole + Unbound
+  traefik/                       # Ingress controller
+  metallb/                       # L2 load balancer
   system-upgrade-controller/
 
-infrastructure-config/homelab/  # Post-infrastructure config (depends on CRDs from infrastructure/)
-  kustomization.yaml            # Add new config subdirs here
-  metallb-config/               # MetalLB IP pools (IPAddressPool + L2Advertisement)
+infrastructure/akron-only/       # Akron-only infrastructure — reconciled by Akron only
+  kustomization.yaml
+  monitoring/                    # Prometheus + Grafana + Loki + OTel + per-UniFi-site Unpoller instances
 
-apps/homelab/                   # User-facing applications (deployed after infrastructure)
+infrastructure/core-overlays/lottage/  # Lottage's variant of infrastructure/core/dns — no Traefik/MetalLB,
+                                        # hostNetwork + Recreate patch on PiHole (2GB RAM constraint)
 
-app-config/homelab/             # Post-apps config (depends on apps being deployed)
-  kustomization.yaml            # Add new app-config subdirs here
-  pihole-sync/                  # Syncs DNS blocklists into PiHole
+infrastructure-config/core/      # Post-infrastructure config (depends on CRDs from infrastructure/core/)
+  kustomization.yaml             # Add new config subdirs here
+  metallb-config/                # MetalLB IP pools (IPAddressPool + L2Advertisement)
+  coredns-config/                # k3s CoreDNS custom stub
+
+apps/homelab/                    # Akron-only user-facing applications (per-UniFi-site instances of each app)
+
+app-config/core/                 # Post-infrastructure config, shared across all sites
+  kustomization.yaml             # Add new app-config subdirs here
+  pihole-sync/                   # Syncs DNS blocklists into each site's own local PiHole
 ```
 
-### Why there are two `clusters/homelab*` directories
+`apps/homelab/` (network-optimizer, per-UniFi-site instances) and `infrastructure/akron-only/monitoring/unpoller/` (per-UniFi-site instances) keep the `homelab`/`akron` naming from before the multi-site split — they run centrally on Akron polling all three UniFi controllers over the Site Magic VPN, so there's no separate per-K3s-cluster concern to name around. Don't confuse that existing "per-UniFi-site app instance" convention (base + Kustomize overlay + nameSuffix, all applied on Akron) with the "per-K3s-cluster" layer above — they solve different problems and both coexist.
 
-`clusters/homelab/kustomization.yaml` is processed by the `flux-system` Flux Kustomization (path: `./clusters/homelab`). It must only contain **Flux bootstrap objects**: the Flux controller overlay and the five Flux Kustomization definitions. It must not reference raw workload resources (HelmReleases, namespaces, IPAddressPools, etc.) directly.
+### Why validation has separate `clusters/<site>-validation/` directories
 
-If workload resources were included here, the `flux-system` Kustomization would apply them without variable substitution (it has no `postBuild.substituteFrom`) and without the `dependsOn` ordering that ensures MetalLB CRDs exist before IPAddressPool resources are applied. It would also create duplicate resource ownership between `flux-system` and the dedicated `infrastructure`/`infrastructure-config` Kustomizations — both with `prune: true` — causing reconciliation conflicts.
-
-`clusters/homelab-validation/kustomization.yaml` exists solely as a kustomize entry point for the local validation pipeline. It includes all four resource layers so `kubeconform`, `kube-score`, and `trivy` see the complete cluster manifest. It is not on any Flux reconciliation path.
+Each site's Flux Kustomization objects (`infrastructure.yaml`, etc.) reference different paths and a different subset of layers — Lottage has no `apps.yaml`/`infrastructure-config.yaml` at all, for instance. A single combined validation entry point couldn't accurately represent what any one site actually reconciles, so each site gets its own `clusters/<site>-validation/kustomization.yaml` listing only its own layers. These are not on any Flux reconciliation path — they exist solely for `kubeconform`/`kube-score`/`trivy`/`conftest` to see each site's complete manifest set.
 
 ### Reconciliation flow
 
-1. Flux watches the Git repo and reconciles `clusters/homelab/` via the `flux-system` Kustomization
-2. `flux-system` applies: Flux controllers, `cluster-vars` ConfigMap, and the five Kustomization objects below
-3. `infrastructure` reconciles `infrastructure/homelab/` — SOPS decryption + `cluster-vars` substitution
-4. `infrastructure-config` reconciles `infrastructure-config/homelab/` — only after `infrastructure` is healthy (`dependsOn`)
-5. `apps` reconciles `apps/homelab/` — only after both `infrastructure` and `infrastructure-config` are healthy (`dependsOn`)
-6. `app-config` reconciles `app-config/homelab/` — only after `apps` is healthy (`dependsOn`)
+**Akron:**
+1. Flux watches the Git repo (`main` branch) and reconciles `clusters/akron/` via the `flux-system` Kustomization
+2. `infrastructure` reconciles `infrastructure/core/` — SOPS decryption + `cluster-vars` substitution
+3. `infrastructure-akron-only` reconciles `infrastructure/akron-only/` (monitoring) — depends on `infrastructure`
+4. `infrastructure-config` reconciles `infrastructure-config/core/` — depends on `infrastructure`
+5. `apps` reconciles `apps/homelab/` — depends on `infrastructure`, `infrastructure-akron-only` (PodMonitor CRD), `infrastructure-config`
+6. `app-config` reconciles `app-config/core/` (pihole-sync) — depends on `apps`
+
+**Eastbank:** Flux watches `stable` branch, reconciles `clusters/eastbank/` → `infrastructure` (`infrastructure/core/`) → `infrastructure-config` (`infrastructure-config/core/`) and `app-config` (`app-config/core/`), both depending on `infrastructure`.
+
+**Lottage:** Flux watches `stable` branch, reconciles `clusters/lottage/` → `infrastructure` (`infrastructure/core-overlays/lottage/`) → `app-config` (`app-config/core/`), depending on `infrastructure`. No `infrastructure-config` (no MetalLB to configure).
 
 ### Variable substitution
 
-`cluster-vars.yaml` defines `${DNS_DOMAIN}`, `${HOSTNAME}`, `${METALLB_ADDRESS_RANGE}`, `${METALLB_TRAEFIK_IP}`, `${METALLB_PIHOLE_IP}`, `${NODE_IP}`. Use these placeholders directly in manifests — Flux substitutes them at reconcile time via `postBuild.substituteFrom`.
+Each site's `cluster-vars.yaml` defines its own `${DNS_DOMAIN}`, `${HOSTNAME}`, and (Akron/Eastbank only) `${METALLB_ADDRESS_RANGE}`, `${METALLB_TRAEFIK_IP}`, `${METALLB_PIHOLE_IP}`, `${NODE_IP}`. Use these placeholders directly in manifests — Flux substitutes them at reconcile time via `postBuild.substituteFrom`, from that site's own ConfigMap only (there is no cross-site fallback).
 
-Plain `kustomize build` does not perform this substitution, so the validation pipeline will always contain `${VAR}` literals in its output. Validation step 7 catches any `${VAR}` reference that is not defined in `cluster-vars.yaml`.
+Plain `kustomize build` does not perform this substitution, so the validation pipeline will always contain `${VAR}` literals in its output. Validation step 7 catches any `${VAR}` reference that is not defined in that site's `cluster-vars.yaml`.
 
-**When adding a new variable:** add it to `cluster-vars.yaml` before (or in the same PR as) the manifest that uses it. If the variable is missing, step 7 will fail.
+**When adding a new variable:** add it to every site's `cluster-vars.yaml` that reconciles the manifest using it, before (or in the same PR as) that manifest. If the variable is missing for a site that reconciles it, step 7 will fail for that site.
 
 ### Adding components to existing Kustomizations
 
-**Infrastructure (Helm controllers, CRDs, namespaces):**
-1. Create `infrastructure/homelab/<component>/` with a `kustomization.yaml` listing its resources
-2. Add `- ./<component>` to `infrastructure/homelab/kustomization.yaml`
-3. Wire Helm charts via `HelmRepository` + `HelmRelease` resources in that directory
-4. No changes needed to `clusters/` or `clusters/homelab-validation/`
+**Infrastructure shared across sites:**
+1. Create `infrastructure/core/<component>/` with a `kustomization.yaml` listing its resources
+2. Add `- ./<component>` to `infrastructure/core/kustomization.yaml`
+3. If Lottage should skip this component, add a delete patch in `infrastructure/core-overlays/lottage/` (see `delete-pihole-ingressroute.yaml` for the pattern)
+4. No changes needed to `clusters/` or `clusters/*-validation/`
+
+**Infrastructure specific to Akron:**
+1. Create `infrastructure/akron-only/<component>/` with a `kustomization.yaml` listing its resources
+2. Add `- ./<component>` to `infrastructure/akron-only/kustomization.yaml`
+3. No changes needed to `clusters/` or `clusters/*-validation/`
 
 **Post-infrastructure config (resources that require CRDs installed by infrastructure):**
-1. Create `infrastructure-config/homelab/<component>/` with a `kustomization.yaml` listing its resources
-2. Add `- ./<component>` to `infrastructure-config/homelab/kustomization.yaml`
-3. No changes needed to `clusters/` or `clusters/homelab-validation/`
+1. Create `infrastructure-config/core/<component>/` with a `kustomization.yaml` listing its resources
+2. Add `- ./<component>` to `infrastructure-config/core/kustomization.yaml`
+3. No changes needed to `clusters/` or `clusters/*-validation/` (Lottage doesn't reconcile this layer at all)
 
-**Apps:**
+**Apps (Akron-only):**
 1. Create `apps/homelab/<app>/` with a `kustomization.yaml` listing its resources
 2. Add `- ./<app>` to `apps/homelab/kustomization.yaml`
-3. No changes needed to `clusters/` or `clusters/homelab-validation/`
+3. No changes needed to `clusters/` or `clusters/akron-validation/`
 
-**Post-apps config (resources that require apps to be deployed first):**
-1. Create `app-config/homelab/<component>/` with a `kustomization.yaml` listing its resources
-2. Add `- ./<component>` to `app-config/homelab/kustomization.yaml`
-3. No changes needed to `clusters/` or `clusters/homelab-validation/`
+**Post-apps config (shared across sites, e.g. pihole-sync):**
+1. Create `app-config/core/<component>/` with a `kustomization.yaml` listing its resources
+2. Add `- ./<component>` to `app-config/core/kustomization.yaml`
+3. No changes needed to `clusters/` or `clusters/*-validation/`
 
 ### Adding a new top-level Flux Kustomization
 
-A new top-level Kustomization is needed when resources require a different `dependsOn` ordering, SOPS configuration, or reconciliation interval from the existing four. This is rare.
+A new top-level Kustomization is needed when resources require a different `dependsOn` ordering, SOPS configuration, or reconciliation interval from the existing ones for a site. This is rare.
 
-1. Create the resource directory (e.g. `<type>/homelab/`) with a `kustomization.yaml` listing its contents
-2. Create `clusters/homelab/<name>/` containing:
-   - `kustomization.yaml` — kustomize config listing the Flux Kustomization object file
+1. Create the resource directory (e.g. `<type>/core/` or `<type>/akron-only/`) with a `kustomization.yaml` listing its contents
+2. For each site that needs it, add to `clusters/<site>/`:
    - `<name>.yaml` — the Flux `Kustomization` object with appropriate `dependsOn`, `postBuild`, etc.
-3. Add `- ./<name>` to `clusters/homelab/kustomization.yaml`
-4. Add `- ../../<type>/homelab` to `clusters/homelab-validation/kustomization.yaml`
-5. Add a `case` entry and loop entry in `scripts/validate/02-flux-build.sh`
+   - An entry in `clusters/<site>/kustomization.yaml`
+3. Add the resource path to each affected `clusters/<site>-validation/kustomization.yaml`
+4. Add a `check <site> <name> <path>` line for each site in `scripts/validate/02-flux-build.sh`
 
-Steps 4 and 5 are the only cases where `clusters/homelab-validation/kustomization.yaml` and `02-flux-build.sh` need to be updated. Resources added within an existing top-level path are automatically included in validation.
+Steps 3 and 4 are the only cases where `clusters/*-validation/kustomization.yaml` and `02-flux-build.sh` need to be updated. Resources added within an existing top-level path are automatically included in validation.
 
 ### Removing a Kustomization
 
 - **Component within an existing Kustomization:** remove it from the parent `kustomization.yaml`. Flux's `prune: true` will delete the resources from the cluster on the next reconciliation.
-- **Top-level Flux Kustomization:** remove its folder from `clusters/homelab/`, remove its entry from `clusters/homelab/kustomization.yaml`, remove its resource path from `clusters/homelab-validation/kustomization.yaml`, and remove its entry from `scripts/validate/02-flux-build.sh`.
+- **Top-level Flux Kustomization:** remove its file(s) from the affected `clusters/<site>/`, remove its entry from `clusters/<site>/kustomization.yaml`, remove its resource path from the affected `clusters/<site>-validation/kustomization.yaml`, and remove its `check` line(s) from `scripts/validate/02-flux-build.sh`.
 
 ### Ingress pattern
 
-Apps are exposed via Traefik `IngressRoute` CRs using subdomain routing (`<app>.${HOSTNAME}`). Traefik is a MetalLB `LoadBalancer` at `${METALLB_TRAEFIK_IP}`. See `infrastructure/homelab/dns/pihole-ingressroute.yaml` for the canonical pattern.
+Apps are exposed via Traefik `IngressRoute` CRs using subdomain routing (`<app>.${HOSTNAME}`). Traefik is a MetalLB `LoadBalancer` at `${METALLB_TRAEFIK_IP}`. See `infrastructure/core/dns/pihole-ingressroute.yaml` for the canonical pattern. Not available on Lottage (no Traefik/MetalLB) — see `infrastructure/core-overlays/lottage/`.
 
 ### Dependency management
 

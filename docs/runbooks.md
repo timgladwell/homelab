@@ -145,3 +145,94 @@ Flux authenticates to GitHub via the `flux-system` Secret in the `flux-system` n
    ```
 
 5. **Revoke the old PAT** on GitHub once reconciliation is confirmed healthy.
+
+---
+
+## Migrating Akron to the Multi-Site Layout
+
+### Background
+
+The multi-site restructure PR renames `clusters/homelab/` to `clusters/akron/` and changes `infrastructure/homelab/` to `infrastructure/core/` + `infrastructure/akron-only/`. Akron's Flux instance is already live, reconciling the *old* path (`./clusters/homelab`) from its in-cluster root `Kustomization` object (named `flux-system`, namespace `flux-system`). That object's `spec.path` is stored in the cluster, not re-read from git on every reconcile — so once this PR merges and `clusters/homelab/` no longer exists in the repo, Akron's root Kustomization will fail to build (path not found) until `spec.path` is updated to `./clusters/akron`.
+
+**Do not run `flux bootstrap` to fix this** — bootstrap pushes directly to `main`, which branch protection blocks (same reason it's banned for [Flux Upgrades](#flux-upgrades) and [PAT rotation](#rotating-the-github-pat-for-flux) above). This is a one-time in-cluster object update, not a GitOps-managed change, so `kubectl apply` against the already-merged file is the correct tool.
+
+### Process
+
+1. **Merge the multi-site restructure PR to `main`** first — `clusters/akron/flux-system/gotk-sync.yaml` (with `path: ./clusters/akron`) must exist in git before the next step.
+
+2. **On the Akron server**, pull the merged `main` and apply the updated root Kustomization/GitRepository directly:
+   ```bash
+   git pull origin main
+   kubectl apply -f clusters/akron/flux-system/gotk-sync.yaml
+   ```
+   This updates the in-cluster `flux-system` Kustomization's `spec.path` to `./clusters/akron` immediately — do not wait for a reconcile loop to pick it up, it won't (it's still looking at the old, now-missing path until this apply happens).
+
+3. **Confirm reconciliation recovers:**
+   ```bash
+   flux get kustomizations -A
+   flux get sources git
+   ```
+   Expect `infrastructure`, `infrastructure-akron-only`, `infrastructure-config`, `apps`, `app-config` to all appear (the last four are new/renamed Kustomization names — see `clusters/akron/kustomization.yaml`) and go healthy within a couple of reconcile intervals.
+
+4. **If `infrastructure-akron-only` or `app-config` fail on `dependsOn`,** check `flux get kustomizations -A` for the dependency chain — `apps` now depends on `infrastructure-akron-only` (PodMonitor CRD from kube-prometheus-stack) in addition to `infrastructure` and `infrastructure-config`; this is new as of the restructure.
+
+5. **Verify no DNS disruption** — `infrastructure/core/dns/` content is unchanged from `infrastructure/homelab/dns/` (only the parent directory moved), so PiHole/Unbound should not restart or lose state during this migration. If they do restart, it's the RollingUpdate-safe path (see `feedback_pihole_recreate_strategy` guidance) — not a Recreate outage.
+
+---
+
+## Bootstrapping a New Remote Site (Eastbank / Lottage)
+
+### Background
+
+Eastbank and Lottage are new, previously-bare-metal sites being brought under GitOps for the first time. Unlike the Akron migration above, `flux bootstrap` **is** the correct tool here — it's genuine initial setup, not an upgrade to an already-bootstrapped cluster. The manifests it would generate (`clusters/<site>/flux-system/gotk-components.yaml`, `gotk-sync.yaml`) already exist in the repo from the restructure PR, pre-populated to match; bootstrap should find them already correct and only need to create the GitHub deploy credentials and apply to the new cluster.
+
+Both sites' `gotk-sync.yaml` watch the `stable` branch, not `main` — so bootstrap pushes (if any are needed) go to `stable`, which has no branch protection blocking it. Verify this assumption against the repo's actual branch protection rules before running bootstrap; if `stable` also has protection rules, treat this the same as the Akron case above (`kubectl apply` the pre-committed manifest instead of running bootstrap).
+
+### Process (per site — repeat for Eastbank, then Lottage, only after Akron is confirmed healthy)
+
+1. **Fill in real network values.** `clusters/<site>/cluster-vars.yaml` has `CHANGEME` placeholders for `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`, `NODE_IP` (Eastbank only — Lottage has no MetalLB). Replace with that site's actual static IPs before merging.
+
+2. **Generate that site's age keypair** (do this locally, keep the private key off any machine that doesn't need it):
+   ```bash
+   age-keygen -o <site>.agekey
+   age-keygen -y <site>.agekey   # prints the public key
+   ```
+
+3. **Replace the `CHANGEME-<site>-age-public-key` placeholder** in `.sops.yaml` with the real public key from step 2, in the same PR as step 1.
+
+4. **Re-encrypt existing shared secrets** (currently only `infrastructure/core/dns/pihole-secret.sops.yaml`) with the new recipient list:
+   ```bash
+   sops updatekeys infrastructure/core/dns/pihole-secret.sops.yaml
+   ```
+   Requires the *existing* Akron private key available locally (to decrypt) — this does not need the new site's key yet, only its public key already in `.sops.yaml`.
+
+5. **Merge the PR containing steps 1, 3, 4.**
+
+6. **On the new site's device**, install the site's private key and run bootstrap:
+   ```bash
+   mkdir -p ~/.config/sops/age
+   # copy <site>.agekey content to ~/.config/sops/age/keys.txt (chmod 600)
+
+   flux bootstrap github \
+     --owner=timgladwell \
+     --repository=homelab \
+     --branch=stable \
+     --path=clusters/<site> \
+     --personal
+   ```
+
+7. **Install the `sops-age` secret** in the new cluster (same as `scripts/configure-flux-sops.sh` does for Akron):
+   ```bash
+   kubectl create secret generic sops-age \
+     --namespace=flux-system \
+     --from-file=age.agekey=~/.config/sops/age/keys.txt
+   ```
+
+8. **Confirm reconciliation:**
+   ```bash
+   flux get kustomizations -A
+   flux get sources git
+   ```
+   Eastbank should show `infrastructure`, `infrastructure-config`, `app-config`. Lottage should show only `infrastructure`, `app-config` (no MetalLB config layer).
+
+9. **Verify PiHole is actually serving DNS** on the new site's LAN before pointing any client devices at it, and — for Lottage specifically — confirm a backup DNS resolver is configured on the router/LAN *before* the first deploy that touches PiHole/Unbound, since Lottage's `hostNetwork` + `Recreate` strategy means every rollout is a DNS outage window for that site (see `infrastructure/core-overlays/lottage/pihole-hostnetwork-patch.yaml` comment and the `feedback_pihole_recreate_strategy` memory).

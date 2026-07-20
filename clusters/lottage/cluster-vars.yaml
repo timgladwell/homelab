@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-vars
+  namespace: flux-system
+data:
+  DNS_DOMAIN: home.arpa
+  HOSTNAME: lottage.home.arpa
+  # No METALLB_*/NODE_IP vars — Lottage has no Traefik/MetalLB/apps layer
+  # (2GB RAM; PiHole runs on hostNetwork instead). See
+  # infrastructure/core-overlays/lottage.

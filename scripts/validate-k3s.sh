@@ -5,7 +5,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VALIDATE_DIR="$SCRIPT_DIR/validate"
-export K3S_BUILD_OUTPUT="${TMPDIR:-/tmp}/k3s-built.yaml"
+export K3S_BUILD_DIR="${TMPDIR:-/tmp}"
 
 PASS=0
 FAIL=0

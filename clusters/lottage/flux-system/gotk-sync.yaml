@@ -8,7 +8,7 @@ metadata:
 spec:
   interval: 1m0s
   ref:
-    branch: main
+    branch: stable
   secretRef:
     name: flux-system
   url: https://github.com/timgladwell/homelab.git
@@ -20,7 +20,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./clusters/homelab
+  path: ./clusters/lottage
   prune: true
   sourceRef:
     kind: GitRepository

@@ -2,17 +2,19 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: infrastructure
+  name: infrastructure-akron-only
   namespace: flux-system
 spec:
   interval: 10m
   sourceRef:
     kind: GitRepository
     name: flux-system  # References the GitRepository that Flux created during bootstrap
-  path: ../infrastructure/homelab  # Path in the repo to reconcile
+  path: ../infrastructure/akron-only  # Akron-only workloads (monitoring) — not deployed to other sites
   prune: true
   wait: true
   timeout: 5m
+  dependsOn:
+    - name: infrastructure
   decryption:
     provider: sops
     secretRef:
@@ -21,4 +23,3 @@ spec:
     substituteFrom:
       - kind: ConfigMap
         name: cluster-vars
-# Infrastructure must be healthy before apps deploy

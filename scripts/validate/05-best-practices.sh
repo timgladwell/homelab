@@ -1,8 +1,15 @@
 #!/bin/bash
-# Check Kubernetes best practices against /tmp/k3s-built.yaml.
-BUILD_OUTPUT="${K3S_BUILD_OUTPUT:-${TMPDIR:-/tmp}/k3s-built.yaml}"
-if [[ ! -f "$BUILD_OUTPUT" ]]; then
-    echo "ERROR: $BUILD_OUTPUT not found — run 02-kustomize-build.sh first" >&2
-    exit 1
-fi
-kube-score score "$BUILD_OUTPUT"
+# Check Kubernetes best practices against each site's built manifest.
+BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
+
+fail=0
+for site in akron eastbank lottage; do
+    BUILD_OUTPUT="${BUILD_DIR}/k3s-built-${site}.yaml"
+    if [[ ! -f "$BUILD_OUTPUT" ]]; then
+        echo "ERROR: $BUILD_OUTPUT not found — run 03-kustomize-build.sh first" >&2
+        exit 1
+    fi
+    echo "--- $site ---"
+    kube-score score "$BUILD_OUTPUT" || fail=1
+done
+exit $fail
