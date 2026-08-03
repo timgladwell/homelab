@@ -70,7 +70,7 @@ Requires `SOPS_AGE_KEY_FILE` to point to an age private key that can decrypt the
   - **Eastbank** (remote, 8GB RAM) — shared DNS core only, Traefik+MetalLB (matches Akron's ingress pattern).
   - **Lottage** (remote, 2GB RAM, 4Mb/s DSL) — shared DNS core only, but *without* Traefik/MetalLB — PiHole runs on `hostNetwork` instead, to avoid rollout surge-memory OOM risk. See `infrastructure/core-overlays/lottage/`.
 - The local development machine is not connected to any site. All commands are executed on the server via SSH session.
-- **Rollout gating (Akron first):** Akron's Flux `GitRepository` watches `main`. Eastbank's and Lottage's watch a `stable` branch. After merging to `main` and confirming Akron is healthy, fast-forward `stable` (`git push origin main:stable`) to promote to the remote sites. There is no automatic cross-cluster gate — this is a manual, explicit step.
+- **Rollout gating (Akron first):** Akron's Flux `GitRepository` watches `main`. Eastbank's and Lottage's watch a `stable` branch. After merging to `main` and confirming Akron is healthy, promote to the remote sites by opening a PR from `main` into `stable`. A GitHub ruleset on `stable` blocks direct pushes and merge/squash commits — only "Rebase and merge" is permitted, so `stable`'s history stays an unaltered subset of `main`'s (useful for release notes/changelogs). There is no automatic cross-cluster gate — this is a manual, explicit step.
 
 ### Directory layout
 
