@@ -8,6 +8,8 @@ Both sites' `gotk-sync.yaml` watch the `stable` branch, not `main`. `stable` is 
 
 If this is a brand-new device (not just a Flux re-bootstrap on existing hardware), the OS itself needs standing up first — see [Standing Up a New Headless Box](new-box-standup.md).
 
+**Lottage's plan is currently on hold** — its 2GB Pi may not have enough headroom to run k3s stably at all, independent of the `hostNetwork`/`Recreate` mitigation already in `infrastructure/core-overlays/lottage/`. Treat this runbook as Eastbank-only until that's resolved; don't use it to bring up Lottage.
+
 ## Process (per site — repeat for Eastbank, then Lottage, only after Akron is confirmed healthy)
 
 1. **Fill in real network values.** `clusters/<site>/cluster-vars.yaml` has `CHANGEME` placeholders for `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`, `NODE_IP` (Eastbank only — Lottage has no MetalLB). Replace with that site's actual static IPs before merging.
@@ -28,7 +30,19 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
 
 5. **Merge the PR containing steps 1, 3, 4.**
 
-6. **On the new site's device**, install the site's private key and run bootstrap:
+6. **On the new site's device, install k3s.** Traefik and MetalLB are deployed by this repo, so disable k3s's built-in equivalents to avoid conflicts:
+   ```bash
+   curl -sfL https://get.k3s.io | sh -s - --disable traefik --disable servicelb
+   ```
+   Raspberry Pi OS doesn't enable the memory cgroup by default, which k3s requires — if the install fails with `Failed to find memory cgroup` / `k3s.service` won't start, enable it and reboot:
+   ```bash
+   sudo sed -i 's/$/ cgroup_memory=1 cgroup_enable=memory/' /boot/firmware/cmdline.txt
+   cat /boot/firmware/cmdline.txt   # must stay a single line — appended flags, no newline
+   sudo reboot
+   ```
+   Then re-run the k3s install command above.
+
+7. **Install the site's private key and run bootstrap:**
    ```bash
    mkdir -p ~/.config/sops/age
    # copy <site>.agekey content to ~/.config/sops/age/keys.txt (chmod 600)
@@ -41,18 +55,18 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
      --personal
    ```
 
-7. **Install the `sops-age` secret** in the new cluster (same as `scripts/configure-flux-sops.sh` does for Akron):
+8. **Install the `sops-age` secret** in the new cluster (same as `scripts/configure-flux-sops.sh` does for Akron):
    ```bash
    kubectl create secret generic sops-age \
      --namespace=flux-system \
      --from-file=age.agekey=~/.config/sops/age/keys.txt
    ```
 
-8. **Confirm reconciliation:**
+9. **Confirm reconciliation:**
    ```bash
    flux get kustomizations -A
    flux get sources git
    ```
    Eastbank should show `infrastructure`, `infrastructure-config`, `app-config`. Lottage should show only `infrastructure`, `app-config` (no MetalLB config layer).
 
-9. **Verify PiHole is actually serving DNS** on the new site's LAN before pointing any client devices at it, and — for Lottage specifically — confirm a backup DNS resolver is configured on the router/LAN *before* the first deploy that touches PiHole/Unbound, since Lottage's `hostNetwork` + `Recreate` strategy means every rollout is a DNS outage window for that site (see `infrastructure/core-overlays/lottage/pihole-hostnetwork-patch.yaml` comment and the `feedback_pihole_recreate_strategy` memory).
+10. **Verify PiHole is actually serving DNS** on the new site's LAN before pointing any client devices at it, and — for Lottage specifically — confirm a backup DNS resolver is configured on the router/LAN *before* the first deploy that touches PiHole/Unbound, since Lottage's `hostNetwork` + `Recreate` strategy means every rollout is a DNS outage window for that site (see `infrastructure/core-overlays/lottage/pihole-hostnetwork-patch.yaml` comment and the `feedback_pihole_recreate_strategy` memory).
