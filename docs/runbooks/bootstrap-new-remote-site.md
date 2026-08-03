@@ -30,9 +30,10 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
 
 5. **Merge the PR containing steps 1, 3, 4.**
 
-6. **On the new site's device, install k3s.** Traefik and MetalLB are deployed by this repo, so disable k3s's built-in equivalents to avoid conflicts:
+6. **On the new site's device, install k3s.** Traefik and MetalLB are deployed by this repo, so disable k3s's built-in equivalents to avoid conflicts. Also set `K3S_KUBECONFIG_MODE=644` — without it, `/etc/rancher/k3s/k3s.yaml` is written `600` root-only and `kubectl`/`flux` fail with `permission denied` for the non-root user:
    ```bash
-   curl -sfL https://get.k3s.io | sh -s - --disable traefik --disable servicelb
+   curl -sfL https://get.k3s.io | K3S_KUBECONFIG_MODE=644 sh -s - --disable traefik --disable servicelb
+   echo $KUBECONFIG   # dotfiles may already export this; only add it yourself if empty
    ```
    Raspberry Pi OS doesn't enable the memory cgroup by default, which k3s requires — if the install fails with `Failed to find memory cgroup` / `k3s.service` won't start, enable it and reboot:
    ```bash
@@ -41,6 +42,7 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    sudo reboot
    ```
    Then re-run the k3s install command above.
+   If k3s was already installed without `K3S_KUBECONFIG_MODE` (installer logs "No change detected so skipping service start"), re-run the install command with the env var set, then `sudo systemctl restart k3s` to pick it up.
 
 7. **Install the site's private key and run bootstrap:**
    ```bash
