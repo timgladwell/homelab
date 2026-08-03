@@ -1,14 +1,10 @@
+# The pihole IngressRoute isn't deleted here — it now lives in
+# infrastructure-config/core/traefik-routes/, which Lottage never reconciles
+# at all (no MetalLB config layer), so it was never in this tree to begin with.
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: pihole-dns
-  namespace: dns
-$patch: delete
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: pihole
   namespace: dns
 $patch: delete
