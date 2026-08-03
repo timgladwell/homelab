@@ -44,8 +44,10 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    Then re-run the k3s install command above.
    If k3s was already installed without `K3S_KUBECONFIG_MODE` (installer logs "No change detected so skipping service start"), re-run the install command with the env var set, then `sudo systemctl restart k3s` to pick it up.
 
-7. **Install the site's private key and run bootstrap:**
+7. **Install the Flux CLI, the site's private key, and run bootstrap:**
    ```bash
+   curl -s https://fluxcd.io/install.sh | sudo bash
+
    mkdir -p ~/.config/sops/age
    # copy <site>.agekey content to ~/.config/sops/age/keys.txt (chmod 600)
 
