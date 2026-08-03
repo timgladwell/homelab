@@ -74,7 +74,7 @@ This prints the public key (`age1...`) to stderr and writes both the private and
 age-keygen -y <site>.agekey
 ```
 
-Keep the private key off any machine that doesn't need it — it only needs to exist on the site's own K3s host (installed as the `sops-age` Secret) and wherever you run `sops` locally to encrypt/decrypt for that site. Put the public key in `.sops.yaml`; see `docs/runbooks.md` → "Bootstrapping a New Remote Site" for the full flow (re-encrypting existing secrets, installing the key on the cluster, running `flux bootstrap`).
+Keep the private key off any machine that doesn't need it — it only needs to exist on the site's own K3s host (installed as the `sops-age` Secret) and wherever you run `sops` locally to encrypt/decrypt for that site. Put the public key in `.sops.yaml`; see `docs/runbooks/bootstrap-new-remote-site.md` for the full flow (re-encrypting existing secrets, installing the key on the cluster, running `flux bootstrap`).
 
 ### UniFi SIEM syslog forwarding
 
