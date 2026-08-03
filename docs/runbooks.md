@@ -236,3 +236,105 @@ Both sites' `gotk-sync.yaml` watch the `stable` branch, not `main` — so bootst
    Eastbank should show `infrastructure`, `infrastructure-config`, `app-config`. Lottage should show only `infrastructure`, `app-config` (no MetalLB config layer).
 
 9. **Verify PiHole is actually serving DNS** on the new site's LAN before pointing any client devices at it, and — for Lottage specifically — confirm a backup DNS resolver is configured on the router/LAN *before* the first deploy that touches PiHole/Unbound, since Lottage's `hostNetwork` + `Recreate` strategy means every rollout is a DNS outage window for that site (see `infrastructure/core-overlays/lottage/pihole-hostnetwork-patch.yaml` comment and the `feedback_pihole_recreate_strategy` memory).
+
+---
+
+## Standing Up a New Headless Box (Flash + Cloud-Init)
+
+### Background
+
+OS-level device bootstrap for a fresh (or re-flashed) headless Raspberry Pi — e.g. rebuilding a site's node on a new Raspberry Pi OS release (bookworm → trixie). This is a prerequisite to [Bootstrapping a New Remote Site](#bootstrapping-a-new-remote-site-eastbank--lottage) when the box is brand new, or a standalone OS reinstall on an existing site's hardware.
+
+Raspberry Pi Imager is unreliable through USB port-multiplier/dongle SD card readers (bad image writes) — `dd` directly to the raw disk device is more reliable through these.
+
+Raspberry Pi OS (bookworm+, including trixie) provisions the first boot via **cloud-init**. `userconf.txt` (the older, unrelated first-boot mechanism) no longer works on trixie — `user-data` (cloud-config) placed on the boot partition is the correct mechanism.
+
+### Process
+
+1. **Flash the image:**
+   1. Find the SD card's disk identifier:
+      ```bash
+      diskutil list
+      ```
+   2. Substitute it as `rdiskX` in every command below (`diskutil` accepts the raw `rdiskX` form too — use it throughout so there's one identifier to track, not two):
+      ```bash
+      diskutil unmountDisk /dev/rdiskX
+      xz -dc /path/to/raspios-trixie-arm64-lite.img.xz | sudo dd of=/dev/rdiskX bs=1M status=progress
+      sync
+      diskutil eject /dev/rdiskX
+      ```
+
+2. **Set up the cloud-init `user-data` file** on the boot partition, before first boot:
+   ```bash
+   openssl version    # confirm it's real OpenSSL, not LibreSSL
+   openssl passwd -6 "yourpassword"
+   ```
+   Older macOS ships `/usr/bin/openssl` as LibreSSL, which does not properly support `-6` — check the version first. If it reports LibreSSL, install real OpenSSL and use that instead:
+   ```bash
+   brew install openssl@3
+   /opt/homebrew/opt/openssl@3/bin/openssl passwd -6 "yourpassword"
+   ```
+   The resulting hash should look like `$6$<salt>$<hash>`. To confirm the `openssl` in use produces correct SHA-512 crypt hashes, check it against a known test vector (fixed salt makes the output deterministic; `\!` escapes the `!` from shell history expansion):
+   ```bash
+   openssl passwd -6 -salt saltstring "Hello world\!"
+   # expect exactly:
+   # $6$saltstring$svn8UoSVapNtMuq1ukKS4tPQd8iKwSMHWjl/O817G3uBnIFNjnQJuesI68u4OTLiBFdcbYEdFCoEOfaS35inz1
+   ```
+
+   The boot partition already ships a `user-data` file, entirely commented out as a template/reference — leave those comments in place and add the real config below them. `timezone` and `manage_etc_hosts` are native cloud-config keys, so both can be set here instead of as manual post-login steps:
+   ```yaml
+   #cloud-config
+   hostname: <replace>
+   manage_etc_hosts: true
+   timezone: America/Toronto
+
+   users:
+     - name: tim
+       groups: [adm, dialout, cdrom, sudo, audio, video, plugdev, games, users, netdev, gpio, i2c, spi, input, render]
+       shell: /bin/bash
+       lock_passwd: false
+       passwd: <encrypted password from above>
+       sudo: ['ALL=(ALL) NOPASSWD:ALL']
+
+   ssh_pwauth: true
+
+   runcmd:
+     - systemctl enable ssh
+     - systemctl start ssh
+   ```
+   `sudo: NOPASSWD` here is intentional and temporary — it's only to get past first login without a working password prompt; revoke it in the last step below. DNS fallback (next step) is left as a manual post-login step rather than cloud-init `network-config` — it depends on the NetworkManager connection profile actually created on this boot, which isn't reliably targetable in the seed file.
+
+3. **Boot the Pi and refresh SSH host key trust** (needed on re-flash — the new image has a new host key under the same IP). Find the box's IP (router/DHCP lease list, or `arp -a`), then substitute it as `<IP>`:
+   ```bash
+   ssh-keygen -R <IP>
+   ssh-keyscan -H <IP> >> ~/.ssh/known_hosts
+   ```
+
+4. **Log in:**
+   ```bash
+   ssh tim@<IP>
+   ```
+
+5. **Update and reboot** before layering on any other config:
+   ```bash
+   sudo apt update && sudo apt full-upgrade -y
+   sudo reboot
+   ```
+   Reconnect with `ssh tim@<IP>` once it's back up — if the box has a DHCP reservation/static lease it should keep the same IP; otherwise recheck the DHCP server's client list (or router/hostname lookup) in case it changed. Either way, the SSH host key isn't regenerated by a package upgrade, so step 3 doesn't need repeating.
+
+6. **Set DNS to fail over to a public resolver** if the local DNS server (PiHole/Unbound) itself goes down — otherwise the box loses all name resolution when its own DNS service is unhealthy. Find the connection name, then substitute it as `<connection>`:
+   ```bash
+   nmcli connection show
+   sudo nmcli connection modify "<connection>" ipv4.dns "127.0.0.1 1.1.1.1"
+   sudo nmcli connection modify "<connection>" ipv4.ignore-auto-dns yes
+   sudo nmcli connection up "<connection>"
+   ```
+
+7. **Revoke the temporary passwordless sudo** granted in step 2:
+   ```bash
+   sudo visudo -f /etc/sudoers.d/90-cloud-init-users
+   # change: tim ALL=(ALL) NOPASSWD:ALL
+   # to:     tim ALL=(ALL) ALL
+   ```
+
+8. **Clone dotfiles** — follow the [servers section of the dotfiles README](https://github.com/timgladwell/dotfiles#servers).
