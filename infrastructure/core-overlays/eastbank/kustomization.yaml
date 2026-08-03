@@ -2,10 +2,12 @@
 # Eastbank keeps Traefik/MetalLB (matches Akron's ingress pattern), but the
 # shared pihole-secret's FTLCONF_dns_revServers/FTLCONF_misc_dnsmasq_lines
 # are Akron-specific (local gateway IP, syslog forwarding that only exists
-# on Akron) — patch them with Eastbank's own values.
+# on Akron). Deleted and replaced wholesale with Eastbank's own standalone
+# secret rather than field-patched — see pihole-secret.sops.yaml's header
+# comment for why a field-level merge across two SOPS-encrypted files
+# doesn't work.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../../core
-patches:
-  - path: pihole-revservers-secret.sops.yaml
+  - base
+  - pihole-secret.sops.yaml
