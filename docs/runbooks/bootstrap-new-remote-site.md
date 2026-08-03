@@ -73,7 +73,7 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    ```bash
    kubectl create secret generic sops-age \
      --namespace=flux-system \
-     --from-file=age.agekey=~/.config/sops/age/keys.txt
+     --from-file=age.agekey=$HOME/.config/sops/age/keys.txt
    ```
 
 10. **Confirm reconciliation:**
