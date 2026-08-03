@@ -1,0 +1,12 @@
+---
+# Resolves the base's pihole-secret deletion before the parent kustomization
+# adds Eastbank's own standalone replacement — kustomize won't accept two
+# resources with the same GVK/name/namespace in one accumulation pass, even
+# when a patch later deletes one of them, so the deletion has to happen in
+# its own nested build first.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../core
+patches:
+  - path: delete-pihole-secret.yaml

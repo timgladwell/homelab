@@ -50,7 +50,13 @@ for FILE in $FILES; do
         if [ ! -f "$FILE" ]; then
             continue
         fi
-        
+
+        # $patch: delete manifests carry no data — nothing to encrypt
+        if grep -q '^\$patch: delete' "$FILE"; then
+            echo -e "${GREEN}✓ $FILE is a delete-only patch (no data to encrypt)${NC}"
+            continue
+        fi
+
         # Check if file has 'sops:' metadata section
         if ! grep -q "^sops:" "$FILE"; then
             echo -e "${RED}✗ UNENCRYPTED SECRET DETECTED: $FILE${NC}"
