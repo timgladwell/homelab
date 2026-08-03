@@ -202,8 +202,11 @@ COMMIT_MSG=$(cat "$1")
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Check if commit message contains words like "password", "secret", etc.
-if echo "$COMMIT_MSG" | grep -iE "(password|secret|key|token|credential).*=|:.*[a-zA-Z0-9]{10,}" | grep -q .; then
+# Check if commit message contains what looks like an actual secret value
+# (a password/key/token/credential-ish word immediately followed by a
+# value), not just any word near a colon or equals sign — that matched
+# almost any normal prose sentence.
+if echo "$COMMIT_MSG" | grep -iE "(password|api[_-]?key|secret|token|credential)[:=]\s*['\"]?[a-zA-Z0-9]{8,}" | grep -q .; then
     echo ""
     echo -e "${YELLOW}⚠ WARNING: Your commit message may contain sensitive information!${NC}"
     echo ""
