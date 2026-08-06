@@ -1,0 +1,88 @@
+---
+name: Validate
+
+# Every change to the manifests, from anyone — including Renovate and
+# Dependabot, whose PRs never run the local pre-commit hooks.
+on:  # yamllint disable-line rule:truthy
+  pull_request:
+  push:
+    branches: [main, stable]
+
+# A newer push to the same branch makes an in-flight run irrelevant.
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      # Pinned so CI and a developer's machine reach the same verdict. FLUX_VERSION
+      # deliberately tracks the version the clusters run (clusters/*/flux-system/),
+      # not the newest release — CI should build the way the clusters will.
+      FLUX_VERSION: 2.8.8
+      KUSTOMIZE_VERSION: 5.8.1
+      KUBECONFORM_VERSION: 0.8.0
+      KUBE_SCORE_VERSION: 1.20.0
+      TRIVY_VERSION: 0.71.1
+      CONFTEST_VERSION: 0.69.0
+      YAMLLINT_VERSION: 1.38.0
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # 10-secrets-encrypted.sh uses git ls-files over the whole tree.
+          fetch-depth: 1
+
+      - name: Install tools
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          cd "$(mktemp -d)"
+
+          curl -fsSL -o flux.tar.gz \
+            "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_linux_amd64.tar.gz"
+          tar -xzf flux.tar.gz flux && mv flux "$HOME/.local/bin/"
+
+          curl -fsSL -o kustomize.tar.gz \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          tar -xzf kustomize.tar.gz kustomize && mv kustomize "$HOME/.local/bin/"
+
+          curl -fsSL -o kubeconform.tar.gz \
+            "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          tar -xzf kubeconform.tar.gz kubeconform && mv kubeconform "$HOME/.local/bin/"
+
+          curl -fsSL -o kube-score.tar.gz \
+            "https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz"
+          tar -xzf kube-score.tar.gz kube-score && mv kube-score "$HOME/.local/bin/"
+
+          curl -fsSL -o trivy.tar.gz \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          tar -xzf trivy.tar.gz trivy && mv trivy "$HOME/.local/bin/"
+
+          curl -fsSL -o conftest.tar.gz \
+            "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
+          tar -xzf conftest.tar.gz conftest && mv conftest "$HOME/.local/bin/"
+
+          pipx install "yamllint==${YAMLLINT_VERSION}"
+
+      - name: Tool versions
+        run: |
+          flux version --client
+          kustomize version
+          kubeconform -v
+          kube-score version
+          trivy --version | head -1
+          conftest --version | head -1
+          yamllint --version
+
+      # No age key and no cluster: `flux build --dry-run` does not decrypt, and
+      # every step reads the repo rather than a live cluster. If a step ever
+      # starts needing a secret, that is a bug in the step, not a missing
+      # repository secret here.
+      - name: Validate
+        run: ./scripts/validate-k3s.sh

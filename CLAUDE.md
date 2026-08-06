@@ -17,13 +17,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Validation
 
+**CI runs this same pipeline** on every pull request and on pushes to `main` and `stable` (`.github/workflows/validate.yml`), so it is enforced regardless of who opened the PR — including Renovate and Dependabot, whose PRs never run the local git hooks. Tool versions are pinned in the workflow; `FLUX_VERSION` deliberately tracks what the clusters run rather than the newest release.
+
 After any change to manifests, run the full validation pipeline from the repo root:
 
 ```bash
 ./scripts/validate-k3s.sh
 ```
 
-This runs nine steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
+This runs ten steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
 1. **YAML lint** — `yamllint` against all files (ignores each site's `flux-system/` and `*.sops.yaml`)
 2. **Flux build** — `flux build kustomization --dry-run` for each Flux Kustomization, for each site
 3. **Kustomize build** — `kustomize build` of the site's entry point and each of its layers, concatenated into `$K3S_BUILD_DIR/k3s-built-<site>.yaml`
@@ -31,10 +33,11 @@ This runs nine steps in order, **per site** (Akron, Eastbank — each reconciles
 5. **Best practices** — `kube-score score` against each site's built output
 6. **Security scan** — `trivy config ./ --severity HIGH,CRITICAL` (whole repo, not per-site)
 9. **Dependabot coverage** — every directory with a pinned `image:` must be listed in `.github/dependabot.yml`, and every listed directory must exist (whole repo, not per-site)
+10. **Secrets encrypted** — every `*secret*.yaml` tracked by git must have `sops:` metadata and `ENC[]` values (whole repo, not per-site)
 7. **Variable references** — every `${VAR}` in each site's build output must be defined in that site's `cluster-vars.yaml`
 8. **Policy** — `conftest test` against each site's built output using policies in `policy/`
 
-Step 2 gates steps 3–5 and 7–8. Step 3 additionally gates steps 4, 5, 7, and 8. Steps 1, 6 and 9 always run independently.
+Step 2 gates steps 3–5 and 7–8. Step 3 additionally gates steps 4, 5, 7, and 8. Steps 1, 6, 9 and 10 always run independently.
 
 You can also check a specific kustomization in isolation:
 
@@ -47,7 +50,7 @@ kustomize build base/dns/
 
 ## Secrets
 
-All secrets follow the `*secret.sops.yaml` naming convention and must be SOPS-encrypted before committing. `.sops.yaml` scopes keys by site directory: `sites/akron/**` encrypts to Akron's age key, `sites/eastbank/**` to Eastbank's. A site's Flux can only decrypt its own secrets, and the rule needs no per-file exceptions.
+All secrets follow the `*secret.sops.yaml` naming convention and must be SOPS-encrypted before committing. Enforced twice: a local pre-commit hook (`scripts/setup-git-hooks.sh`) and validation step 10, which checks the whole tree in CI and cannot be skipped with `--no-verify`. `.sops.yaml` scopes keys by site directory: `sites/akron/**` encrypts to Akron's age key, `sites/eastbank/**` to Eastbank's. A site's Flux can only decrypt its own secrets, and the rule needs no per-file exceptions.
 
 To create or edit a secret:
 
