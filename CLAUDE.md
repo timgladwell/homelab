@@ -112,6 +112,17 @@ clusters/<site>/                 # Flux entry point — managed by the flux-syst
 
 ```
 
+### Why `cluster-vars.yaml` lives in `clusters/`, not `sites/`
+
+It is site-specific, so `sites/<site>/` looks like the obvious home. The distinction that decides it is *who reconciles it*:
+
+- Everything under `sites/<site>/<layer>/` is reconciled **by** a layer's own Flux `Kustomization`, and is an output — manifests that get applied.
+- `cluster-vars.yaml` is reconciled by the `flux-system` Kustomization itself, before any layer runs, and is an **input to** every other layer via `postBuild.substituteFrom`. A layer cannot supply the variables that layer is substituted with.
+
+So the rule is: **`clusters/<site>/` is what Flux needs in order to reconcile this site** — its bootstrap manifests, its credentials, its entry point, and its identity. **`sites/<site>/` is what this site deploys.** `cluster-vars` is identity, not deployment.
+
+There is also a mechanical reason. `clusters/<site>/kustomization.yaml` would have to reach into `sites/<site>/` to pick the file up, and kustomize's load restrictions only allow crossing directories via a directory that has its own `kustomization.yaml` — so `sites/<site>/` would need a top-level one whose shape differs from every per-layer one beneath it. Cost with no benefit.
+
 **Renaming a Flux `Kustomization` object is destructive.** `flux-system` prunes the old name and cascade-deletes everything it owned, PVCs included. Change `spec.path` freely; treat `metadata.name` as load-bearing.
 
 **Two different "per-site" concepts coexist — don't confuse them:**
