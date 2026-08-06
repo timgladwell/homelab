@@ -23,17 +23,18 @@ After any change to manifests, run the full validation pipeline from the repo ro
 ./scripts/validate-k3s.sh
 ```
 
-This runs eight steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
+This runs nine steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
 1. **YAML lint** — `yamllint` against all files (ignores each site's `flux-system/` and `*.sops.yaml`)
 2. **Flux build** — `flux build kustomization --dry-run` for each Flux Kustomization, for each site
 3. **Kustomize build** — `kustomize build` of the site's entry point and each of its layers, concatenated into `$K3S_BUILD_DIR/k3s-built-<site>.yaml`
 4. **Schema validation** — `kubeconform -summary` against each site's built output
 5. **Best practices** — `kube-score score` against each site's built output
 6. **Security scan** — `trivy config ./ --severity HIGH,CRITICAL` (whole repo, not per-site)
+9. **Dependabot coverage** — every directory with a pinned `image:` must be listed in `.github/dependabot.yml`, and every listed directory must exist (whole repo, not per-site)
 7. **Variable references** — every `${VAR}` in each site's build output must be defined in that site's `cluster-vars.yaml`
 8. **Policy** — `conftest test` against each site's built output using policies in `policy/`
 
-Step 2 gates steps 3–5 and 7–8. Step 3 additionally gates steps 4, 5, 7, and 8. Steps 1 and 6 always run independently.
+Step 2 gates steps 3–5 and 7–8. Step 3 additionally gates steps 4, 5, 7, and 8. Steps 1, 6 and 9 always run independently.
 
 You can also check a specific kustomization in isolation:
 
@@ -208,7 +209,14 @@ Apps are exposed via Traefik `IngressRoute` CRs using subdomain routing (`<app>.
 
 ### Dependency management
 
-Helm chart versions are managed by **Renovate**, which runs on weekends and opens PRs for `HelmRelease` version bumps across `clusters/`, `base/`, and `sites/`.
+Two tools, non-overlapping scopes:
+
+- **Renovate** (`renovate.json`) — Helm chart versions in `HelmRelease` resources. Scoped to the `flux` manager, runs on weekends.
+- **Dependabot** (`.github/dependabot.yml`) — container images pinned directly in manifests (`pihole`, `unbound`, `unbound-exporter`, `python`, `system-upgrade-controller`), plus GitHub Actions. Its docker ecosystem does read `image:` fields out of Kubernetes YAML.
+
+Dependabot lists explicit directories, so **a component that moves or gains an image needs a `.github/dependabot.yml` entry**. Validation step 9 enforces this in both directions — it exists because this config silently went stale when directories last moved, and nobody noticed images had stopped being updated.
+
+Flux's own controller images (`clusters/*/flux-system/`) are excluded from both: they are upgraded with the Flux CLI, see `docs/runbooks/flux-upgrades.md`.
 
 ### Hardware constraints
 

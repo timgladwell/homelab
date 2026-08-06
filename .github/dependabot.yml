@@ -1,11 +1,29 @@
 ---
-# Only GitHub Actions. The docker ecosystem block was removed: it pointed at
-# eight directories that no longer exist, and Dependabot's docker updater reads
-# Dockerfiles and compose files, not Kubernetes manifests, so it was never
-# updating any image in this repo. Helm chart versions are Renovate's job
-# (see renovate.json); container image tags in manifests are updated by hand.
 version: 2
 updates:
+  # Container images pinned directly in manifests: pihole, unbound,
+  # unbound-exporter, python (pihole-sync Job), system-upgrade-controller.
+  # Dependabot's docker ecosystem reads `image:` fields out of Kubernetes YAML,
+  # so these are genuinely covered here and nowhere else — Renovate is scoped to
+  # the flux manager (see renovate.json), which handles Helm chart versions but
+  # not raw image tags. The two do not overlap.
+  #
+  # clusters/*/flux-system is deliberately NOT listed: those are Flux's own
+  # controller images, upgraded via the Flux CLI (docs/runbooks/flux-upgrades.md).
+  # Letting Dependabot bump them would fight the bootstrap process.
+  #
+  # This list is enforced by scripts/validate/09-dependabot-coverage.sh, which
+  # fails if any directory gains a pinned image without being listed. That check
+  # exists because this config silently went stale once when directories moved,
+  # and nobody noticed Dependabot had stopped covering most of the repo.
+  - package-ecosystem: docker
+    directories:
+      - "/base/dns"
+      - "/base/pihole-sync"
+      - "/base/system-upgrade-controller"
+    schedule:
+      interval: weekly
+
   - package-ecosystem: github-actions
     directories:
       - "/**"
