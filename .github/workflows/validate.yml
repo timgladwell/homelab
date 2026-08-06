@@ -20,33 +20,38 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     env:
-      # Pinned so CI and a developer's machine reach the same verdict. FLUX_VERSION
-      # deliberately tracks the version the clusters run (clusters/*/flux-system/),
-      # not the newest release — CI should build the way the clusters will.
-      FLUX_VERSION: 2.8.8
+      # Pinned so CI and a developer's machine reach the same verdict. Only
+      # kustomize/kubeconform/kube-score/conftest are installed by hand — flux
+      # and trivy have first-party setup actions, and there is no first-party
+      # action for the other four.
       KUSTOMIZE_VERSION: 5.8.1
       KUBECONFORM_VERSION: 0.8.0
       KUBE_SCORE_VERSION: 1.20.0
-      TRIVY_VERSION: 0.71.1
       CONFTEST_VERSION: 0.69.0
       YAMLLINT_VERSION: 1.38.0
 
     steps:
       - uses: actions/checkout@v5
-        with:
-          # 10-secrets-encrypted.sh uses git ls-files over the whole tree.
-          fetch-depth: 1
 
-      - name: Install tools
+      # Pinned to the version the clusters run (clusters/*/flux-system/), not
+      # the newest release: CI should build the way the clusters will. Bump
+      # this in the same PR that upgrades Flux — see docs/runbooks/flux-upgrades.md.
+      - name: Setup Flux CLI
+        uses: fluxcd/flux2/action@main
+        with:
+          version: 2.8.8
+
+      - name: Setup Trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
+        with:
+          version: v0.71.1
+
+      - name: Install remaining tools
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           cd "$(mktemp -d)"
-
-          curl -fsSL -o flux.tar.gz \
-            "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_linux_amd64.tar.gz"
-          tar -xzf flux.tar.gz flux && mv flux "$HOME/.local/bin/"
 
           curl -fsSL -o kustomize.tar.gz \
             "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
@@ -59,10 +64,6 @@ jobs:
           curl -fsSL -o kube-score.tar.gz \
             "https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz"
           tar -xzf kube-score.tar.gz kube-score && mv kube-score "$HOME/.local/bin/"
-
-          curl -fsSL -o trivy.tar.gz \
-            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-          tar -xzf trivy.tar.gz trivy && mv trivy "$HOME/.local/bin/"
 
           curl -fsSL -o conftest.tar.gz \
             "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
