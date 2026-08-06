@@ -19,6 +19,21 @@ Three changes are not no-ops:
 3. **The `pihole-sync` ConfigMap changed**, so its Job re-runs and gravity
    rebuilds — about 10 minutes per site, no DNS impact.
 
+## No manual `kubectl apply` is needed
+
+The previous restructure ([akron-multisite-migration.md](akron-multisite-migration.md))
+did need one, because it changed the **root** `flux-system` Kustomization's own
+`spec.path` — a value stored in the cluster, not re-read from git.
+
+This PR does not touch it. `clusters/<site>/flux-system/gotk-sync.yaml` still
+says `path: ./clusters/akron`. Every `spec.path` that changed belongs to a
+*child* Kustomization declared in `clusters/<site>/*.yaml`, which the root
+reconciles from git like any other manifest. Flux applies them itself.
+
+Nothing here requires logging onto a box. There is also no minimum Flux
+version: this uses `postBuild.substituteFrom`, `dependsOn`, SOPS decryption,
+`force` and `wait`, all long-standing on the v2.8.8 both sites run.
+
 ## What the rename does
 
 The Flux `Kustomization` object `infrastructure-akron-only` is renamed to
@@ -79,11 +94,11 @@ a worse long-term cost than a one-time loss of homelab metrics history.
    force-recreates the Job and gravity rebuilds — roughly 10 minutes. DNS
    resolution is unaffected while it runs.
 
-   Eastbank's `sites/eastbank/dns-config/pihole-clients.yaml` is intentionally
-   empty. If Eastbank's PiHole currently has clients defined, this sync
-   **removes them** — it was previously syncing Akron's client list, so it had
-   Akron's Roku defined and nothing else. Fill the file in before promoting if
-   Eastbank needs its own client groups.
+   Eastbank's `sites/eastbank/dns-config/pihole-clients.yaml` now declares its
+   own client (Chromecast, `10.4.30.10`). Before this change Eastbank was
+   syncing *Akron's* client list, so its PiHole has Akron's Roku defined and
+   nothing else — that entry is removed and the Chromecast added. Verify in
+   Eastbank's PiHole UI under Groups → Clients after the sync completes.
 
 7. **Promote to Eastbank** only after Akron is confirmed healthy — open a PR
    from `main` into `stable` as usual. Eastbank has no monitoring layer, so
