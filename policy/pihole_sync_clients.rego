@@ -4,7 +4,7 @@ import future.keywords.if
 
 # The pihole-sync ConfigMap is assembled from two files: the global config in
 # base/pihole-sync/, and the site's own pihole-clients.yaml merged in by
-# sites/<site>/app-config/.
+# sites/<site>/dns-config/.
 #
 # If a site forgets the merge, sync.py sees no clients file and dies — but only
 # at Job runtime, on the cluster, after the change has already shipped. Worse,
@@ -15,7 +15,7 @@ deny contains msg if {
 	startswith(input.metadata.name, "pihole-sync-")
 	not input.data["pihole-clients.yaml"]
 	msg := sprintf(
-		"ConfigMap %q is missing pihole-clients.yaml — the site's app-config kustomization must merge its own clients file into the pihole-sync ConfigMap",
+		"ConfigMap %q is missing pihole-clients.yaml — the site's dns-config kustomization must merge its own clients file into the pihole-sync ConfigMap",
 		[input.metadata.name],
 	)
 }

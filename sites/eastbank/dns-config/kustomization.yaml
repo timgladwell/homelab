@@ -1,5 +1,5 @@
 ---
-# Post-apps config: syncs DNS blocklists into this site's own local PiHole.
+# Syncs DNS blocklists, groups and clients into this site's own local PiHole.
 # The global config comes from base/; this site supplies only its own client
 # definitions, merged into the same generated ConfigMap.
 apiVersion: kustomize.config.k8s.io/v1beta1

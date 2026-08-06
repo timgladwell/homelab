@@ -79,7 +79,7 @@ a worse long-term cost than a one-time loss of homelab metrics history.
    force-recreates the Job and gravity rebuilds — roughly 10 minutes. DNS
    resolution is unaffected while it runs.
 
-   Eastbank's `sites/eastbank/app-config/pihole-clients.yaml` is intentionally
+   Eastbank's `sites/eastbank/dns-config/pihole-clients.yaml` is intentionally
    empty. If Eastbank's PiHole currently has clients defined, this sync
    **removes them** — it was previously syncing Akron's client list, so it had
    Akron's Roku defined and nothing else. Fill the file in before promoting if

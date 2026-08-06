@@ -1,15 +1,20 @@
 ---
+# Configures PiHole's blocklists, groups and clients once PiHole is running.
+# Separate from infrastructure-config because it needs different reconcile
+# semantics, not because it lives in a different namespace: force: true to
+# recreate the immutable sync Job when its ConfigMap hash changes, and a 20m
+# timeout because a gravity rebuild takes ~10m (infrastructure-config uses 2m).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: app-config
+  name: dns-config
   namespace: flux-system
 spec:
   interval: 10m
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./sites/eastbank/app-config
+  path: ./sites/akron/dns-config
   prune: true
   # force allows Flux to delete and recreate the Job when its spec changes
   # (Jobs are immutable once created). This happens automatically whenever

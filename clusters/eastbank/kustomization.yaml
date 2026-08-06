@@ -6,4 +6,4 @@ resources:
   - ./cluster-vars.yaml
   - ./infrastructure.yaml
   - ./infrastructure-config.yaml
-  - ./app-config.yaml
+  - ./dns-config.yaml

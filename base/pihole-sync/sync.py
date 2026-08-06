@@ -27,7 +27,7 @@ PIHOLE_URL = os.environ["PIHOLE_URL"]
 PIHOLE_PASSWORD = os.environ.get("PIHOLE_PASSWORD", "")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "/sync/pihole-config.yaml")
 # Client definitions are site-specific, so they come from a separate file that
-# each site's app-config layer merges into the same ConfigMap. Deliberately
+# each site's dns-config layer merges into the same ConfigMap. Deliberately
 # required, not optional: a missing file would look like "no clients desired"
 # and sync_clients() would delete every client the site actually has.
 CLIENTS_PATH = os.environ.get("CLIENTS_PATH", "/sync/pihole-clients.yaml")

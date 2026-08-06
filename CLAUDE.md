@@ -77,7 +77,7 @@ The rule that makes this work: **`base/` never contains anything site-specific.*
 
 - Independent single-node K3s sites, each managed with **Flux CD + Kustomize + Helm**, sharing this one repo (Flux's standard multi-cluster monorepo pattern — no cluster federation, no shared control plane):
   - **Akron** (local, 8GB RAM) — every layer: shared infrastructure + Akron-only monitoring. Deploys first.
-  - **Eastbank** (remote, 8GB RAM) — infrastructure, infrastructure-config, app-config. No monitoring.
+  - **Eastbank** (remote, 8GB RAM) — infrastructure, infrastructure-config, dns-config. No monitoring.
   - **Lottage** (remote, 2GB RAM) — **out of scope**, scaffolding removed until the hardware is upgraded. Re-add by copying `sites/eastbank/` and `clusters/eastbank/`.
 - The local development machine is not connected to any site. All commands are executed on the server via SSH session.
 - **Rollout gating (Akron first):** Akron's Flux `GitRepository` watches `main`. Eastbank's watches a `stable` branch. After merging to `main` and confirming Akron is healthy, promote by opening a PR from `main` into `stable`. A GitHub ruleset on `stable` blocks direct pushes and merge/squash commits — only "Rebase and merge" is permitted, so `stable`'s history stays an unaltered subset of `main`'s. There is no automatic cross-cluster gate — this is a manual, explicit step.
@@ -98,7 +98,7 @@ base/                            # Site-agnostic components. No secrets. No site
 sites/<site>/                    # Everything specific to one K3s cluster
   infrastructure/                # kustomization.yaml picking base components + this site's pihole-secret
   infrastructure-config/         # kustomization.yaml picking the CRD-dependent base components
-  app-config/                    # kustomization.yaml picking base/pihole-sync + this site's pihole-clients.yaml
+  dns-config/                    # kustomization.yaml picking base/pihole-sync + this site's pihole-clients.yaml
   monitoring/                    # Akron only: Prometheus + Grafana + Loki + Alloy + Unpoller (+ its secrets)
 
 clusters/<site>/                 # Flux entry point — managed by the flux-system Kustomization
@@ -108,7 +108,7 @@ clusters/<site>/                 # Flux entry point — managed by the flux-syst
   infrastructure.yaml            # Flux Kustomization -> sites/<site>/infrastructure
   monitoring.yaml                # Akron only -> sites/akron/monitoring
   infrastructure-config.yaml     # -> sites/<site>/infrastructure-config
-  app-config.yaml                # -> sites/<site>/app-config
+  dns-config.yaml                # -> sites/<site>/dns-config
 
 ```
 
@@ -135,9 +135,9 @@ Step 3 assembles each site's complete manifest set the same way Flux does — `k
 1. `infrastructure` → `sites/akron/infrastructure` — SOPS decryption + `cluster-vars` substitution
 2. `monitoring` → `sites/akron/monitoring` — depends on `infrastructure`
 3. `infrastructure-config` → `sites/akron/infrastructure-config` — depends on `infrastructure`
-4. `app-config` → `sites/akron/app-config` — depends on `infrastructure`
+4. `dns-config` → `sites/akron/dns-config` — depends on `infrastructure`
 
-**Eastbank** (watches `stable`) — `clusters/eastbank/` → `infrastructure` (`sites/eastbank/infrastructure`) → `infrastructure-config` and `app-config`, both depending on `infrastructure`.
+**Eastbank** (watches `stable`) — `clusters/eastbank/` → `infrastructure` (`sites/eastbank/infrastructure`) → `infrastructure-config` and `dns-config`, both depending on `infrastructure`.
 
 ### Variable substitution
 
@@ -148,6 +148,8 @@ Plain `kustomize build` does not perform this substitution, so the validation pi
 **When adding a new variable:** add it to every site's `cluster-vars.yaml` that reconciles the manifest using it, before (or in the same PR as) that manifest.
 
 ### Adding a component
+
+Layers are grouped by **reconcile semantics, not by namespace** — `infrastructure-config` spans `metallb-system` and `kube-system`, and `dns-config` exists separately from it because a gravity rebuild needs `force: true` and a 20m timeout, not because PiHole is in the `dns` namespace.
 
 **Shared across sites** (the usual case):
 1. Create `base/<component>/` with a `kustomization.yaml` listing its resources. Use `${VAR}` for anything site-specific; put no secrets here.
@@ -160,7 +162,7 @@ Opting a site out is just *not adding the line* — there is no delete-patch pat
 
 **There is no `apps` layer right now**, but it is expected back — NetworkOptimizer was deleted to be re-added fresh on its new multi-UniFi-site version. Restore it with the steps in *Adding a new top-level Flux Kustomization* below, creating `sites/akron/apps/` with a namespace and the app.
 
-When it returns, **leave `app-config`'s `dependsOn` on `infrastructure`**. It used to depend on `apps`, but that was incidental ordering — `pihole-sync` talks to `pihole-web`, which the infrastructure layer owns. It has no dependency on apps in either direction.
+When it returns, **leave `dns-config`'s `dependsOn` on `infrastructure`**. It used to depend on `apps`, but that was incidental ordering — `pihole-sync` talks to `pihole-web`, which the infrastructure layer owns. It has no dependency on apps in either direction.
 
 **If a component needs a per-site secret**, put the Secret in `sites/<site>/<layer>/` and list it alongside the base component. Never in `base/`.
 

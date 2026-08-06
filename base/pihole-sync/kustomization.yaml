@@ -1,6 +1,6 @@
 ---
 # Generates the pihole-sync ConfigMap with the global config and the sync
-# script. Each site's app-config layer merges its own pihole-clients.yaml into
+# script. Each site's dns-config layer merges its own pihole-clients.yaml into
 # this same ConfigMap (configMapGenerator behavior: merge).
 #
 # Editing any file listed here changes the ConfigMap's hash suffix, which

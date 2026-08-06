@@ -3,7 +3,7 @@
 # on every site, which is why it lives in base/.
 #
 # Client definitions (and therefore client-to-group mapping) are site-specific
-# and live in sites/<site>/app-config/pihole-clients.yaml, merged into the same
+# and live in sites/<site>/dns-config/pihole-clients.yaml, merged into the same
 # generated ConfigMap. sync.py requires that file to exist.
 groups:
   - name: Streaming Devices

@@ -82,6 +82,6 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    flux get kustomizations -A
    flux get sources git
    ```
-   Eastbank should show `infrastructure`, `infrastructure-config`, `app-config`.
+   Eastbank should show `infrastructure`, `infrastructure-config`, `dns-config`.
 
 11. **Verify PiHole is actually serving DNS** on the new site's LAN before pointing any client devices at it.
