@@ -98,7 +98,7 @@ base/                            # Site-agnostic components. No secrets. No site
 sites/<site>/                    # Everything specific to one K3s cluster
   infrastructure/                # kustomization.yaml picking base components + this site's pihole-secret
   infrastructure-config/         # kustomization.yaml picking the CRD-dependent base components
-  app-config/                    # kustomization.yaml picking base/pihole-sync
+  app-config/                    # kustomization.yaml picking base/pihole-sync + this site's pihole-clients.yaml
   monitoring/                    # Akron only: Prometheus + Grafana + Loki + Alloy + Unpoller (+ its secrets)
   apps/                          # Akron only: user-facing applications (+ their secrets)
 
@@ -107,7 +107,7 @@ clusters/<site>/                 # Flux entry point — managed by the flux-syst
   flux-system-local/             # Patches applied over flux-system/ (kube-score ignores, etc.)
   cluster-vars.yaml              # Per-site ConfigMap (DNS_DOMAIN, HOSTNAME, METALLB_*, NODE_IP) injected via postBuild.substituteFrom
   infrastructure.yaml            # Flux Kustomization -> sites/<site>/infrastructure
-  infrastructure-akron-only.yaml # Akron only -> sites/akron/monitoring (name is frozen, see below)
+  monitoring.yaml                # Akron only -> sites/akron/monitoring
   infrastructure-config.yaml     # -> sites/<site>/infrastructure-config
   apps.yaml                      # Akron only -> sites/akron/apps
   app-config.yaml                # -> sites/<site>/app-config
@@ -116,7 +116,7 @@ clusters/<site>-validation/      # Validation-only kustomize entry point (not re
   kustomization.yaml             # One line per layer that site reconciles
 ```
 
-`sites/akron/monitoring/` is reconciled by a Flux Kustomization still named `infrastructure-akron-only`. **That name is frozen**: renaming a Flux Kustomization object makes `flux-system` prune the old one, which cascade-deletes everything it owns — including the Prometheus/Loki/Grafana PVCs.
+**Renaming a Flux `Kustomization` object is destructive.** `flux-system` prunes the old name and cascade-deletes everything it owned, PVCs included. Change `spec.path` freely; treat `metadata.name` as load-bearing.
 
 **Two different "per-site" concepts coexist — don't confuse them:**
 - **Per-K3s-cluster** — `sites/akron/`, `sites/eastbank/`. One directory per physical cluster.
@@ -130,9 +130,9 @@ Each site reconciles a different subset of layers (Eastbank has no `apps` or `mo
 
 **Akron** (watches `main`) — `clusters/akron/` via the `flux-system` Kustomization, then:
 1. `infrastructure` → `sites/akron/infrastructure` — SOPS decryption + `cluster-vars` substitution
-2. `infrastructure-akron-only` → `sites/akron/monitoring` — depends on `infrastructure`
+2. `monitoring` → `sites/akron/monitoring` — depends on `infrastructure`
 3. `infrastructure-config` → `sites/akron/infrastructure-config` — depends on `infrastructure`
-4. `apps` → `sites/akron/apps` — depends on `infrastructure`, `infrastructure-akron-only` (PodMonitor CRD), `infrastructure-config`
+4. `apps` → `sites/akron/apps` — depends on `infrastructure`, `monitoring` (PodMonitor CRD), `infrastructure-config`
 5. `app-config` → `sites/akron/app-config` — depends on `apps`
 
 **Eastbank** (watches `stable`) — `clusters/eastbank/` → `infrastructure` (`sites/eastbank/infrastructure`) → `infrastructure-config` and `app-config`, both depending on `infrastructure`.
@@ -157,6 +157,18 @@ Opting a site out is just *not adding the line* — there is no delete-patch pat
 **Specific to one site** (Akron monitoring, Akron apps): create it under `sites/<site>/<layer>/` and add it to that layer's `kustomization.yaml`. Nothing else changes.
 
 **If a component needs a per-site secret**, put the Secret in `sites/<site>/<layer>/` and list it alongside the base component. Never in `base/`.
+
+**If a component needs a per-site *config file*** (as `pihole-sync` does for its client list), keep the global part in `base/` and merge the site's part into the same generated ConfigMap from `sites/<site>/<layer>/`:
+
+```yaml
+configMapGenerator:
+  - name: <same-name-as-base>
+    behavior: merge
+    files:
+      - <site-specific>.yaml
+```
+
+Kustomize's load restrictions block a `configMapGenerator` from reading files outside its own root, so this merge — not a path reference — is how a site contributes a file. Back it with a conftest policy asserting the merged key exists (see `policy/pihole_sync_clients.rego`); a silently-absent site file usually reads as "desired state is empty", which is a delete.
 
 ### Adding a new top-level Flux Kustomization
 

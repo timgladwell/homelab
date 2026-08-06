@@ -22,8 +22,8 @@ The multi-site restructure PR renames `clusters/homelab/` to `clusters/akron/` a
    flux get kustomizations -A
    flux get sources git
    ```
-   Expect `infrastructure`, `infrastructure-akron-only`, `infrastructure-config`, `apps`, `app-config` to all appear (the last four are new/renamed Kustomization names — see `clusters/akron/kustomization.yaml`) and go healthy within a couple of reconcile intervals.
+   Expect `infrastructure`, `monitoring`, `infrastructure-config`, `apps`, `app-config` to all appear (the last four are new/renamed Kustomization names — see `clusters/akron/kustomization.yaml`) and go healthy within a couple of reconcile intervals.
 
-4. **If `infrastructure-akron-only` or `app-config` fail on `dependsOn`,** check `flux get kustomizations -A` for the dependency chain — `apps` now depends on `infrastructure-akron-only` (PodMonitor CRD from kube-prometheus-stack) in addition to `infrastructure` and `infrastructure-config`; this is new as of the restructure.
+4. **If `monitoring` or `app-config` fail on `dependsOn`,** check `flux get kustomizations -A` for the dependency chain — `apps` now depends on `monitoring` (PodMonitor CRD from kube-prometheus-stack) in addition to `infrastructure` and `infrastructure-config`; this is new as of the restructure.
 
 5. **Verify no DNS disruption** — `base/dns/` content is unchanged from `infrastructure/homelab/dns/` (only the parent directory moved), so PiHole/Unbound should not restart or lose state during this migration. If they do restart, it's the RollingUpdate-safe path (see `feedback_pihole_recreate_strategy` guidance) — not a Recreate outage.

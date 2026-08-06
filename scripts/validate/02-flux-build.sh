@@ -25,7 +25,7 @@ check() {
 # in clusters/<site>/<ks>.yaml. Stays explicit because each site decides which
 # layers it has (Eastbank has no monitoring or apps).
 check akron infrastructure ./sites/akron/infrastructure
-check akron infrastructure-akron-only ./sites/akron/monitoring
+check akron monitoring ./sites/akron/monitoring
 check akron infrastructure-config ./sites/akron/infrastructure-config
 check akron apps ./sites/akron/apps
 check akron app-config ./sites/akron/app-config
