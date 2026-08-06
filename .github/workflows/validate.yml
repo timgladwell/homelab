@@ -31,7 +31,7 @@ jobs:
       YAMLLINT_VERSION: 1.38.0
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Pinned to the version the clusters run (clusters/*/flux-system/), not
       # the newest release: CI should build the way the clusters will. Bump
