@@ -26,6 +26,11 @@ import yaml
 PIHOLE_URL = os.environ["PIHOLE_URL"]
 PIHOLE_PASSWORD = os.environ.get("PIHOLE_PASSWORD", "")
 CONFIG_PATH = os.environ.get("CONFIG_PATH", "/sync/pihole-config.yaml")
+# Client definitions are site-specific, so they come from a separate file that
+# each site's app-config layer merges into the same ConfigMap. Deliberately
+# required, not optional: a missing file would look like "no clients desired"
+# and sync_clients() would delete every client the site actually has.
+CLIENTS_PATH = os.environ.get("CLIENTS_PATH", "/sync/pihole-clients.yaml")
 STATE_DIR = os.environ.get("STATE_DIR", "/tmp/state")
 _GRAVITY_FLAG = os.path.join(STATE_DIR, "gravity.flag")
 
@@ -385,10 +390,14 @@ def run_gravity(sid):
 
 def main():
     t_start = time.monotonic()
-    log(f"Pi-hole sync starting. Config={CONFIG_PATH} URL={PIHOLE_URL}")
+    log(f"Pi-hole sync starting. Config={CONFIG_PATH} "
+        f"Clients={CLIENTS_PATH} URL={PIHOLE_URL}")
 
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
+
+    with open(CLIENTS_PATH) as f:
+        cfg["clients"] = (yaml.safe_load(f) or {}).get("clients") or []
 
     log(f"Config summary: {len(cfg.get('groups', []))} groups, "
         f"{len(cfg.get('clients', []))} clients, "

@@ -1,13 +1,12 @@
 ---
+# Global PiHole config: groups, allow/block domains, and blocklists — identical
+# on every site, which is why it lives in base/.
+#
+# Client definitions (and therefore client-to-group mapping) are site-specific
+# and live in sites/<site>/app-config/pihole-clients.yaml, merged into the same
+# generated ConfigMap. sync.py requires that file to exist.
 groups:
   - name: Streaming Devices
-
-clients:
-  - address: "10.6.30.10"
-    comment: Roku
-    groups:
-      - Default
-      - Streaming Devices
 
 allow_domains:
   - domain: tags.tiqcdn.com
