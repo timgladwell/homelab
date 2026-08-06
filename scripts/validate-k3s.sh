@@ -92,6 +92,12 @@ fi
 # Step 6: Security scan — independent
 run_step "Security Scan" "$VALIDATE_DIR/06-security-scan.sh"
 
+# Step 9: Dependabot coverage — independent (reads the repo, not the build output)
+run_step "Dependabot Coverage" "$VALIDATE_DIR/09-dependabot-coverage.sh"
+
+# Step 10: Secrets encrypted — independent
+run_step "Secrets Encrypted" "$VALIDATE_DIR/10-secrets-encrypted.sh"
+
 # Summary
 echo ""
 echo "================================================================"

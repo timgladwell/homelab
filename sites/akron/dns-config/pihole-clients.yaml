@@ -1,0 +1,10 @@
+---
+# Akron's PiHole clients and their group membership. Site-specific: these are
+# addresses on Akron's LAN. Global groups/blocklists live in
+# base/pihole-sync/pihole-config.yaml.
+clients:
+  - address: "10.6.30.10"
+    comment: Roku
+    groups:
+      - Default
+      - Streaming Devices

@@ -1,0 +1,13 @@
+---
+# Eastbank's PiHole clients and their group membership. Site-specific: these
+# are addresses on Eastbank's LAN. Global groups/blocklists live in
+# base/pihole-sync/pihole-config.yaml.
+#
+# sync.py removes clients that aren't listed here, so adding a device to a
+# non-Default group means adding it to this file, not to the PiHole UI.
+clients:
+  - address: "10.4.30.10"
+    comment: Chromecast
+    groups:
+      - Default
+      - Streaming Devices

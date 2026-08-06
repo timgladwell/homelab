@@ -1,0 +1,12 @@
+---
+# Eastbank's infrastructure layer. Identical component set to Akron's — the
+# only difference is which pihole-secret is supplied (revServers and
+# dnsmasq_lines are per-site: local gateway IP, per-site syslog forwarding).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/metallb
+  - ../../../base/traefik
+  - ../../../base/dns
+  - ../../../base/system-upgrade-controller
+  - pihole-secret.sops.yaml

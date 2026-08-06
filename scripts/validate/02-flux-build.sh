@@ -1,40 +1,30 @@
 #!/bin/bash
-# Validate each site's Flux Kustomization builds using the actual Kustomization objects.
-# Runs in dry-run mode — no cluster connection required.
+# Validate every Flux Kustomization builds, using the actual Kustomization
+# objects and their declared spec.path. Runs in dry-run mode — no cluster
+# connection required.
+#
+# Because the path comes from the object rather than a copy kept in this
+# script, a spec.path pointing at a directory that doesn't exist fails here
+# instead of on the cluster after merge.
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
+source "$(dirname "$0")/lib-sites.sh"
 
 fail=0
 
-check() {
-    local site="$1" ks="$2" path="$3"
-    local output
-    output=$(flux build kustomization "$ks" \
-        --path "$path" \
-        --kustomization-file "./clusters/${site}/${ks}.yaml" \
-        --dry-run 2>&1)
-    if [[ $? -ne 0 ]]; then
-        echo "✗ [$site] $ks: $output"
-        fail=1
-    else
-        echo "✓ [$site] $ks"
-    fi
-}
-
-# Akron: full stack (shared core + akron-only monitoring + apps)
-check akron infrastructure ./infrastructure/core
-check akron infrastructure-akron-only ./infrastructure/akron-only
-check akron infrastructure-config ./infrastructure-config/core
-check akron apps ./apps/homelab
-check akron app-config ./app-config/core
-
-# Eastbank: shared core (patched with its own pihole values) + pihole-sync only
-check eastbank infrastructure ./infrastructure/core-overlays/eastbank
-check eastbank infrastructure-config ./infrastructure-config/core
-check eastbank app-config ./app-config/core
-
-# Lottage: hostNetwork DNS overlay (no Traefik/MetalLB) + pihole-sync only
-check lottage infrastructure ./infrastructure/core-overlays/lottage
-check lottage app-config ./app-config/core
+for site in $(sites); do
+    while read -r ks path; do
+        [[ -n "$ks" ]] || continue
+        if ! output=$(flux build kustomization "$ks" \
+            --path "$path" \
+            --kustomization-file "./clusters/${site}/${ks}.yaml" \
+            --dry-run 2>&1); then
+            echo "✗ [$site] $ks ($path): $output"
+            fail=1
+        else
+            echo "✓ [$site] $ks ($path)"
+        fi
+    done < <(site_kustomizations "$site")
+done
 
 exit $fail

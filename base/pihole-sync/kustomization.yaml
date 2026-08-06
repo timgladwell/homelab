@@ -1,0 +1,18 @@
+---
+# Generates the pihole-sync ConfigMap with the global config and the sync
+# script. Each site's dns-config layer merges its own pihole-clients.yaml into
+# this same ConfigMap (configMapGenerator behavior: merge).
+#
+# Editing any file listed here changes the ConfigMap's hash suffix, which
+# force-recreates the sync Job and triggers a ~10 minute gravity rebuild on
+# every site. Worth knowing before fixing a typo in a comment.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dns
+resources:
+  - sync-job.yaml
+configMapGenerator:
+  - name: pihole-sync
+    files:
+      - pihole-config.yaml
+      - sync.py

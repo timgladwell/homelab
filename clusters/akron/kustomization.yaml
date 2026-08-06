@@ -5,7 +5,6 @@ resources:
   - ./flux-system-local
   - ./cluster-vars.yaml
   - ./infrastructure.yaml
-  - ./infrastructure-akron-only.yaml
+  - ./monitoring.yaml
   - ./infrastructure-config.yaml
-  - ./apps.yaml
-  - ./app-config.yaml
+  - ./dns-config.yaml
