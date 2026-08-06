@@ -1,0 +1,102 @@
+---
+name: Promote to stable
+
+# Fast-forwards `stable` to `main`, which is how the remote sites get changes
+# that Akron has already proven.
+#
+# Fast-forward, not merge or rebase: it moves the branch pointer to the exact
+# commits already on `main`, preserving their SHAs. That is what stops the two
+# branches diverging. Promoting by PR could not do this — `main` allows only
+# merge commits and `stable` allowed only rebase, so every promotion replayed
+# main's work onto stable under fresh SHAs, and git lost track of the fact that
+# the two branches held identical content.
+#
+# Requires the GitHub Actions app (id 15368) as a bypass actor on the `stable`
+# ruleset. Without it this job fails at the push with a protected-branch error;
+# it cannot silently do the wrong thing.
+on:  # yamllint disable-line rule:truthy
+  workflow_dispatch:
+    inputs:
+      akron_healthy:
+        description: >
+          Akron has reconciled this revision and is healthy
+          (flux get kustomizations -A)
+        type: choice
+        options: ["no", "yes"]
+        default: "no"
+        required: true
+
+concurrency:
+  group: promote-to-stable
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          # Full history: the fast-forward check needs both branches' ancestry.
+          fetch-depth: 0
+
+      - name: Require the Akron health gate
+        if: inputs.akron_healthy != 'yes'
+        run: |
+          echo "::error::Promotion refused — Akron has not been confirmed healthy."
+          echo "Akron is the canary. Confirm it reconciled this revision before"
+          echo "shipping to sites that are hundreds of miles away."
+          exit 1
+
+      # main is validated on every PR and on push, so the tree being promoted
+      # has already been checked. Rather than re-running the pipeline, assert
+      # that the run which covered *this exact commit* actually passed.
+      - name: Require a green Validate run on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse origin/main)
+          echo "main is at $sha"
+          conclusion=$(gh run list --branch main --workflow Validate \
+            --commit "$sha" --limit 1 --json conclusion --jq '.[0].conclusion // "none"')
+          echo "Validate conclusion for $sha: $conclusion"
+          if [[ "$conclusion" != "success" ]]; then
+            echo "::error::No successful Validate run for $sha (got: $conclusion)."
+            exit 1
+          fi
+
+      - name: Verify this is a fast-forward
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor origin/stable origin/main; then
+            echo "::error::stable is not an ancestor of main — not a fast-forward."
+            echo "stable has commits main does not. Check whether they are"
+            echo "genuinely unique (git cherry origin/main origin/stable) before"
+            echo "doing anything: a '-' prefix means the patch is already in main"
+            echo "under a different SHA, and stable can be reset without loss."
+            exit 1
+          fi
+          echo "Fast-forwarding stable:"
+          git log --oneline origin/stable..origin/main | sed 's/^/  /'
+
+      # No --force. A plain push is refused by git unless it fast-forwards, so
+      # even with the ruleset bypass this job cannot rewrite stable's history.
+      - name: Promote
+        run: git push origin origin/main:refs/heads/stable
+
+      - name: Summary
+        run: |
+          {
+            echo "### Promoted to \`stable\`"
+            echo
+            echo "\`stable\` is now at \`$(git rev-parse --short origin/main)\`."
+            echo
+            echo "Flux on the remote sites polls \`stable\`; watch with:"
+            echo '```'
+            echo "flux get kustomizations -A --watch"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -84,7 +84,11 @@ The rule that makes this work: **`base/` never contains anything site-specific.*
   - **Eastbank** (remote, 8GB RAM) — infrastructure, infrastructure-config, dns-config. No monitoring.
   - **Lottage** (remote, 2GB RAM) — **out of scope**, scaffolding removed until the hardware is upgraded. Re-add by copying `sites/eastbank/` and `clusters/eastbank/`.
 - The local development machine is not connected to any site. All commands are executed on the server via SSH session.
-- **Rollout gating (Akron first):** Akron's Flux `GitRepository` watches `main`. Eastbank's watches a `stable` branch. After merging to `main` and confirming Akron is healthy, promote by opening a PR from `main` into `stable`. A GitHub ruleset on `stable` blocks direct pushes and merge/squash commits — only "Rebase and merge" is permitted, so `stable`'s history stays an unaltered subset of `main`'s. There is no automatic cross-cluster gate — this is a manual, explicit step.
+- **Rollout gating (Akron first):** Akron's Flux `GitRepository` watches `main`. Eastbank's watches a `stable` branch. After merging to `main` and confirming Akron is healthy, promote by running the **Promote to stable** workflow (`.github/workflows/promote-to-stable.yml`) from the Actions tab. There is no automatic cross-cluster gate — this is a manual, explicit step, and the workflow refuses to run unless you assert Akron is healthy.
+
+  **Promotion is a fast-forward, never a merge or rebase.** `stable` is only ever moved to a commit that already exists on `main`, so the two branches share SHAs and can never diverge. Promoting by PR is what caused the old divergence: `main` allows only merge commits, `stable` allowed only rebase, so every promotion replayed main's work under fresh SHAs and git lost track of the fact that both branches held identical content. Conflicts then accumulated until a large PR made them unresolvable.
+
+  This requires the GitHub Actions app (id `15368`) as a bypass actor on the `stable` ruleset — that is what lets the workflow push while everyone else is still blocked. The workflow never uses `--force`, so even with the bypass it cannot rewrite `stable`'s history; a non-fast-forward push is refused by git itself.
 
 ### Directory layout
 
