@@ -1,0 +1,6 @@
+---
+# Post-apps config: syncs DNS blocklists into this site's own local PiHole.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/pihole-sync

@@ -21,16 +21,17 @@ check() {
     fi
 }
 
-# Akron: full stack (shared core + akron-only monitoring + apps)
-check akron infrastructure ./infrastructure/core
-check akron infrastructure-akron-only ./infrastructure/akron-only
-check akron infrastructure-config ./infrastructure-config/core
-check akron apps ./apps/homelab
-check akron app-config ./app-config/core
+# One check per Flux Kustomization per site — the path must match spec.path
+# in clusters/<site>/<ks>.yaml. Stays explicit because each site decides which
+# layers it has (Eastbank has no monitoring or apps).
+check akron infrastructure ./sites/akron/infrastructure
+check akron infrastructure-akron-only ./sites/akron/monitoring
+check akron infrastructure-config ./sites/akron/infrastructure-config
+check akron apps ./sites/akron/apps
+check akron app-config ./sites/akron/app-config
 
-# Eastbank: shared core (patched with its own pihole values) + pihole-sync only
-check eastbank infrastructure ./infrastructure/core-overlays/eastbank
-check eastbank infrastructure-config ./infrastructure-config/core
-check eastbank app-config ./app-config/core
+check eastbank infrastructure ./sites/eastbank/infrastructure
+check eastbank infrastructure-config ./sites/eastbank/infrastructure-config
+check eastbank app-config ./sites/eastbank/app-config
 
 exit $fail

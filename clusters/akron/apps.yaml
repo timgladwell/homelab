@@ -9,7 +9,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ../apps/homelab
+  path: ../sites/akron/apps
   prune: true
   wait: false  # Apps can fail without blocking reconciliation
   timeout: 5m

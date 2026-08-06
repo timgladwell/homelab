@@ -21,11 +21,11 @@ misconfigurations:
   # state to /var/log/pihole and /run/pihole, so readOnlyRootFilesystem cannot be set.
   - id: AVD-KSV-0014
     paths:
-      - "infrastructure/core/dns/pihole-deployment.yaml"
+      - "base/dns/pihole-deployment.yaml"
     statement: "pihole FTL writes runtime state to /var/log/pihole and /run/pihole"
   - id: AVD-KSV-0118
     paths:
-      - "infrastructure/core/dns/pihole-deployment.yaml"
+      - "base/dns/pihole-deployment.yaml"
     statement: "pihole requires root access for DNS port 53 binding"
 
   # klutchell/unbound starts as root then internally drops to the unbound user via
@@ -34,11 +34,11 @@ misconfigurations:
   # image writes a PID file and control socket to /var/run/unbound at runtime.
   - id: AVD-KSV-0014
     paths:
-      - "infrastructure/core/dns/unbound-deployment.yaml"
+      - "base/dns/unbound-deployment.yaml"
     statement: "klutchell/unbound writes runtime state to /var/run/unbound"
   - id: AVD-KSV-0118
     paths:
-      - "infrastructure/core/dns/unbound-deployment.yaml"
+      - "base/dns/unbound-deployment.yaml"
     statement: "klutchell/unbound entrypoint runs as root before dropping privileges internally via setuid/setgid"
 
   # system-upgrade-controller.yaml is the upstream manifest from rancher/system-upgrade-controller.
@@ -47,11 +47,11 @@ misconfigurations:
   #           sets runAsNonRoot: true and runAsUser: 65534. Trivy scans raw source, not patched output.
   - id: AVD-KSV-0014
     paths:
-      - "infrastructure/core/system-upgrade-controller/system-upgrade-controller.yaml"
+      - "base/system-upgrade-controller/system-upgrade-controller.yaml"
     statement: "readOnlyRootFilesystem set to true via deployment-patch.yaml kustomize patch"
   - id: AVD-KSV-0118
     paths:
-      - "infrastructure/core/system-upgrade-controller/system-upgrade-controller.yaml"
+      - "base/system-upgrade-controller/system-upgrade-controller.yaml"
     statement: "Pod-level securityContext added via deployment-patch.yaml; container already enforces runAsNonRoot: true"
 
   #
@@ -64,32 +64,17 @@ misconfigurations:
   # without inspecting the image entrypoint.
   - id: AVD-KSV-0014
     paths:
-      - "apps/homelab/network-optimizer/base/deployment.yaml"
-      - "apps/homelab/network-optimizer/akron/patch-env.yaml"
-      - "apps/homelab/network-optimizer/eastbank/patch-env.yaml"
-      - "apps/homelab/network-optimizer/lottage/patch-env.yaml"
+      - "sites/akron/apps/network-optimizer/base/deployment.yaml"
+      - "sites/akron/apps/network-optimizer/akron/patch-env.yaml"
+      - "sites/akron/apps/network-optimizer/eastbank/patch-env.yaml"
+      - "sites/akron/apps/network-optimizer/lottage/patch-env.yaml"
     statement: "Blazor runtime writes ASP.NET temp files and logs outside the /data PVC mount"
   - id: AVD-KSV-0118
     paths:
-      - "apps/homelab/network-optimizer/base/deployment.yaml"
-      - "apps/homelab/network-optimizer/akron/patch-env.yaml"
-      - "apps/homelab/network-optimizer/eastbank/patch-env.yaml"
-      - "apps/homelab/network-optimizer/lottage/patch-env.yaml"
+      - "sites/akron/apps/network-optimizer/base/deployment.yaml"
+      - "sites/akron/apps/network-optimizer/akron/patch-env.yaml"
+      - "sites/akron/apps/network-optimizer/eastbank/patch-env.yaml"
+      - "sites/akron/apps/network-optimizer/lottage/patch-env.yaml"
     statement: "Runtime user is managed internally by the image; cannot assert runAsNonRoot without image inspection"
-
-  #
-  # Lottage hostNetwork PiHole (2GB RAM site — see infrastructure/core-overlays/lottage)
-  # -----------------------------------------------------------------------------------
-  # hostNetwork is an intentional tradeoff to avoid Traefik+MetalLB's surge-memory
-  # footprint on a RAM-constrained device; same root-privilege requirement as the
-  # base pihole-deployment.yaml (DNS port 53 binding).
-  - id: AVD-KSV-0009
-    paths:
-      - "infrastructure/core-overlays/lottage/pihole-hostnetwork-patch.yaml"
-    statement: "hostNetwork intentional: avoids Traefik+MetalLB memory overhead on 2GB Lottage device"
-  - id: AVD-KSV-0118
-    paths:
-      - "infrastructure/core-overlays/lottage/pihole-hostnetwork-patch.yaml"
-    statement: "pihole requires root access for DNS port 53 binding (same as base pihole-deployment.yaml)"
 
 # yamllint enable rule:line-length

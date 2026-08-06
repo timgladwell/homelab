@@ -2,6 +2,10 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
+  # NAME IS FROZEN. Renaming this object makes the flux-system Kustomization
+  # prune the old one, which cascade-deletes everything it owns — including
+  # the Prometheus/Loki/Grafana PVCs. The directory it points at is now
+  # sites/akron/monitoring; the stale name is the cheap half of that trade.
   name: infrastructure-akron-only
   namespace: flux-system
 spec:
@@ -9,7 +13,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system  # References the GitRepository that Flux created during bootstrap
-  path: ../infrastructure/akron-only  # Akron-only workloads (monitoring) — not deployed to other sites
+  path: ../sites/akron/monitoring
   prune: true
   wait: true
   timeout: 5m

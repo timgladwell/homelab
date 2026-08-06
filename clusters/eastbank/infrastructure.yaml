@@ -9,9 +9,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system  # References the GitRepository that Flux created during bootstrap
-  # Shared core, patched with Eastbank's own pihole-secret values (revServers,
-  # dnsmasq_lines — Akron's are baked into the base and don't apply here)
-  path: ../infrastructure/core-overlays/eastbank
+  path: ../sites/eastbank/infrastructure
   prune: true
   wait: true
   timeout: 5m

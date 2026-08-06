@@ -7,9 +7,8 @@
   "flux": {
     "managerFilePatterns": [
       "/(^|/)clusters/.+\\.ya?ml$/",
-      "/(^|/)infrastructure/.+\\.ya?ml$/",
-      "/(^|/)infrastructure-config/.+\\.ya?ml$/",
-      "/(^|/)apps/.+\\.ya?ml$/"
+      "/(^|/)base/.+\\.ya?ml$/",
+      "/(^|/)sites/.+\\.ya?ml$/"
     ]
   },
   "schedule": ["every weekend"]

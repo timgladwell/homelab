@@ -1,4 +1,15 @@
 ---
+# KNOWN LEAK: pihole-config.yaml's blocklists are genuinely shared, which is why
+# this lives in base/, but its `groups:`/`clients:` are Akron-shaped — the client
+# address is on Akron's subnet, so every other site gets an entry for a device it
+# doesn't have. Harmless (PiHole just carries an unused client) and not worth
+# duplicating 150 lines of blocklists per site. If a site ever needs its own
+# clients, split into base/pihole-sync/lists.yaml plus a per-site clients.yaml
+# and teach sync.py to read both.
+#
+# Do not comment inside pihole-config.yaml itself: it is hashed into the
+# generated ConfigMap name, so any edit force-recreates the sync Job and
+# triggers a ~10 minute gravity rebuild on every site.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: dns

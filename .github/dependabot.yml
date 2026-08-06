@@ -3,7 +3,7 @@ version: 2
 updates:
   - package-ecosystem: docker
     directories:
-      - "/apps/homelab/network-optimizer/base"
+      - "/sites/akron/apps/network-optimizer/base"
       - "/infrastructure/homelab/dns"
       - "/infrastructure/homelab/metaldb"
       - "/infrastructure/homelab/monitoring"

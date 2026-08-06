@@ -1,0 +1,12 @@
+---
+# Akron's infrastructure layer: shared components from base/ plus Akron's own
+# PiHole secret. Every site composes this layer the same way — base/ holds no
+# site values and no secrets, so there is nothing to delete or patch away here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/metallb
+  - ../../../base/traefik
+  - ../../../base/dns
+  - ../../../base/system-upgrade-controller
+  - pihole-secret.sops.yaml

@@ -24,11 +24,12 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
 
 3. **Replace the `CHANGEME-<site>-age-public-key` placeholder** in `.sops.yaml` with the real public key from step 2, in the same PR as step 1.
 
-4. **Re-encrypt existing shared secrets** (currently only `infrastructure/core/dns/pihole-secret.sops.yaml`) with the new recipient list:
+4. **Create the new site's own secrets.** Every secret is scoped to one site's directory, so there is nothing shared to re-encrypt. Copy the nearest equivalent into `sites/<site>/infrastructure/` and edit it with that site's real values:
    ```bash
-   sops updatekeys infrastructure/core/dns/pihole-secret.sops.yaml
+   cp sites/eastbank/infrastructure/pihole-secret.sops.yaml sites/<site>/infrastructure/
+   ./scripts/secrets-helper.sh edit sites/<site>/infrastructure/pihole-secret.sops.yaml
    ```
-   Requires the *existing* Akron private key available locally (to decrypt) — this does not need the new site's key yet, only its public key already in `.sops.yaml`.
+   `secrets-helper.sh edit` re-encrypts on save to whatever `.sops.yaml` says for that path, so the copy picks up the new site's key automatically. Requires the source site's private key locally to decrypt the copy once.
 
 5. **Merge the PR containing steps 1, 3, 4.**
 
