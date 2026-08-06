@@ -18,15 +18,11 @@ creation_rules:
   - path_regex: infrastructure/core-overlays/eastbank/.*secret\.sops\.yaml$
     age: age1yg55rt2u8q9tc4jrxa4ve4pg7aesa8vup83wlj6sxvyjqj2cqccqspgz4f
     encrypted_regex: '^(data|stringData)$'
-  - path_regex: infrastructure/core-overlays/lottage/.*secret\.sops\.yaml$
-    age: age1n45naycas8z07tnrhf4xr7fd5z458jaek29sze4phwxqm6lfrphq8z6s09
-    encrypted_regex: '^(data|stringData)$'
 
   # Everything else matching *secret.sops.yaml (shared infra, e.g. PiHole) —
-  # encrypted to all three site keys so any site's Flux can decrypt it.
+  # encrypted to both site keys so either site's Flux can decrypt it.
   - path_regex: .*secret\.sops\.yaml$
     age: >-
       age1wfqc89fy2a8l339nf2rlevclkkhjcy28jurdex6gpdjt8laa2sfqswl45d,
-      age1yg55rt2u8q9tc4jrxa4ve4pg7aesa8vup83wlj6sxvyjqj2cqccqspgz4f,
-      age1n45naycas8z07tnrhf4xr7fd5z458jaek29sze4phwxqm6lfrphq8z6s09
+      age1yg55rt2u8q9tc4jrxa4ve4pg7aesa8vup83wlj6sxvyjqj2cqccqspgz4f
     encrypted_regex: '^(data|stringData)$'

@@ -33,8 +33,4 @@ check eastbank infrastructure ./infrastructure/core-overlays/eastbank
 check eastbank infrastructure-config ./infrastructure-config/core
 check eastbank app-config ./app-config/core
 
-# Lottage: hostNetwork DNS overlay (no Traefik/MetalLB) + pihole-sync only
-check lottage infrastructure ./infrastructure/core-overlays/lottage
-check lottage app-config ./app-config/core
-
 exit $fail

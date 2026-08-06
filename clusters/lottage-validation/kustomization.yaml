@@ -1,9 +1,0 @@
----
-# Validation entry point for Lottage's full cluster manifest.
-# Used by scripts/validate/03-kustomize-build.sh only — not reconciled by Flux.
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - ../lottage                           # Flux bootstrap: controllers + Kustomization definitions
-  - ../../infrastructure/core-overlays/lottage  # No Traefik/MetalLB — hostNetwork PiHole
-  - ../../app-config/core                # Post-apps config (pihole-sync, etc.)

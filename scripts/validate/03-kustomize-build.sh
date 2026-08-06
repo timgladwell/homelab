@@ -5,7 +5,7 @@ cd "$REPO_ROOT"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 
 fail=0
-for site in akron eastbank lottage; do
+for site in $(ls -d clusters/*-validation | sed 's|clusters/||; s|-validation||'); do
     if ! kustomize build "./clusters/${site}-validation" > "${BUILD_DIR}/k3s-built-${site}.yaml"; then
         echo "✗ [$site] kustomize build failed"
         fail=1

@@ -1,8 +1,8 @@
-# Bootstrapping a New Remote Site (Eastbank / Lottage)
+# Bootstrapping a New Remote Site
 
 ## Background
 
-Eastbank and Lottage are new, previously-bare-metal sites being brought under GitOps for the first time. Unlike the [Akron migration](akron-multisite-migration.md), `flux bootstrap` **is** the correct tool here — it's genuine initial setup, not an upgrade to an already-bootstrapped cluster. The manifests it would generate (`clusters/<site>/flux-system/gotk-components.yaml`, `gotk-sync.yaml`) already exist in the repo from the restructure PR, pre-populated to match; bootstrap should find them already correct and only need to create the GitHub deploy credentials and apply to the new cluster.
+Eastbank is a new, previously-bare-metal site being brought under GitOps for the first time. Unlike the [Akron migration](akron-multisite-migration.md), `flux bootstrap` **is** the correct tool here — it's genuine initial setup, not an upgrade to an already-bootstrapped cluster. The manifests it would generate (`clusters/<site>/flux-system/gotk-components.yaml`, `gotk-sync.yaml`) already exist in the repo from the restructure PR, pre-populated to match; bootstrap should find them already correct and only need to create the GitHub deploy credentials and apply to the new cluster.
 
 Both sites' `gotk-sync.yaml` watch the `stable` branch, not `main`. `stable` is protected by a GitHub ruleset (no direct pushes, "Rebase and merge" only) — any content promoted to `stable` must go through a PR from `main`. `flux bootstrap` itself doesn't push to `stable` (the `gotk-sync.yaml`/`gotk-components.yaml` it would generate are already committed), so this doesn't block bootstrap directly, but it means `stable` must already contain the site's manifests (via a promotion PR, merged before this runbook's step 6) for reconciliation to find anything once bootstrap connects. **The Flux CLI version you bootstrap with must match `app.kubernetes.io/version` in the site's already-committed `gotk-components.yaml` exactly** — a mismatched CLI regenerates different component manifests, which is itself a diff `flux bootstrap` will try to push, hitting the same ruleset block.
 
@@ -10,11 +10,11 @@ Both sites' `gotk-sync.yaml` watch the `stable` branch, not `main`. `stable` is 
 
 If this is a brand-new device (not just a Flux re-bootstrap on existing hardware), the OS itself needs standing up first — see [Standing Up a New Headless Box](new-box-standup.md).
 
-**Lottage's plan is currently on hold** — its 2GB Pi may not have enough headroom to run k3s stably at all, independent of the `hostNetwork`/`Recreate` mitigation already in `infrastructure/core-overlays/lottage/`. Treat this runbook as Eastbank-only until that's resolved; don't use it to bring up Lottage.
+**Lottage is out of scope** until its 2GB Pi is upgraded — it may not have enough headroom to run k3s stably at all. Its cluster scaffolding has been removed from this repo; when the hardware is upgraded, re-add it by copying `sites/eastbank/` and `clusters/eastbank/`. This runbook is Eastbank-only for now.
 
-## Process (per site — repeat for Eastbank, then Lottage, only after Akron is confirmed healthy)
+## Process (per site — currently Eastbank only, and only after Akron is confirmed healthy)
 
-1. **Fill in real network values.** `clusters/<site>/cluster-vars.yaml` has `CHANGEME` placeholders for `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`, `NODE_IP` (Eastbank only — Lottage has no MetalLB). Replace with that site's actual static IPs before merging.
+1. **Fill in real network values.** `clusters/<site>/cluster-vars.yaml` has `CHANGEME` placeholders for `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`, `NODE_IP`. Replace with that site's actual static IPs before merging.
 
 2. **Generate that site's age keypair** (do this locally, keep the private key off any machine that doesn't need it):
    ```bash
@@ -81,6 +81,6 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    flux get kustomizations -A
    flux get sources git
    ```
-   Eastbank should show `infrastructure`, `infrastructure-config`, `app-config`. Lottage should show only `infrastructure`, `app-config` (no MetalLB config layer).
+   Eastbank should show `infrastructure`, `infrastructure-config`, `app-config`.
 
-11. **Verify PiHole is actually serving DNS** on the new site's LAN before pointing any client devices at it, and — for Lottage specifically — confirm a backup DNS resolver is configured on the router/LAN *before* the first deploy that touches PiHole/Unbound, since Lottage's `hostNetwork` + `Recreate` strategy means every rollout is a DNS outage window for that site (see `infrastructure/core-overlays/lottage/pihole-hostnetwork-patch.yaml` comment and the `feedback_pihole_recreate_strategy` memory).
+11. **Verify PiHole is actually serving DNS** on the new site's LAN before pointing any client devices at it.
