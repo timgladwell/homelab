@@ -11,9 +11,12 @@ name: Promote to stable
 # main's work onto stable under fresh SHAs, and git lost track of the fact that
 # the two branches held identical content.
 #
-# Requires the GitHub Actions app (id 15368) as a bypass actor on the `stable`
-# ruleset. Without it this job fails at the push with a protected-branch error;
-# it cannot silently do the wrong thing.
+# Needs `stable`'s ruleset reduced to `deletion` + `non_fast_forward`. A
+# `pull_request` rule blocks this push, and it cannot be bypassed: app bypass
+# actors require an organization, and this is a user-owned repo. That turns out
+# better than a bypass — with no bypass actor, `non_fast_forward` applies to
+# everyone including the owner, so `stable` can only ever move forward.
+# See docs/runbooks/stable-promotion-reset.md.
 on:  # yamllint disable-line rule:truthy
   workflow_dispatch:
     inputs:

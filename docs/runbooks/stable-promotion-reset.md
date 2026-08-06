@@ -11,8 +11,8 @@ left `stable` holding commits that were byte-identical in content to `main`'s
 but unrelated in ancestry. Git could not tell they were the same work, so the
 merge base fell further behind on each promotion and conflicts accumulated.
 
-`stable` also had `required_linear_history`, while `main` has 53 merge commits —
-so `stable` could never fast-forward from `main` under its own rules. The two
+`stable` also had `required_linear_history`, while `main` has merge commits — so
+`stable` could never fast-forward from `main` under its own rules. The two
 rulesets were mutually incompatible by construction.
 
 Confirm the divergence is cosmetic before resetting anything:
@@ -35,79 +35,78 @@ git diff --stat origin/stable origin/main
 
 That should show only the changes you are about to promote.
 
-## Before you start
+## Why there is no bypass actor
 
-Check whether the ruleset is currently enforced — it may have been disabled
-during earlier experimenting, in which case `stable` has no protection at all
-right now:
+The obvious design is to let the promotion workflow bypass the ruleset. On a
+**personal** repository you cannot: adding the GitHub Actions app as a bypass
+actor is rejected.
 
-```bash
-RULESET=$(gh api repos/timgladwell/homelab/rulesets \
-  --jq '.[] | select(.name|test("stable")) | .id')
-gh api "repos/timgladwell/homelab/rulesets/$RULESET" --jq '.enforcement'
 ```
+Actor GitHub Actions integration must be part of the ruleset source
+or owner organization
+```
+
+App bypass actors require an organization. This is the same constraint the
+[2022 changelog on apps as branch-protection exceptions](https://github.blog/changelog/2022-05-17-consistently-allow-github-apps-as-exceptions-to-branch-protection-rules/)
+describes; rulesets did not lift it for user-owned repos.
+
+A repository-scoped PAT plus a `RepositoryRole` bypass would work, but it is
+**worse than having no bypass at all**. `bypass_mode: always` bypasses *every*
+rule, so the bypassing actor — you, as admin — could then force-push or delete
+`stable`. It also adds a credential to rotate.
+
+Instead, shape the ruleset so no bypass is needed. `stable` is no longer a
+branch anyone merges into; it is a pointer that only ever moves forward to a
+commit already on `main`. The rules that matter are the ones preventing
+*history* changes, and those should apply to everyone, including you:
+
+| Rule | Keep? | Why |
+|---|---|---|
+| `deletion` | **keep** | `stable` must never be deleted |
+| `non_fast_forward` | **keep** | the real protection — no force-push, no history rewrite, by anyone |
+| `pull_request` | **remove** | nothing is merged into `stable` any more, and it is what blocks the workflow's push |
+| `required_linear_history` | **remove** | permanently unsatisfiable against a `main` that carries merge commits |
+
+The result is stronger than a bypass would have been: with `non_fast_forward`
+enforced and no bypass actor, `stable` can only ever move forward, and not even
+the repository owner can rewrite it. The only remaining accident is pushing a
+fast-forward commit to `stable` by hand — which the next promotion catches
+loudly, because the fast-forward check will fail.
 
 ## Steps
 
-1. **Close the promotion PR** if one is open. It cannot produce the right
-   result — rebase-merging it would replay main's commits onto `stable` under
-   fresh SHAs again, recreating the divergence it is meant to fix.
-
-2. **Add the GitHub Actions app as a bypass actor on the `stable` ruleset.**
-   This is what lets the workflow push while everyone else stays blocked.
-
-   `actor_id` is an **integer**, so `gh api -f` will not work — it sends every
-   value as a string and the API rejects it with
-   `Invalid property /bypass_actors/0/actor_id: "15368" is not of type integer`.
-   Send a JSON body instead. Read-modify-write, so no existing rule is dropped:
+1. **Check current enforcement.** It may have been disabled during earlier
+   experimenting, in which case `stable` has no protection at all right now:
 
    ```bash
    RULESET=$(gh api repos/timgladwell/homelab/rulesets \
      --jq '.[] | select(.name|test("stable")) | .id')
+   gh api "repos/timgladwell/homelab/rulesets/$RULESET" --jq '.enforcement'
+   ```
 
+2. **Close the promotion PR** if one is open. It cannot produce the right
+   result — rebase-merging it would replay main's commits onto `stable` under
+   fresh SHAs again, recreating the divergence it is meant to fix.
+
+3. **Reduce the ruleset to the two history rules.** Read-modify-write, so
+   nothing else about the ruleset changes:
+
+   ```bash
    gh api "repos/timgladwell/homelab/rulesets/$RULESET" | jq '{
-     name, target, enforcement, conditions, rules,
-     bypass_actors: (.bypass_actors + [{
-       actor_id: 15368, actor_type: "Integration", bypass_mode: "always"
-     }])
+     name, target, enforcement, conditions, bypass_actors,
+     rules: [.rules[] | select(.type == "deletion" or .type == "non_fast_forward")]
    }' | gh api --method PUT "repos/timgladwell/homelab/rulesets/$RULESET" --input -
+
+   gh api "repos/timgladwell/homelab/rulesets/$RULESET" \
+     --jq '{enforcement, rules: [.rules[].type], bypass_actors}'
    ```
 
-   `15368` is the GitHub Actions app ID (`gh api /apps/github-actions --jq .id`),
-   not an installation ID. Verify it took:
+   Expect `["deletion","non_fast_forward"]`, `enforcement: active`, and an empty
+   `bypass_actors`.
 
-   ```bash
-   gh api "repos/timgladwell/homelab/rulesets/$RULESET" --jq '.bypass_actors'
-   ```
-
-   Rulesets are **not** classic branch protection. The [2022 changelog about
-   apps as branch-protection exceptions](https://github.blog/changelog/2022-05-17-consistently-allow-github-apps-as-exceptions-to-branch-protection-rules/)
-   describes the older system, where the app had to be installed with write
-   access. Rulesets take `Integration` bypass actors directly on a repository.
-
-   **If GitHub rejects the `Integration` actor**, fall back to a token that acts
-   as a user holding a bypass role:
-
-   - Create a fine-grained PAT scoped to this repository only, with
-     `Contents: Read and write`, stored as the repository secret
-     `PROMOTE_TOKEN`.
-   - In `promote-to-stable.yml`, pass it to the checkout so the push uses it:
-     `token: ${{ secrets.PROMOTE_TOKEN }}`.
-   - Add a `RepositoryRole` bypass actor instead (`actor_id: 5` is admin).
-
-   Prefer the app bypass. The role bypass is weaker: it also lets *you* push to
-   `stable` by hand, which is the accident this is meant to prevent. It also
-   adds a credential to rotate.
-
-3. **Reset `stable` to `main`.** This is the only force-push in the procedure,
-   and the only one that will ever be needed:
-
-   ```bash
-   git push --force origin origin/main:refs/heads/stable
-   ```
-
-   The `non_fast_forward` rule blocks this for you as a human, so flip
-   enforcement off, push, and flip it straight back:
+4. **Reset `stable` to `main`.** A fast-forward is impossible until this is
+   done, and this is the only force-push the scheme will ever need.
+   `non_fast_forward` blocks it, so flip enforcement off and straight back:
 
    ```bash
    set_enforcement() {
@@ -128,20 +127,12 @@ gh api "repos/timgladwell/homelab/rulesets/$RULESET" --jq '.enforcement'
    gh api "repos/timgladwell/homelab/rulesets/$RULESET" --jq '.enforcement'
    ```
 
-4. **Verify a fast-forward is now possible:**
+5. **Verify a fast-forward is now possible:**
 
    ```bash
    git fetch origin
    git merge-base --is-ancestor origin/stable origin/main && echo "fast-forward OK"
    ```
-
-5. **Tidy the now-meaningless rules on `stable`** (optional but recommended).
-   `required_linear_history` and `allowed_merge_methods: ["rebase"]` describe a
-   promote-by-PR model that no longer exists, and the linear-history rule is
-   permanently unsatisfiable against a `main` that carries merge commits.
-   Keeping them is misleading. Keep `deletion`, `non_fast_forward` and
-   `pull_request` — together with the bypass, those mean "only the promotion
-   workflow may move `stable`".
 
 ## From then on
 
@@ -149,14 +140,13 @@ Promote from the Actions tab: **Promote to stable** → Run workflow → set
 `akron_healthy` to `yes`.
 
 The workflow refuses to run if Akron has not been confirmed healthy, if the
-commit being promoted has no successful `Validate` run, or if the move would
-not be a fast-forward. It never passes `--force`, so it cannot rewrite
-`stable`'s history even with the bypass — git refuses a non-fast-forward push
-on its own.
+commit being promoted has no successful `Validate` run, or if the move would not
+be a fast-forward. It never passes `--force`, so git refuses a non-fast-forward
+push regardless, and the ruleset refuses it a second time.
 
 ## If a future promotion reports "not a fast-forward"
 
-Something wrote to `stable` outside the workflow. Do not force anything.
-Re-run the `git cherry` check at the top of this page to find out whether the
-extra commits are genuinely unique. If they are, get them onto `main` first;
-if they are duplicates, repeat step 3.
+Something wrote to `stable` outside the workflow. Do not force anything. Re-run
+the `git cherry` check at the top of this page to find out whether the extra
+commits are genuinely unique. If they are, get them onto `main` first; if they
+are duplicates, repeat step 4.

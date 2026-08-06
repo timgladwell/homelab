@@ -88,7 +88,7 @@ The rule that makes this work: **`base/` never contains anything site-specific.*
 
   **Promotion is a fast-forward, never a merge or rebase.** `stable` is only ever moved to a commit that already exists on `main`, so the two branches share SHAs and can never diverge. Promoting by PR is what caused the old divergence: `main` allows only merge commits, `stable` allowed only rebase, so every promotion replayed main's work under fresh SHAs and git lost track of the fact that both branches held identical content. Conflicts then accumulated until a large PR made them unresolvable.
 
-  This requires the GitHub Actions app (id `15368`) as a bypass actor on the `stable` ruleset — that is what lets the workflow push while everyone else is still blocked. The workflow never uses `--force`, so even with the bypass it cannot rewrite `stable`'s history; a non-fast-forward push is refused by git itself.
+  `stable`'s ruleset is therefore reduced to `deletion` + `non_fast_forward`, with **no bypass actor**. A `pull_request` rule would block the workflow's push, and it cannot be bypassed — app bypass actors require an organization, and this repo is user-owned. That is the better outcome: with no bypass, `non_fast_forward` applies to everyone including the repository owner, so `stable` can only ever move forward and nobody can rewrite it. The workflow never passes `--force` either.
 
 ### Directory layout
 
