@@ -2,6 +2,7 @@
 # Validate Kubernetes schemas against each site's built manifest.
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
+source "$(dirname "$0")/lib-sites.sh"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 
 # Known false positives — kubeconform has no bundled schemas for these:
@@ -11,7 +12,7 @@ BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 SKIP_KINDS="CustomResourceDefinition,Kustomization,GitRepository"
 
 fail=0
-for site in $(ls -d clusters/*-validation | sed 's|clusters/||; s|-validation||'); do
+for site in $(sites); do
     BUILD_OUTPUT="${BUILD_DIR}/k3s-built-${site}.yaml"
     if [[ ! -f "$BUILD_OUTPUT" ]]; then
         echo "ERROR: $BUILD_OUTPUT not found — run 03-kustomize-build.sh first" >&2

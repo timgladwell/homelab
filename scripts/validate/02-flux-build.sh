@@ -1,36 +1,30 @@
 #!/bin/bash
-# Validate each site's Flux Kustomization builds using the actual Kustomization objects.
-# Runs in dry-run mode — no cluster connection required.
+# Validate every Flux Kustomization builds, using the actual Kustomization
+# objects and their declared spec.path. Runs in dry-run mode — no cluster
+# connection required.
+#
+# Because the path comes from the object rather than a copy kept in this
+# script, a spec.path pointing at a directory that doesn't exist fails here
+# instead of on the cluster after merge.
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
+source "$(dirname "$0")/lib-sites.sh"
 
 fail=0
 
-check() {
-    local site="$1" ks="$2" path="$3"
-    local output
-    output=$(flux build kustomization "$ks" \
-        --path "$path" \
-        --kustomization-file "./clusters/${site}/${ks}.yaml" \
-        --dry-run 2>&1)
-    if [[ $? -ne 0 ]]; then
-        echo "✗ [$site] $ks: $output"
-        fail=1
-    else
-        echo "✓ [$site] $ks"
-    fi
-}
-
-# One check per Flux Kustomization per site — the path must match spec.path
-# in clusters/<site>/<ks>.yaml. Stays explicit because each site decides which
-# layers it has (Eastbank has no monitoring or apps).
-check akron infrastructure ./sites/akron/infrastructure
-check akron monitoring ./sites/akron/monitoring
-check akron infrastructure-config ./sites/akron/infrastructure-config
-check akron app-config ./sites/akron/app-config
-
-check eastbank infrastructure ./sites/eastbank/infrastructure
-check eastbank infrastructure-config ./sites/eastbank/infrastructure-config
-check eastbank app-config ./sites/eastbank/app-config
+for site in $(sites); do
+    while read -r ks path; do
+        [[ -n "$ks" ]] || continue
+        if ! output=$(flux build kustomization "$ks" \
+            --path "$path" \
+            --kustomization-file "./clusters/${site}/${ks}.yaml" \
+            --dry-run 2>&1); then
+            echo "✗ [$site] $ks ($path): $output"
+            fail=1
+        else
+            echo "✓ [$site] $ks ($path)"
+        fi
+    done < <(site_kustomizations "$site")
+done
 
 exit $fail

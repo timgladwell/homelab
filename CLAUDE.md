@@ -23,10 +23,10 @@ After any change to manifests, run the full validation pipeline from the repo ro
 ./scripts/validate-k3s.sh
 ```
 
-This runs eight steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). The site list is derived from `clusters/*-validation/`:
+This runs eight steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
 1. **YAML lint** — `yamllint` against all files (ignores each site's `flux-system/` and `*.sops.yaml`)
 2. **Flux build** — `flux build kustomization --dry-run` for each Flux Kustomization, for each site
-3. **Kustomize build** — `kustomize build ./clusters/<site>-validation` → `$K3S_BUILD_DIR/k3s-built-<site>.yaml`, for each site
+3. **Kustomize build** — `kustomize build` of the site's entry point and each of its layers, concatenated into `$K3S_BUILD_DIR/k3s-built-<site>.yaml`
 4. **Schema validation** — `kubeconform -summary` against each site's built output
 5. **Best practices** — `kube-score score` against each site's built output
 6. **Security scan** — `trivy config ./ --severity HIGH,CRITICAL` (whole repo, not per-site)
@@ -110,8 +110,6 @@ clusters/<site>/                 # Flux entry point — managed by the flux-syst
   infrastructure-config.yaml     # -> sites/<site>/infrastructure-config
   app-config.yaml                # -> sites/<site>/app-config
 
-clusters/<site>-validation/      # Validation-only kustomize entry point (not reconciled by Flux)
-  kustomization.yaml             # One line per layer that site reconciles
 ```
 
 **Renaming a Flux `Kustomization` object is destructive.** `flux-system` prunes the old name and cascade-deletes everything it owned, PVCs included. Change `spec.path` freely; treat `metadata.name` as load-bearing.
@@ -120,9 +118,16 @@ clusters/<site>-validation/      # Validation-only kustomize entry point (not re
 - **Per-K3s-cluster** — `sites/akron/`, `sites/eastbank/`. One directory per physical cluster.
 - **Per-UniFi-site** — `sites/akron/monitoring/unpoller/{akron,eastbank,lottage}/`. These are *all deployed on Akron*, polling each remote UniFi controller over the Site Magic VPN (base + overlay + `nameSuffix`). The `lottage` one is alive and correct even though Lottage's K3s cluster no longer exists here.
 
-### Why validation has separate `clusters/<site>-validation/` directories
+### How validation discovers what to build
 
-Each site reconciles a different subset of layers (Eastbank has no `monitoring`), so a single combined entry point couldn't represent any one site accurately. These are not on any Flux reconciliation path — they exist solely for `kubeconform`/`kube-score`/`trivy`/`conftest` to see each site's complete manifest set. The validation scripts derive the site list from these directory names, so adding or removing a site is one directory, not six edits.
+Nothing is hand-listed. `scripts/validate/lib-sites.sh` derives:
+
+- **the site list** from the `sites/*/` directories, and
+- **each site's layers** by reading `metadata.name` and `spec.path` straight out of the Flux `Kustomization` objects in `clusters/<site>/*.yaml`.
+
+So the pipeline validates the paths Flux will actually reconcile. A `spec.path` pointing at a directory that doesn't exist fails at step 2 instead of on the cluster after merge. Adding a site or a layer requires no changes to any validation script.
+
+Step 3 assembles each site's complete manifest set the same way Flux does — `kustomize build clusters/<site>` for the bootstrap manifests and Kustomization objects, plus one build per layer — into `$K3S_BUILD_DIR/k3s-built-<site>.yaml` for steps 4, 5, 7 and 8 to consume.
 
 ### Reconciliation flow
 
@@ -147,13 +152,13 @@ Plain `kustomize build` does not perform this substitution, so the validation pi
 **Shared across sites** (the usual case):
 1. Create `base/<component>/` with a `kustomization.yaml` listing its resources. Use `${VAR}` for anything site-specific; put no secrets here.
 2. Add `- ../../../base/<component>` to each `sites/<site>/<layer>/kustomization.yaml` that should get it — `infrastructure/` for plain resources, `infrastructure-config/` if it needs CRDs the infrastructure layer installs.
-3. No changes to `clusters/` or `clusters/*-validation/`.
+3. No changes to `clusters/` or the validation scripts.
 
 Opting a site out is just *not adding the line* — there is no delete-patch pattern, by design.
 
 **Specific to one site** (e.g. Akron's monitoring stack): create it under `sites/<site>/<layer>/` and add it to that layer's `kustomization.yaml`. Nothing else changes.
 
-**There is no `apps` layer right now**, but it is expected back — NetworkOptimizer was deleted to be re-added fresh on its new multi-UniFi-site version. Restore it with the four steps in *Adding a new top-level Flux Kustomization* below, creating `sites/akron/apps/` with a namespace and the app.
+**There is no `apps` layer right now**, but it is expected back — NetworkOptimizer was deleted to be re-added fresh on its new multi-UniFi-site version. Restore it with the steps in *Adding a new top-level Flux Kustomization* below, creating `sites/akron/apps/` with a namespace and the app.
 
 When it returns, **leave `app-config`'s `dependsOn` on `infrastructure`**. It used to depend on `apps`, but that was incidental ordering — `pihole-sync` talks to `pihole-web`, which the infrastructure layer owns. It has no dependency on apps in either direction.
 
@@ -176,16 +181,13 @@ Kustomize's load restrictions block a `configMapGenerator` from reading files ou
 Needed only when resources require different `dependsOn` ordering, SOPS config, or reconcile interval. Rare.
 
 1. Create `sites/<site>/<layer>/` with a `kustomization.yaml`
-2. Add to `clusters/<site>/`: the Flux `Kustomization` object, plus an entry in `clusters/<site>/kustomization.yaml`
-3. Add the path to `clusters/<site>-validation/kustomization.yaml`
-4. Add a `check <site> <name> <path>` line in `scripts/validate/02-flux-build.sh`
-
-Steps 3 and 4 are the only cases where those two files need updating.
+2. Add to `clusters/<site>/`: the Flux `Kustomization` object (use `path: ./sites/<site>/<layer>`, matching Flux's own `gotk-sync.yaml` convention), plus an entry in `clusters/<site>/kustomization.yaml`
+Validation picks it up automatically — there is no list to update.
 
 ### Removing a Kustomization
 
 - **Component within a layer:** remove its line from `sites/<site>/<layer>/kustomization.yaml`. Flux's `prune: true` deletes the resources on the next reconciliation. **Check what those resources own first** — pruning a Kustomization cascades to its PVCs.
-- **Top-level Flux Kustomization:** remove its file from `clusters/<site>/`, its entry in `clusters/<site>/kustomization.yaml`, its path in `clusters/<site>-validation/kustomization.yaml`, and its `check` line in `scripts/validate/02-flux-build.sh`.
+- **Top-level Flux Kustomization:** remove its file from `clusters/<site>/` and its entry in `clusters/<site>/kustomization.yaml`. Nothing in the validation pipeline needs touching.
 
 ### Ingress pattern
 
