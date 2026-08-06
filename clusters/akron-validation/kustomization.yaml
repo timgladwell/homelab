@@ -13,5 +13,4 @@ resources:
   - ../../sites/akron/infrastructure      # DNS, Traefik, MetalLB, system-upgrade-controller
   - ../../sites/akron/monitoring          # Akron-only: Prometheus, Grafana, Loki, Alloy, Unpoller
   - ../../sites/akron/infrastructure-config  # Needs CRDs from the infrastructure layer
-  - ../../sites/akron/apps                # Akron-only: user-facing applications
   - ../../sites/akron/app-config          # pihole-sync

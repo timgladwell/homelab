@@ -20,7 +20,7 @@ spec:
   # Gravity update takes ~10 minutes; 20 minutes provides enough headroom.
   timeout: 20m
   dependsOn:
-    - name: apps
+    - name: infrastructure
   decryption:
     provider: sops
     secretRef:

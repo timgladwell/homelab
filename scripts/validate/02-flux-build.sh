@@ -27,7 +27,6 @@ check() {
 check akron infrastructure ./sites/akron/infrastructure
 check akron monitoring ./sites/akron/monitoring
 check akron infrastructure-config ./sites/akron/infrastructure-config
-check akron apps ./sites/akron/apps
 check akron app-config ./sites/akron/app-config
 
 check eastbank infrastructure ./sites/eastbank/infrastructure

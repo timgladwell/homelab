@@ -1,19 +1,11 @@
 ---
+# Only GitHub Actions. The docker ecosystem block was removed: it pointed at
+# eight directories that no longer exist, and Dependabot's docker updater reads
+# Dockerfiles and compose files, not Kubernetes manifests, so it was never
+# updating any image in this repo. Helm chart versions are Renovate's job
+# (see renovate.json); container image tags in manifests are updated by hand.
 version: 2
 updates:
-  - package-ecosystem: docker
-    directories:
-      - "/sites/akron/apps/network-optimizer/base"
-      - "/infrastructure/homelab/dns"
-      - "/infrastructure/homelab/metaldb"
-      - "/infrastructure/homelab/monitoring"
-      - "/infrastructure/homelab/monitoring/unpoller/base"
-      - "/infrastructure/homelab/pihole-sync"
-      - "/infrastructure/homelab/system-upgrade-controller"
-      - "/infrastructure-config/homelab/metaldb-config"
-    schedule:
-      interval: weekly
-
   - package-ecosystem: github-actions
     directories:
       - "/**"

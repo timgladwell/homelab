@@ -76,8 +76,8 @@ Three layers, composed many-to-many:
 The rule that makes this work: **`base/` never contains anything site-specific.** If a site would need to delete or override something in `base/`, that thing belongs in `sites/` instead. A `$patch: delete` against `base/` means the layering is wrong.
 
 - Independent single-node K3s sites, each managed with **Flux CD + Kustomize + Helm**, sharing this one repo (Flux's standard multi-cluster monorepo pattern — no cluster federation, no shared control plane):
-  - **Akron** (local, 8GB RAM) — every layer: shared infrastructure + Akron-only monitoring and apps. Deploys first.
-  - **Eastbank** (remote, 8GB RAM) — infrastructure, infrastructure-config, app-config. No monitoring or apps.
+  - **Akron** (local, 8GB RAM) — every layer: shared infrastructure + Akron-only monitoring. Deploys first.
+  - **Eastbank** (remote, 8GB RAM) — infrastructure, infrastructure-config, app-config. No monitoring.
   - **Lottage** (remote, 2GB RAM) — **out of scope**, scaffolding removed until the hardware is upgraded. Re-add by copying `sites/eastbank/` and `clusters/eastbank/`.
 - The local development machine is not connected to any site. All commands are executed on the server via SSH session.
 - **Rollout gating (Akron first):** Akron's Flux `GitRepository` watches `main`. Eastbank's watches a `stable` branch. After merging to `main` and confirming Akron is healthy, promote by opening a PR from `main` into `stable`. A GitHub ruleset on `stable` blocks direct pushes and merge/squash commits — only "Rebase and merge" is permitted, so `stable`'s history stays an unaltered subset of `main`'s. There is no automatic cross-cluster gate — this is a manual, explicit step.
@@ -100,7 +100,6 @@ sites/<site>/                    # Everything specific to one K3s cluster
   infrastructure-config/         # kustomization.yaml picking the CRD-dependent base components
   app-config/                    # kustomization.yaml picking base/pihole-sync + this site's pihole-clients.yaml
   monitoring/                    # Akron only: Prometheus + Grafana + Loki + Alloy + Unpoller (+ its secrets)
-  apps/                          # Akron only: user-facing applications (+ their secrets)
 
 clusters/<site>/                 # Flux entry point — managed by the flux-system Kustomization
   flux-system/                   # Flux's own manifests (managed by flux bootstrap, do not edit)
@@ -109,7 +108,6 @@ clusters/<site>/                 # Flux entry point — managed by the flux-syst
   infrastructure.yaml            # Flux Kustomization -> sites/<site>/infrastructure
   monitoring.yaml                # Akron only -> sites/akron/monitoring
   infrastructure-config.yaml     # -> sites/<site>/infrastructure-config
-  apps.yaml                      # Akron only -> sites/akron/apps
   app-config.yaml                # -> sites/<site>/app-config
 
 clusters/<site>-validation/      # Validation-only kustomize entry point (not reconciled by Flux)
@@ -120,11 +118,11 @@ clusters/<site>-validation/      # Validation-only kustomize entry point (not re
 
 **Two different "per-site" concepts coexist — don't confuse them:**
 - **Per-K3s-cluster** — `sites/akron/`, `sites/eastbank/`. One directory per physical cluster.
-- **Per-UniFi-site** — `sites/akron/apps/network-optimizer/{akron,eastbank,lottage}/` and `sites/akron/monitoring/unpoller/{akron,eastbank,lottage}/`. These are *all deployed on Akron*, polling each remote UniFi controller over the Site Magic VPN (base + overlay + `nameSuffix`). The `lottage` ones are alive and correct even though Lottage's K3s cluster no longer exists here.
+- **Per-UniFi-site** — `sites/akron/monitoring/unpoller/{akron,eastbank,lottage}/`. These are *all deployed on Akron*, polling each remote UniFi controller over the Site Magic VPN (base + overlay + `nameSuffix`). The `lottage` one is alive and correct even though Lottage's K3s cluster no longer exists here.
 
 ### Why validation has separate `clusters/<site>-validation/` directories
 
-Each site reconciles a different subset of layers (Eastbank has no `apps` or `monitoring`), so a single combined entry point couldn't represent any one site accurately. These are not on any Flux reconciliation path — they exist solely for `kubeconform`/`kube-score`/`trivy`/`conftest` to see each site's complete manifest set. The validation scripts derive the site list from these directory names, so adding or removing a site is one directory, not six edits.
+Each site reconciles a different subset of layers (Eastbank has no `monitoring`), so a single combined entry point couldn't represent any one site accurately. These are not on any Flux reconciliation path — they exist solely for `kubeconform`/`kube-score`/`trivy`/`conftest` to see each site's complete manifest set. The validation scripts derive the site list from these directory names, so adding or removing a site is one directory, not six edits.
 
 ### Reconciliation flow
 
@@ -132,8 +130,7 @@ Each site reconciles a different subset of layers (Eastbank has no `apps` or `mo
 1. `infrastructure` → `sites/akron/infrastructure` — SOPS decryption + `cluster-vars` substitution
 2. `monitoring` → `sites/akron/monitoring` — depends on `infrastructure`
 3. `infrastructure-config` → `sites/akron/infrastructure-config` — depends on `infrastructure`
-4. `apps` → `sites/akron/apps` — depends on `infrastructure`, `monitoring` (PodMonitor CRD), `infrastructure-config`
-5. `app-config` → `sites/akron/app-config` — depends on `apps`
+4. `app-config` → `sites/akron/app-config` — depends on `infrastructure`
 
 **Eastbank** (watches `stable`) — `clusters/eastbank/` → `infrastructure` (`sites/eastbank/infrastructure`) → `infrastructure-config` and `app-config`, both depending on `infrastructure`.
 
@@ -154,7 +151,11 @@ Plain `kustomize build` does not perform this substitution, so the validation pi
 
 Opting a site out is just *not adding the line* — there is no delete-patch pattern, by design.
 
-**Specific to one site** (Akron monitoring, Akron apps): create it under `sites/<site>/<layer>/` and add it to that layer's `kustomization.yaml`. Nothing else changes.
+**Specific to one site** (e.g. Akron's monitoring stack): create it under `sites/<site>/<layer>/` and add it to that layer's `kustomization.yaml`. Nothing else changes.
+
+**There is no `apps` layer right now**, but it is expected back — NetworkOptimizer was deleted to be re-added fresh on its new multi-UniFi-site version. Restore it with the four steps in *Adding a new top-level Flux Kustomization* below, creating `sites/akron/apps/` with a namespace and the app.
+
+When it returns, **leave `app-config`'s `dependsOn` on `infrastructure`**. It used to depend on `apps`, but that was incidental ordering — `pihole-sync` talks to `pihole-web`, which the infrastructure layer owns. It has no dependency on apps in either direction.
 
 **If a component needs a per-site secret**, put the Secret in `sites/<site>/<layer>/` and list it alongside the base component. Never in `base/`.
 

@@ -54,27 +54,4 @@ misconfigurations:
       - "base/system-upgrade-controller/system-upgrade-controller.yaml"
     statement: "Pod-level securityContext added via deployment-patch.yaml; container already enforces runAsNonRoot: true"
 
-  #
-  # NetworkOptimizer (all sites)
-  # ----------------------------
-  # NetworkOptimizer is a Blazor Server app that writes ASP.NET temp files and logs
-  # outside the mounted /data PVC. readOnlyRootFilesystem cannot be set to true without
-  # remapping all runtime write paths, which requires upstream image changes.
-  # The image runtime user is managed internally; runAsNonRoot cannot be safely asserted
-  # without inspecting the image entrypoint.
-  - id: AVD-KSV-0014
-    paths:
-      - "sites/akron/apps/network-optimizer/base/deployment.yaml"
-      - "sites/akron/apps/network-optimizer/akron/patch-env.yaml"
-      - "sites/akron/apps/network-optimizer/eastbank/patch-env.yaml"
-      - "sites/akron/apps/network-optimizer/lottage/patch-env.yaml"
-    statement: "Blazor runtime writes ASP.NET temp files and logs outside the /data PVC mount"
-  - id: AVD-KSV-0118
-    paths:
-      - "sites/akron/apps/network-optimizer/base/deployment.yaml"
-      - "sites/akron/apps/network-optimizer/akron/patch-env.yaml"
-      - "sites/akron/apps/network-optimizer/eastbank/patch-env.yaml"
-      - "sites/akron/apps/network-optimizer/lottage/patch-env.yaml"
-    statement: "Runtime user is managed internally by the image; cannot assert runAsNonRoot without image inspection"
-
 # yamllint enable rule:line-length

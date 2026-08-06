@@ -7,10 +7,16 @@ Most of this is a no-op on the cluster: the built manifests are byte-identical
 to the previous layout apart from eight Flux `spec.path` strings, which Flux
 updates in place without touching a resource.
 
-Two changes are not no-ops:
+Three changes are not no-ops:
 
 1. **The monitoring Kustomization rename destroys data** (below).
-2. **The `pihole-sync` ConfigMap changed**, so its Job re-runs and gravity
+2. **The `apps` Kustomization is deleted**, taking NetworkOptimizer, its PVC
+   and the `homelab` namespace with it. Intentional — it was unused, and the
+   new upstream version handles multiple UniFi sites in one instance and uses
+   the new UniFi API, so it will be re-added from scratch rather than upgraded.
+   The `apps` Kustomization is expected to come back — see CLAUDE.md's
+   *Adding a new top-level Flux Kustomization*.
+3. **The `pihole-sync` ConfigMap changed**, so its Job re-runs and gravity
    rebuilds — about 10 minutes per site, no DNS impact.
 
 ## What the rename does
@@ -41,11 +47,16 @@ a worse long-term cost than a one-time loss of homelab metrics history.
    flux get kustomizations -A --watch
    ```
    Expect `infrastructure-akron-only` to vanish, `monitoring` to appear, and
-   the monitoring namespace's pods to be recreated. `apps` depends on
-   `monitoring` (PodMonitor CRD), so it will go `NotReady` until the rename
-   settles — that is expected, not a failure.
+   the monitoring namespace's pods to be recreated. `apps` should disappear
+   entirely.
 
-3. **Confirm the stack is back:**
+3. **Confirm NetworkOptimizer is gone:**
+   ```bash
+   kubectl get ns homelab            # expect NotFound
+   kubectl get pvc -A | grep network-optimizer   # expect no rows
+   ```
+
+4. **Confirm the monitoring stack is back:**
    ```bash
    kubectl get pods,pvc -n monitoring
    flux get kustomizations -A
@@ -54,7 +65,7 @@ a worse long-term cost than a one-time loss of homelab metrics history.
    reachable at `grafana.${HOSTNAME}` with its dashboards intact and its
    graphs empty.
 
-4. **PiHole and Unbound must not restart.** The `infrastructure` Kustomization
+5. **PiHole and Unbound must not restart.** The `infrastructure` Kustomization
    keeps its name, so its PVC is untouched and no DNS outage is expected:
    ```bash
    kubectl get pods -n dns
@@ -63,7 +74,7 @@ a worse long-term cost than a one-time loss of homelab metrics history.
    Recreate outage — but check `kubectl get pvc -n dns` immediately to confirm
    the PiHole PVC still exists.
 
-5. **Expect one PiHole sync Job re-run per site.** The `pihole-sync` ConfigMap
+6. **Expect one PiHole sync Job re-run per site.** The `pihole-sync` ConfigMap
    changed (client definitions moved into a per-site file), so Flux
    force-recreates the Job and gravity rebuilds — roughly 10 minutes. DNS
    resolution is unaffected while it runs.
@@ -74,7 +85,7 @@ a worse long-term cost than a one-time loss of homelab metrics history.
    Akron's Roku defined and nothing else. Fill the file in before promoting if
    Eastbank needs its own client groups.
 
-6. **Promote to Eastbank** only after Akron is confirmed healthy — open a PR
+7. **Promote to Eastbank** only after Akron is confirmed healthy — open a PR
    from `main` into `stable` as usual. Eastbank has no monitoring layer, so
    nothing is pruned there — it sees the `spec.path` changes and the
    `pihole-sync` Job re-run, and nothing else is recreated.
