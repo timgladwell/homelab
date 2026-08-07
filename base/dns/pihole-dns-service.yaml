@@ -5,9 +5,8 @@
 #
 # Port 80 here is deliberately a second path to the UI, alongside Traefik's
 # pihole.${HOSTNAME} route. It means the UI is reachable at the same address
-# you already have to know (the DNS server's), it keeps working if Traefik is
-# down or absent, and it is what `pi.hole` resolves to — see
-# FTLCONF_dns_hosts in pihole-deployment.yaml.
+# you already have to know (the DNS server's), and it keeps working if Traefik
+# is down or absent.
 #
 # The Service is still named pihole-dns. Renaming it would delete and recreate
 # the LoadBalancer, which is a DNS outage on every site, and the name is not
