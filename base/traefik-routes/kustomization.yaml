@@ -1,5 +1,12 @@
 ---
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# Traefik CRs live here, not next to the Traefik HelmRelease in base/traefik/.
+# This layer is reconciled by infrastructure-config, which dependsOn
+# infrastructure, so the IngressRoute CRD is guaranteed installed by the time
+# these apply. Put one of these in base/traefik/ and a fresh cluster fails with
+# `no matches for kind "IngressRoute"` — the CRD arrives with the Helm release
+# in the very same Kustomization.
 resources:
   - pihole-ingressroute.yaml
+  - traefik-dashboard-ingressroute.yaml

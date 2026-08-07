@@ -25,7 +25,7 @@ After any change to manifests, run the full validation pipeline from the repo ro
 ./scripts/validate-k3s.sh
 ```
 
-This runs ten steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
+This runs eleven steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
 1. **YAML lint** — `yamllint` against all files (ignores each site's `flux-system/` and `*.sops.yaml`)
 2. **Flux build** — `flux build kustomization --dry-run` for each Flux Kustomization, for each site
 3. **Kustomize build** — `kustomize build` of the site's entry point and each of its layers, concatenated into `$K3S_BUILD_DIR/k3s-built-<site>.yaml`
@@ -34,6 +34,7 @@ This runs ten steps in order, **per site** (Akron, Eastbank — each reconciles 
 6. **Security scan** — `trivy config ./ --severity HIGH,CRITICAL` (whole repo, not per-site)
 9. **Dependabot coverage** — every directory with a pinned `image:` must be listed in `.github/dependabot.yml`, and every listed directory must exist (whole repo, not per-site)
 10. **Secrets encrypted** — every `*secret*.yaml` tracked by git must have `sops:` metadata and `ENC[]` values (whole repo, not per-site)
+11. **CRD availability** — a Flux Kustomization with no `dependsOn` may only use custom resources whose CRDs it installs itself
 7. **Variable references** — every `${VAR}` in each site's build output must be defined in that site's `cluster-vars.yaml`
 8. **Policy** — `conftest test` against each site's built output using policies in `policy/`
 
@@ -222,6 +223,8 @@ Before moving a resource across a Kustomization boundary, check whether it's a `
 ### Ingress pattern
 
 Apps are exposed via Traefik `IngressRoute` CRs using subdomain routing (`<app>.${HOSTNAME}`). Traefik is a MetalLB `LoadBalancer` at `${METALLB_TRAEFIK_IP}`. See `base/traefik-routes/pihole-ingressroute.yaml` for the canonical pattern.
+
+**Every Traefik CR goes in `base/traefik-routes/`, never next to the HelmRelease in `base/traefik/`.** `traefik-routes` is reconciled by `infrastructure-config`, which `dependsOn: infrastructure`, so the `IngressRoute` CRD is installed by the time these apply. A Traefik CR in `base/traefik/` ships in the same Kustomization as the Helm release that provides its CRD — which works on a cluster that already has Traefik, and fails on a fresh one with `no matches for kind "IngressRoute"`. This shipped twice before validation step 11 started catching it.
 
 ### Dependency management
 
