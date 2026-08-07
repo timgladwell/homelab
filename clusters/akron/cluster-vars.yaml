@@ -14,3 +14,7 @@ data:
   METALLB_PIHOLE_IP: "10.6.1.53"
   NODE_IP: "10.6.1.3"
   METALLB_SYSLOG_IP: "10.6.1.81"
+  # Akron runs the same collector as every other site, but writes to the
+  # Prometheus sitting next to it rather than across the VPN.
+  SITE_NAME: akron
+  PROMETHEUS_REMOTE_WRITE_URL: "http://kube-prometheus-stack-prometheus.monitoring:9090/api/v1/write"

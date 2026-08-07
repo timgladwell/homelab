@@ -1,0 +1,33 @@
+---
+# The entry point for remote sites' metrics. Deliberately path-scoped rather
+# than exposing Prometheus on its own LoadBalancer: this publishes only the
+# remote-write endpoint, keeping the query UI and admin API off the LAN.
+#
+# No Host match, so remote sites can target Akron's Traefik IP directly and
+# nothing in the metrics path depends on cross-site DNS. The explicit priority
+# keeps that from being decided by Traefik's rule-length heuristic — every other
+# route here matches on Host and must continue to win.
+#
+# Lives here rather than in base/traefik-routes/ for the same reason
+# grafana-ingressroute.yaml does: it targets a Service that exists only at
+# Akron. The monitoring Kustomization dependsOn infrastructure, so the
+# IngressRoute CRD is installed by the time this applies.
+#
+# Plain HTTP, unauthenticated, matching every other ingress in this repo. It is
+# reachable only from the LAN and the Site Magic VPN. Fixing that properly means
+# a repo-wide TLS pass, not a special case here.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prometheus-remote-write
+  namespace: monitoring
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: PathPrefix(`/api/v1/write`)
+      kind: Rule
+      priority: 1
+      services:
+        - name: kube-prometheus-stack-prometheus
+          port: 9090

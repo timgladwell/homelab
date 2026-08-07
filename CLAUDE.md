@@ -81,8 +81,8 @@ Three layers, composed many-to-many:
 The rule that makes this work: **`base/` never contains anything site-specific.** If a site would need to delete or override something in `base/`, that thing belongs in `sites/` instead. A `$patch: delete` against `base/` means the layering is wrong.
 
 - Independent single-node K3s sites, each managed with **Flux CD + Kustomize + Helm**, sharing this one repo (Flux's standard multi-cluster monorepo pattern — no cluster federation, no shared control plane):
-  - **Akron** (local, 8GB RAM) — every layer: shared infrastructure + Akron-only monitoring. Deploys first.
-  - **Eastbank** (remote, 8GB RAM) — infrastructure, infrastructure-config, dns-config. No monitoring.
+  - **Akron** (local, 8GB RAM) — every layer, and the only site that *stores* observability data. Deploys first.
+  - **Eastbank** (remote, 8GB RAM) — infrastructure, infrastructure-config, dns-config, monitoring. Collects metrics but stores none of them.
   - **Lottage** (remote, 2GB RAM) — **out of scope**, scaffolding removed until the hardware is upgraded. Re-add by copying `sites/eastbank/` and `clusters/eastbank/`.
 - The local development machine is not connected to any site. All commands are executed on the server via SSH session.
 - **Rollout gating (Akron first):** Akron's Flux `GitRepository` watches `main`. Eastbank's watches a `stable` branch. After merging to `main` and confirming Akron is healthy, promote by running the **Promote to stable** workflow (`.github/workflows/promote-to-stable.yml`) from the Actions tab. There is no automatic cross-cluster gate — this is a manual, explicit step, and the workflow refuses to run unless you assert Akron is healthy.
@@ -103,19 +103,21 @@ base/                            # Site-agnostic components. No secrets. No site
   metallb-config/                # MetalLB IP pools (needs MetalLB CRDs)
   traefik-routes/                # PiHole IngressRoute (needs Traefik CRDs)
   pihole-sync/                   # Syncs DNS blocklists into each site's own local PiHole
+  metrics-collection/            # node-exporter + kube-state-metrics + Alloy, remote-writing to Akron
 
 sites/<site>/                    # Everything specific to one K3s cluster
   infrastructure/                # kustomization.yaml picking base components + this site's pihole-secret
   infrastructure-config/         # kustomization.yaml picking the CRD-dependent base components
   dns-config/                    # kustomization.yaml picking base/pihole-sync + this site's pihole-clients.yaml
-  monitoring/                    # Akron only: Prometheus + Grafana + Loki + Alloy + Unpoller (+ its secrets)
+  monitoring/                    # Every site: base/metrics-collection. Akron adds the storage
+                                 # side — Prometheus + Grafana + Loki + Alloy (logs) + Unpoller
 
 clusters/<site>/                 # Flux entry point — managed by the flux-system Kustomization
   flux-system/                   # Flux's own manifests (managed by flux bootstrap, do not edit)
   flux-system-local/             # Patches applied over flux-system/ (kube-score ignores, etc.)
   cluster-vars.yaml              # Per-site ConfigMap (DNS_DOMAIN, HOSTNAME, METALLB_*, NODE_IP) injected via postBuild.substituteFrom
   infrastructure.yaml            # Flux Kustomization -> sites/<site>/infrastructure
-  monitoring.yaml                # Akron only -> sites/akron/monitoring
+  monitoring.yaml                # -> sites/<site>/monitoring
   infrastructure-config.yaml     # -> sites/<site>/infrastructure-config
   dns-config.yaml                # -> sites/<site>/dns-config
 
@@ -157,11 +159,41 @@ Step 3 assembles each site's complete manifest set the same way Flux does — `k
 3. `infrastructure-config` → `sites/akron/infrastructure-config` — depends on `infrastructure`
 4. `dns-config` → `sites/akron/dns-config` — depends on `infrastructure`
 
-**Eastbank** (watches `stable`) — `clusters/eastbank/` → `infrastructure` (`sites/eastbank/infrastructure`) → `infrastructure-config` and `dns-config`, both depending on `infrastructure`.
+**Eastbank** (watches `stable`) — `clusters/eastbank/` → `infrastructure` (`sites/eastbank/infrastructure`) → `monitoring`, `infrastructure-config` and `dns-config`, all depending on `infrastructure`.
+
+### Observability: collect everywhere, store at Akron
+
+Akron is the only site with storage that tolerates a Prometheus TSDB (USB3 NVMe); every other site boots from an SD card, where TSDB write amplification is the classic way to kill the card. So the split is:
+
+- **Collection is identical at every site** — `base/metrics-collection/` deploys node-exporter, kube-state-metrics and an Alloy collector (`alloy-metrics`) that scrapes them plus kubelet, cAdvisor, kube-apiserver and Unbound, then remote-writes the result. Akron runs this too; it is not a remote-site special case.
+- **Storage is Akron-only** — `sites/akron/monitoring/` adds Prometheus, Grafana, Loki, Alertmanager, the log-collecting `alloy` DaemonSet, and Unpoller.
+
+`${PROMETHEUS_REMOTE_WRITE_URL}` is the only thing that differs: Akron writes to the Prometheus beside it, Eastbank writes to `http://10.6.1.80/api/v1/write` over the Site Magic VPN. That endpoint is a path-scoped Traefik `IngressRoute` (`sites/akron/monitoring/prometheus-remotewrite-ingressroute.yaml`), so only `/api/v1/write` is published — not the query UI. Deliberately an IP, not a hostname: nothing in the metrics path should depend on cross-site DNS.
+
+**Two settings are load-bearing and must stay in sync**, or a remote site silently loses data across an outage:
+
+| Setting | Where | Why |
+|---|---|---|
+| `wal.max_keepalive_time: 24h` | `base/metrics-collection/alloy-metrics.yaml` | How long unsent samples survive on disk. Chart default is **8h**. |
+| `tsdb.outOfOrderTimeWindow: 24h` | `sites/akron/monitoring/kube-prometheus-stack.yaml` | Prometheus rejects samples older than its head block (~2h) as "out of bounds". Without this, a replayed buffer is rejected wholesale and the WAL is decorative. |
+
+**All cardinality-trimming lives in the collector config**, in one place. It used to sit in kube-prometheus-stack's `cAdvisorMetricRelabelings` / `kubeApiServer.metricRelabelings`; those are gone, and the chart's own scraping (`kubelet`, `kubeApiServer`, `nodeExporter`, `kubeStateMetrics`) is disabled so Akron doesn't double-collect. Add drop rules to `alloy-metrics.yaml`, never back to the chart.
+
+**Helm values in this repo are not validated by `./scripts/validate-k3s.sh`.** `kustomize build` and `flux build` treat a `HelmRelease`'s `values:` as opaque YAML — the chart is only rendered on the cluster at reconcile time, and none of these charts ship a `values.schema.json`. A wrong or misspelled value passes all eleven steps and fails after merge. Before changing chart values, render them locally:
+
+```bash
+helm template alloy-metrics grafana/alloy --version <ver> -f <extracted-values>.yaml
+```
+
+The Alloy config specifically can be checked properly, and should be — a syntax or argument-name error CrashLoops the collector at *every* site:
+
+```bash
+alloy validate config.alloy    # catches unrecognized attribute names, not just syntax
+```
 
 ### Variable substitution
 
-Each site's `cluster-vars.yaml` defines its own `${DNS_DOMAIN}`, `${HOSTNAME}`, `${METALLB_ADDRESS_RANGE}`, `${METALLB_TRAEFIK_IP}`, `${METALLB_PIHOLE_IP}`, `${NODE_IP}`. Use these placeholders directly in `base/` manifests — Flux substitutes them at reconcile time via `postBuild.substituteFrom`, from that site's own ConfigMap only (there is no cross-site fallback).
+Each site's `cluster-vars.yaml` defines its own `${DNS_DOMAIN}`, `${HOSTNAME}`, `${METALLB_ADDRESS_RANGE}`, `${METALLB_TRAEFIK_IP}`, `${METALLB_PIHOLE_IP}`, `${NODE_IP}`, `${SITE_NAME}`, `${PROMETHEUS_REMOTE_WRITE_URL}`. Use these placeholders directly in `base/` manifests — Flux substitutes them at reconcile time via `postBuild.substituteFrom`, from that site's own ConfigMap only (there is no cross-site fallback).
 
 Plain `kustomize build` does not perform this substitution, so the validation pipeline will always contain `${VAR}` literals in its output. Validation step 7 catches any `${VAR}` reference not defined in that site's `cluster-vars.yaml`.
 

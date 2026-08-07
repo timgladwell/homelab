@@ -1,0 +1,11 @@
+---
+# Site-agnostic metrics collection. Every site runs this; only
+# PROMETHEUS_REMOTE_WRITE_URL and SITE_NAME differ, from cluster-vars.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - helmrepositories.yaml
+  - node-exporter.yaml
+  - kube-state-metrics.yaml
+  - alloy-metrics.yaml

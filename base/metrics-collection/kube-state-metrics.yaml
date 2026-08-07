@@ -1,0 +1,40 @@
+---
+# Cluster object state (deployment replicas, pod phase, PVC capacity). This is
+# the difference between "the node is busy" and "the workload is unhealthy".
+#
+# prometheus.monitor is off for the same reason as node-exporter: no operator on
+# Eastbank, and the collector handles discovery on both sites.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-state-metrics
+  namespace: monitoring
+spec:
+  interval: 30m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: kube-state-metrics
+      version: "~8.2.0"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: monitoring
+      interval: 12h
+  values:
+    prometheus:
+      monitor:
+        enabled: false
+
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi

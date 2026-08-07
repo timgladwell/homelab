@@ -1,0 +1,8 @@
+---
+# Eastbank collects and ships; it stores nothing. Prometheus, Grafana, Loki and
+# Alertmanager all live at Akron, which is the only site with storage that
+# tolerates them.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/metrics-collection
