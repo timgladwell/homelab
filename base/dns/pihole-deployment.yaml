@@ -59,6 +59,14 @@ spec:
               value: "false"
             - name: FTLCONF_webserver_port
               value: "8080"
+            # Resolve `pi.hole` to the LoadBalancer IP so the short name serves
+            # the UI from anywhere on the LAN. PiHole answers `pi.hole` with the
+            # address it believes it is listening on, which in a pod is the pod
+            # IP — unroutable from the LAN — so it has to be stated explicitly.
+            # Points at the LoadBalancer rather than Traefik so it does not
+            # depend on an ingress controller being present.
+            - name: FTLCONF_dns_hosts
+              value: "${METALLB_PIHOLE_IP} pi.hole"
             # PiHole is not the DHCP server
             - name: FTLCONF_dhcp_active
               value: "false"
