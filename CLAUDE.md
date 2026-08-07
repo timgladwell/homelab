@@ -241,6 +241,23 @@ Dependabot lists explicit directories, so **a component that moves or gains an i
 
 Flux's own controller images (`clusters/*/flux-system/`) are excluded from both: they are upgraded with the Flux CLI, see `docs/runbooks/flux-upgrades.md`.
 
+### Known dead ends
+
+Things that look obviously fixable, have been attempted repeatedly, and are not. Check here before starting.
+
+**`pi.hole` cannot be made to resolve anywhere useful.** FTL synthesizes an A record for `pi.hole` at runtime pointing at the pod's own interface address, and that synthesis outranks `FTLCONF_dns_hosts`, dnsmasq `address=` entries, and Traefik `IngressRoute` host rules. The pod IP is never written to `pihole.toml`, so no `FTLCONF_*` key can reach it. Setting `webserver_domain` or `piholePTR=NONE` does not stop it either.
+
+Attempted in PRs #39, #58/#59, #61, #62, #81, #82, #83; all removed as no-ops by #84. Re-attempted and reverted again in #208, including the theory that MetalLB's external IP would change the answer — it does not, because FTL reads its own interface, not the Service.
+
+Verified still true on `pihole:2026.07.2`, 2026-08-07:
+
+```
+$ dig +short pi.hole @10.6.1.53
+10.42.0.33          # pod IP, not the LoadBalancer IP
+```
+
+Use `pihole.${HOSTNAME}` or the LoadBalancer IP directly. Re-run that `dig` before spending time on it again — a `10.42.x.x` answer means nothing has changed. The only untried avenue is making the pod CIDR routable from the LAN with a static route, which trades a LAN-wide route into the pod network for a convenience hostname, and lands the UI on `:8080`.
+
 ### Hardware constraints
 
 All images must support **ARM64** (Raspberry Pi 4B). Verify ARM64 availability before pinning any image. All workloads must declare requests and limits, and storage limits (if applicable).

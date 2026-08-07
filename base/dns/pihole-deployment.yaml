@@ -59,6 +59,13 @@ spec:
               value: "false"
             - name: FTLCONF_webserver_port
               value: "8080"
+            # Do NOT add FTLCONF_dns_hosts for pi.hole. FTL synthesizes an A
+            # record for pi.hole pointing at the pod's own interface IP at
+            # runtime, and that synthesis outranks dns_hosts, dnsmasq address=
+            # entries, and the IngressRoute. PRs #39, #58, #61, #62, #81, #82
+            # and #83 all tried; #84 removed the lot as no-ops. The pod IP is
+            # not in pihole.toml, so no FTLCONF_* key reaches it.
+            # Use pihole.${HOSTNAME} or the LoadBalancer IP directly.
             # PiHole is not the DHCP server
             - name: FTLCONF_dhcp_active
               value: "false"

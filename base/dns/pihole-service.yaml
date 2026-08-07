@@ -1,5 +1,6 @@
-# Web UI service - routed via Traefik.
-# DNS (port 53) is served directly from the host network via hostNetwork on the deployment.
+# Web UI service, routed via Traefik at pihole.${HOSTNAME}.
+# The UI is also reachable directly on the LoadBalancer IP — see
+# pihole-dns-service.yaml.
 ---
 apiVersion: v1
 kind: Service
