@@ -48,7 +48,7 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
         - name: unbound
-          image: klutchell/unbound:v1.25.1
+          image: klutchell/unbound:v1.25.2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5335
