@@ -75,11 +75,13 @@ if [[ "$flux_build_ok" == true ]]; then
         run_step "Best Practices" "$VALIDATE_DIR/05-best-practices.sh"
         run_step "Variable References" "$VALIDATE_DIR/07-variable-check.sh"
         run_step "Policy (conftest)" "$VALIDATE_DIR/08-conftest.sh"
+        run_step "CRD Availability" "$VALIDATE_DIR/11-crd-availability.sh"
     else
         skip_step "Schema Validation" "kustomize build failed"
         skip_step "Best Practices" "kustomize build failed"
         skip_step "Variable References" "kustomize build failed"
         skip_step "Policy (conftest)" "kustomize build failed"
+        skip_step "CRD Availability" "kustomize build failed"
     fi
 else
     skip_step "Kustomize Build" "flux build failed"
@@ -87,6 +89,7 @@ else
     skip_step "Best Practices" "flux build failed"
     skip_step "Variable References" "flux build failed"
     skip_step "Policy (conftest)" "flux build failed"
+    skip_step "CRD Availability" "flux build failed"
 fi
 
 # Step 6: Security scan — independent
