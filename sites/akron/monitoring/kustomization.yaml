@@ -2,15 +2,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - namespace.yaml
-  - prometheus-helmrepo.yaml
-  - grafana-helmrepo.yaml
+  # Namespace, HelmRepositories and the metrics collector are shared with every
+  # other site. Akron additionally stores what it collects.
+  - ../../../base/metrics-collection
   - kube-prometheus-stack.yaml
   - grafana-secret.sops.yaml
   - grafana-ingressroute.yaml
+  - prometheus-remotewrite-ingressroute.yaml
   - loki.yaml
   - alloy.yaml
-  - unbound-servicemonitor.yaml
   - ./unpoller
   - alloy-syslog-service.yaml
   - ./dashboards

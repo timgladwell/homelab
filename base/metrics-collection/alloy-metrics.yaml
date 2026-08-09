@@ -1,0 +1,369 @@
+---
+# The metrics collector. Both sites run this identically; only the destination
+# and the site label differ, via each cluster's cluster-vars.yaml. Akron writes
+# to its own in-cluster Prometheus, Eastbank writes to Akron over the Site Magic
+# VPN. Akron is the only site with storage that tolerates a Prometheus TSDB
+# (USB3 NVMe); every other site boots from an SD card, so they collect and ship
+# rather than store.
+#
+# Separate from the `alloy` release in sites/akron/monitoring/alloy.yaml, which
+# collects logs: that one is a DaemonSet with hostPath mounts and syslog
+# listeners, this one is a StatefulSet with a PVC for the write-ahead log. One
+# HelmRelease cannot be both.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy-metrics
+  namespace: monitoring
+spec:
+  interval: 30m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: alloy
+      version: "~1.x"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: monitoring
+      interval: 12h
+  values:
+    controller:
+      type: statefulset
+      replicas: 1
+      # The WAL must outlive the pod, otherwise a routine image bump discards
+      # whatever the buffer was holding. The chart mounts nothing at
+      # alloy.storagePath by default ("data is lost between reboots"), so both
+      # this claim and the matching mount below are required.
+      volumeClaimTemplates:
+        - metadata:
+            name: alloy-data
+          spec:
+            accessModes: [ReadWriteOnce]
+            resources:
+              requests:
+                storage: 1Gi
+
+    alloy:
+      storagePath: /var/lib/alloy
+      enableReporting: false
+
+      mounts:
+        extra:
+          - name: alloy-data
+            mountPath: /var/lib/alloy
+
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 300m
+          memory: 384Mi
+
+      configMap:
+        create: true
+        # yamllint disable rule:line-length
+        content: |
+          // Ship everything collected below to Prometheus. Snappy-compressed
+          // protobuf batches: a site of this size is well under 1 kbit/s.
+          prometheus.remote_write "default" {
+            endpoint {
+              url = "${PROMETHEUS_REMOTE_WRITE_URL}"
+            }
+
+            external_labels = {
+              site = "${SITE_NAME}",
+            }
+
+            // What makes a remote site survive a WAN outage. Truncation only
+            // discards samples below the lowest successfully-sent timestamp, so
+            // unsent data is kept regardless of age until max_keepalive_time —
+            // that value, not truncate_frequency, is the ceiling on outage
+            // length. The chart default is 8h. Akron's Prometheus must accept
+            // samples this old: see tsdb.outOfOrderTimeWindow in
+            // sites/akron/monitoring/kube-prometheus-stack.yaml, kept in sync.
+            wal {
+              truncate_frequency = "2h"
+              max_keepalive_time = "24h"
+            }
+          }
+
+          discovery.kubernetes "pods" {
+            role = "pod"
+          }
+
+          discovery.kubernetes "nodes" {
+            role = "node"
+          }
+
+          discovery.kubernetes "endpoints" {
+            role = "endpoints"
+          }
+
+          // ---------------------------------------------------------------
+          // Host metrics
+          // ---------------------------------------------------------------
+          discovery.relabel "node_exporter" {
+            targets = discovery.kubernetes.pods.targets
+
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+              regex         = "prometheus-node-exporter"
+              action        = "keep"
+            }
+
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_port_name"]
+              regex         = "metrics"
+              action        = "keep"
+            }
+
+            // Node name, not pod IP — matches what Akron's ServiceMonitor used
+            // to produce, so the node-exporter-full dashboard keeps working.
+            rule {
+              source_labels = ["__meta_kubernetes_pod_node_name"]
+              target_label  = "instance"
+            }
+          }
+
+          prometheus.scrape "node_exporter" {
+            targets         = discovery.relabel.node_exporter.output
+            forward_to      = [prometheus.remote_write.default.receiver]
+            job_name        = "node-exporter"
+            scrape_interval = "60s"
+          }
+
+          // ---------------------------------------------------------------
+          // Cluster object state
+          // ---------------------------------------------------------------
+          discovery.relabel "kube_state_metrics" {
+            targets = discovery.kubernetes.pods.targets
+
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+              regex         = "kube-state-metrics"
+              action        = "keep"
+            }
+
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_port_name"]
+              regex         = "http"
+              action        = "keep"
+            }
+
+            rule {
+              target_label = "instance"
+              replacement  = "kube-state-metrics"
+            }
+          }
+
+          prometheus.scrape "kube_state_metrics" {
+            targets         = discovery.relabel.kube_state_metrics.output
+            forward_to      = [prometheus.remote_write.default.receiver]
+            job_name        = "kube-state-metrics"
+            scrape_interval = "60s"
+          }
+
+          // ---------------------------------------------------------------
+          // Unbound. The exporter sidecar already runs at every site as part of
+          // base/dns; before this component existed, only Akron scraped it.
+          // ---------------------------------------------------------------
+          discovery.relabel "unbound" {
+            targets = discovery.kubernetes.pods.targets
+
+            rule {
+              source_labels = ["__meta_kubernetes_namespace"]
+              regex         = "dns"
+              action        = "keep"
+            }
+
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app"]
+              regex         = "unbound"
+              action        = "keep"
+            }
+
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_port_name"]
+              regex         = "metrics"
+              action        = "keep"
+            }
+
+            rule {
+              target_label = "instance"
+              replacement  = "unbound"
+            }
+          }
+
+          prometheus.scrape "unbound" {
+            targets         = discovery.relabel.unbound.output
+            forward_to      = [prometheus.remote_write.default.receiver]
+            job_name        = "unbound"
+            scrape_interval = "60s"
+          }
+
+          // ---------------------------------------------------------------
+          // Kubelet and cAdvisor. Scraped directly on :10250 with the
+          // ServiceAccount token; k3s serves a self-signed kubelet certificate,
+          // hence insecure_skip_verify.
+          // ---------------------------------------------------------------
+          discovery.relabel "kubelet" {
+            targets = discovery.kubernetes.nodes.targets
+
+            rule {
+              source_labels = ["__meta_kubernetes_node_name"]
+              target_label  = "instance"
+            }
+
+            // kube-prometheus-stack's built-in Kubernetes dashboards select on
+            // job="kubelet" plus metrics_path, so both are reproduced here.
+            rule {
+              target_label = "metrics_path"
+              replacement  = "/metrics"
+            }
+          }
+
+          discovery.relabel "cadvisor" {
+            targets = discovery.kubernetes.nodes.targets
+
+            rule {
+              source_labels = ["__meta_kubernetes_node_name"]
+              target_label  = "instance"
+            }
+
+            rule {
+              target_label = "metrics_path"
+              replacement  = "/metrics/cadvisor"
+            }
+          }
+
+          prometheus.scrape "kubelet" {
+            targets           = discovery.relabel.kubelet.output
+            forward_to        = [prometheus.remote_write.default.receiver]
+            job_name          = "kubelet"
+            scrape_interval   = "60s"
+            scheme            = "https"
+            bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+            tls_config {
+              insecure_skip_verify = true
+            }
+          }
+
+          prometheus.scrape "cadvisor" {
+            targets           = discovery.relabel.cadvisor.output
+            forward_to        = [prometheus.relabel.cadvisor.receiver]
+            job_name          = "kubelet"
+            metrics_path      = "/metrics/cadvisor"
+            scrape_interval   = "60s"
+            scheme            = "https"
+            bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+            tls_config {
+              insecure_skip_verify = true
+            }
+          }
+
+          // Cardinality trimming. Ported verbatim from the ServiceMonitor
+          // relabelings Akron's kube-prometheus-stack used to carry — this is
+          // now the only copy in the repo, which is the point of both sites
+          // sharing one collector.
+          prometheus.relabel "cadvisor" {
+            forward_to = [prometheus.remote_write.default.receiver]
+
+            // Full cgroup paths are unused by any dashboard and contribute
+            // disproportionately to series cardinality.
+            rule {
+              action = "labeldrop"
+              regex  = "id"
+            }
+
+            // Metric families not referenced by any configured dashboard.
+            rule {
+              source_labels = ["__name__"]
+              regex         = "container_(tasks_state|cpu_load_average_10s|memory_failures_total|memory_mapped_file)"
+              action        = "drop"
+            }
+
+            rule {
+              source_labels = ["__name__"]
+              regex         = "container_(network_tcp_usage_total|network_udp_usage_total|blkio_device_usage_total)"
+              action        = "drop"
+            }
+
+            rule {
+              source_labels = ["__name__"]
+              regex         = "container_(fs_io_current|fs_io_time_seconds_total|fs_io_time_weighted_seconds_total)"
+              action        = "drop"
+            }
+
+            rule {
+              source_labels = ["__name__"]
+              regex         = "container_(fs_reads_merged_total|fs_sector_reads_total|fs_sector_writes_total)"
+              action        = "drop"
+            }
+
+            rule {
+              source_labels = ["__name__"]
+              regex         = "container_fs_writes_merged_total"
+              action        = "drop"
+            }
+          }
+
+          // ---------------------------------------------------------------
+          // kube-apiserver
+          // ---------------------------------------------------------------
+          discovery.relabel "apiserver" {
+            targets = discovery.kubernetes.endpoints.targets
+
+            rule {
+              source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_name", "__meta_kubernetes_endpoint_port_name"]
+              regex         = "default;kubernetes;https"
+              action        = "keep"
+            }
+
+            rule {
+              target_label = "instance"
+              replacement  = "kube-apiserver"
+            }
+          }
+
+          prometheus.scrape "apiserver" {
+            targets           = discovery.relabel.apiserver.output
+            forward_to        = [prometheus.relabel.apiserver.receiver]
+            job_name          = "apiserver"
+            scrape_interval   = "60s"
+            scheme            = "https"
+            bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+            tls_config {
+              ca_file     = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+              server_name = "kubernetes.default.svc"
+            }
+          }
+
+          prometheus.relabel "apiserver" {
+            forward_to = [prometheus.remote_write.default.receiver]
+
+            // Histogram buckets account for most apiserver cardinality. _sum and
+            // _count are kept so average latency stays queryable; percentile
+            // queries (histogram_quantile) do not work against these series.
+            rule {
+              source_labels = ["__name__"]
+              regex         = "apiserver_(request_duration_seconds_bucket|response_sizes_bucket)"
+              action        = "drop"
+            }
+
+            rule {
+              source_labels = ["__name__"]
+              regex         = "apiserver_(watch_events_sizes_bucket|request_filter_duration_seconds_bucket)"
+              action        = "drop"
+            }
+          }
+        # yamllint enable rule:line-length

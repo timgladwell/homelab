@@ -70,6 +70,17 @@ spec:
         evaluationInterval: 60s
         retention: 7d
         retentionSize: 6GB
+        # Every site — including this one — pushes through remote write rather
+        # than being scraped. See base/metrics-collection/.
+        enableRemoteWriteReceiver: true
+        tsdb:
+          # Required, not optional. A remote site that has been offline replays
+          # its buffered WAL on reconnect, and Prometheus rejects samples older
+          # than its head block's min-valid-time (~2h) as "out of bounds" —
+          # without this window the buffer is decorative. Kept equal to the
+          # collector's wal.max_keepalive_time in
+          # base/metrics-collection/alloy-metrics.yaml.
+          outOfOrderTimeWindow: 24h
         storageSpec:
           volumeClaimTemplate:
             spec:
@@ -98,52 +109,27 @@ spec:
             cpu: 100m
             memory: 128Mi
 
+    # Scraping moved out of this chart entirely. Akron and every remote site now
+    # run the same collector (base/metrics-collection/), which discovers these
+    # targets itself and pushes over remote write. Keeping both would
+    # double-collect on Akron, and the cardinality-trimming rules that used to
+    # live here would have needed a second copy in the collector's config —
+    # which is exactly the drift the shared component exists to prevent. The
+    # rules moved verbatim; they are now in alloy-metrics.yaml only.
+    #
+    # node-exporter and kube-state-metrics are still deployed, just from
+    # base/metrics-collection/ so that both sites get the identical version.
     kubelet:
-      serviceMonitor:
-        cAdvisorMetricRelabelings:
-          # Drop the cgroup id label — full cgroup paths are not used in dashboards
-          # and contribute disproportionately to series cardinality
-          - action: labeldrop
-            regex: id
-          # Drop metric families not referenced by any configured dashboard
-          - sourceLabels: [__name__]
-            regex: "container_(tasks_state|cpu_load_average_10s|memory_failures_total|memory_mapped_file)"
-            action: drop
-          - sourceLabels: [__name__]
-            regex: "container_(network_tcp_usage_total|network_udp_usage_total|blkio_device_usage_total)"
-            action: drop
-          - sourceLabels: [__name__]
-            regex: "container_(fs_io_current|fs_io_time_seconds_total|fs_io_time_weighted_seconds_total)"
-            action: drop
-          - sourceLabels: [__name__]
-            regex: "container_(fs_reads_merged_total|fs_sector_reads_total|fs_sector_writes_total)"
-            action: drop
-          - sourceLabels: [__name__]
-            regex: container_fs_writes_merged_total
-            action: drop
+      enabled: false
 
     kubeApiServer:
-      serviceMonitor:
-        metricRelabelings:
-          # Drop histogram bucket series — these account for most apiserver cardinality.
-          # _sum and _count are retained so average latency remains queryable;
-          # percentile queries (histogram_quantile) will no longer work.
-          - sourceLabels: [__name__]
-            regex: "apiserver_(request_duration_seconds_bucket|response_sizes_bucket)"
-            action: drop
-          - sourceLabels: [__name__]
-            regex: "apiserver_(watch_events_sizes_bucket|request_filter_duration_seconds_bucket)"
-            action: drop
+      enabled: false
 
     nodeExporter:
-      enabled: true
-      serviceMonitor:
-        relabelings:
-          - sourceLabels: [__meta_kubernetes_node_name]
-            targetLabel: instance
+      enabled: false
 
     kubeStateMetrics:
-      enabled: true
+      enabled: false
 
     prometheusOperator:
       resources:

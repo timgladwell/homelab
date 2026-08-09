@@ -13,3 +13,9 @@ data:
   METALLB_TRAEFIK_IP: "10.4.1.80"
   METALLB_PIHOLE_IP: "10.4.1.53"
   NODE_IP: "10.4.1.3"
+  # Metrics are shipped to Akron — this site has no Prometheus of its own.
+  # An IP, not a hostname, deliberately: nothing in the metrics path should
+  # depend on cross-site DNS. 10.6.1.80 is Akron's Traefik LoadBalancer, which
+  # routes only PathPrefix(`/api/v1/write`) through to Prometheus.
+  SITE_NAME: eastbank
+  PROMETHEUS_REMOTE_WRITE_URL: "http://10.6.1.80/api/v1/write"
