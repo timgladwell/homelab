@@ -58,13 +58,22 @@ spec:
           - name: alloy-data
             mountPath: /var/lib/alloy
 
+      # Sized for the largest site, not the smallest. Akron carries roughly three
+      # times Eastbank's pod count (Prometheus, Grafana, Loki, Alertmanager, the
+      # operator, three Unpollers, two Alloys), so it has far more cAdvisor
+      # series and a much larger kube-state-metrics surface to hold in memory.
+      #
+      # The first cut at 384Mi was sized against Eastbank and killed the Akron
+      # collector at 87% utilisation — exit 137, which stalls the scrape loop
+      # long enough to drop samples. A limit is a ceiling, not a reservation, so
+      # the smaller sites do not pay for this.
       resources:
         requests:
           cpu: 100m
-          memory: 128Mi
+          memory: 256Mi
         limits:
-          cpu: 300m
-          memory: 384Mi
+          cpu: 500m
+          memory: 768Mi
 
       configMap:
         create: true
@@ -205,6 +214,54 @@ spec:
             targets         = discovery.relabel.unbound.output
             forward_to      = [prometheus.remote_write.default.receiver]
             job_name        = "unbound"
+            scrape_interval = "60s"
+          }
+
+          // ---------------------------------------------------------------
+          // The collector itself. Without this there is no way to see WAL
+          // depth, remote-write failure rates, or how close the process is to
+          // its memory ceiling — the collector is the one component whose
+          // failure hides every other signal, so it must not be the one
+          // component nobody watches. Also picks up the log-collecting Alloy
+          // DaemonSet at sites that run one; both share the chart's app name.
+          //
+          // Useful series once this lands:
+          //   prometheus_remote_storage_samples_pending
+          //   prometheus_remote_storage_samples_failed_total
+          //   prometheus_remote_storage_highest_timestamp_in_seconds
+          //   go_memstats_heap_inuse_bytes
+          // ---------------------------------------------------------------
+          discovery.relabel "alloy" {
+            targets = discovery.kubernetes.pods.targets
+
+            rule {
+              source_labels = ["__meta_kubernetes_namespace"]
+              regex         = "monitoring"
+              action        = "keep"
+            }
+
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+              regex         = "alloy"
+              action        = "keep"
+            }
+
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_port_name"]
+              regex         = "http-metrics"
+              action        = "keep"
+            }
+
+            rule {
+              source_labels = ["__meta_kubernetes_pod_name"]
+              target_label  = "instance"
+            }
+          }
+
+          prometheus.scrape "alloy" {
+            targets         = discovery.relabel.alloy.output
+            forward_to      = [prometheus.remote_write.default.receiver]
+            job_name        = "alloy"
             scrape_interval = "60s"
           }
 
