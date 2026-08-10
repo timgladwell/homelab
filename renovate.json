@@ -3,7 +3,7 @@
   "extends": [
     "config:recommended"
   ],
-  "enabledManagers": ["flux"],
+  "enabledManagers": ["flux", "custom.regex"],
   "flux": {
     "managerFilePatterns": [
       "/(^|/)clusters/.+\\.ya?ml$/",
@@ -11,5 +11,18 @@
       "/(^|/)sites/.+\\.ya?ml$/"
     ]
   },
+  "customManagers": [
+    {
+      "description": "k3s version pinned in the system-upgrade-controller Plans. Dependabot cannot cover this: the version lives in `version:`, not in an `image:` tag, and rancher/k3s-upgrade is deliberately untagged.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)base/system-upgrade-controller/plans\\.yaml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+version: (?<currentValue>\\S+)"
+      ],
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
+    }
+  ],
   "schedule": ["every weekend"]
 }

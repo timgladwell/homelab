@@ -16,7 +16,16 @@ spec:
   serviceAccountName: system-upgrade
   upgrade:
     image: rancher/k3s-upgrade
-  channel: https://update.k3s.io/v1-release/channels/stable
+  # Pinned rather than `channel:` on purpose. A channel is resolved inside the
+  # cluster at upgrade time, so the Kubernetes version never appears in git —
+  # neither Renovate nor Dependabot can see it, and both boxes could cross a
+  # minor unattended. That turned "is this Flux release supported?" into an SSH
+  # question during the v2.9 upgrade. Pinned, it is a grep.
+  #
+  # Renovate opens a PR per k3s release (see renovate.json); Akron takes it on
+  # merge to main, Eastbank only on promotion to stable, so the canary holds.
+  # renovate: datasource=github-releases depName=k3s-io/k3s
+  version: v1.36.3+k3s1
 ---
 apiVersion: upgrade.cattle.io/v1
 kind: Plan
@@ -38,4 +47,6 @@ spec:
   serviceAccountName: system-upgrade
   upgrade:
     image: rancher/k3s-upgrade
-  channel: https://update.k3s.io/v1-release/channels/stable
+  # Keep in lockstep with server-plan above — see the rationale there.
+  # renovate: datasource=github-releases depName=k3s-io/k3s
+  version: v1.36.3+k3s1
