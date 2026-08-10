@@ -107,10 +107,41 @@ Akron is the canary, and the branch layout enforces it — Akron's `GitRepositor
 1. Merge to `main`. Akron's controllers pick up the new manifests and rolling-restart themselves.
 2. Confirm Akron is healthy (below). Reconciliation pauses for ~1–2 minutes during the restart; nothing breaks, work queues up.
 3. Run the **Promote to stable** workflow from the Actions tab. Eastbank upgrades.
+4. Upgrade the `flux` CLI on **both boxes** to match — see below. Flux does not do this for you.
 
 ```bash
 flux version      # server-side versions, not just the CLI
 flux get all -A   # everything Ready
+```
+
+Read the `distribution:` line — that is the cluster. A successful upgrade looks like this, and the first line is **not** a problem:
+
+```
+flux: v2.8.8                    <- the CLI binary on the box, unchanged
+distribution: flux-v2.9.4       <- the controllers, upgraded by Flux itself
+kustomize-controller: v1.9.4
+...
+```
+
+### The CLI is not upgraded by any of this — upgrade it yourself, everywhere
+
+Only the controllers are GitOps-managed: they are declared in `gotk-components.yaml`, so Flux reconciles its own upgrade. The `flux` binary on each box was put there by `install.sh` during bootstrap, nothing in the cluster owns it, and it will keep reporting the old number indefinitely.
+
+**The rule is to keep every `flux` binary on the same version as `distribution:` — both boxes and your dev machine.** Do not leave them skewed on the grounds that the cluster looks healthy.
+
+It is tempting to call the skew cosmetic, because the commands you run most (`flux get`, `flux reconcile`, `flux suspend`) are thin API clients and do work a minor apart. That reasoning is not worth relying on:
+
+- **The CLI renders manifests itself, and already disagrees with the controllers even at matching versions** — that is [check 5](#5-behaviour-changes-in-substitution), where the 2.9.4 CLI is lenient about undefined variables and the 2.9.4 controller is strict. Skew adds a second axis of divergence on top of one that demonstrably exists.
+- **You reach for `flux build` and `flux diff` during an incident**, to reproduce what the controller did. That is the worst possible moment for a renderer that silently answers as an older version would.
+- **A stale CLI can request API versions the cluster no longer serves.** v2.9 removed `image.toolkit.fluxcd.io/v1beta2` and `notification.toolkit.fluxcd.io/v1beta2` from the CRDs outright. Nothing here uses them today, but that is the shape of the failure.
+- **`flux bootstrap` must match the committed manifest exactly**, or it regenerates different components and tries to push the diff. [Bootstrapping a New Remote Site](bootstrap-new-remote-site.md) derives the version from `gotk-components.yaml` for this reason.
+
+So treat it as the last step of the upgrade, not an optional tidy-up. On each box (env vars do not survive a pipe into `sudo`, hence `sudo env`):
+
+```bash
+curl -s https://fluxcd.io/install.sh -o /tmp/flux-install.sh
+sudo env FLUX_VERSION=<x.y.z, no leading v> bash /tmp/flux-install.sh
+flux --version                     # matches distribution: above
 ```
 
 ## Both sites must stay identical
