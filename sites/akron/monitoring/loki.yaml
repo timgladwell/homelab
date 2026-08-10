@@ -73,3 +73,28 @@ spec:
       replicas: 0
     write:
       replicas: 0
+
+    # The gateway is an nginx reverse proxy whose job is routing Loki API paths
+    # across separate components — distributor for writes, query-frontend for
+    # reads. In SingleBinary mode there is one component, so every one of its
+    # ~20 proxy_pass directives targets the same backend this chart already
+    # exposes as `loki:3100`. Nothing in the repo addresses it: Alloy, Grafana's
+    # datasource and all three Unpollers go direct. It is an nginx process
+    # serving zero requests.
+    #
+    # Worth re-enabling if Loki ever moves to SimpleScalable, where it becomes
+    # the correct single entry point. Until then it is a hop to nowhere.
+    gateway:
+      enabled: false
+
+    # The canary continuously writes synthetic log lines and reads them back to
+    # verify the write/read path. Sound practice for a production cluster with
+    # someone on call; here it spends ingest, CPU and space in an 8Gi PVC on a
+    # signal nothing consumes — no alerting exists (#214) and no dashboard shows
+    # it, so the result is computed and discarded.
+    lokiCanary:
+      enabled: false
+
+    # The chart's helm-test pod queries the canary, so it cannot outlive it.
+    test:
+      enabled: false
