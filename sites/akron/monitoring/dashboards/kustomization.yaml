@@ -2,60 +2,41 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: monitoring
+# Every dashboard ConfigMap gets the same treatment, so the options live here
+# once rather than being repeated per generator.
+#
+# The substitute annotation is load-bearing. Dashboard JSON is full of Grafana's
+# own template variables — ${datasource}, ${ds_prometheus} — which share the
+# ${VAR} syntax Flux uses for postBuild substitution but have nothing to do with
+# it. Flux must not touch them: they have to reach Grafana verbatim.
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
 configMapGenerator:
   - name: dashboard-node-exporter-full
     files:
       - node-exporter-full.json
-    options:
-      disableNameSuffixHash: true
-      labels:
-        grafana_dashboard: "1"
   - name: dashboard-unbound
     files:
       - unbound-dashboard.json
-    options:
-      disableNameSuffixHash: true
-      labels:
-        grafana_dashboard: "1"
   - name: dashboard-unifi-client-dpi
     files:
       - unifi-client-dpi-dashboard.json
-    options:
-      disableNameSuffixHash: true
-      labels:
-        grafana_dashboard: "1"
   - name: dashboard-unifi-sites
     files:
       - unifi-sites-dashboard.json
-    options:
-      disableNameSuffixHash: true
-      labels:
-        grafana_dashboard: "1"
   - name: dashboard-unifi-usw
     files:
       - unifi-usw-dashboard.json
-    options:
-      disableNameSuffixHash: true
-      labels:
-        grafana_dashboard: "1"
   - name: dashboard-unifi-usg
     files:
       - unifi-usg-dashboard.json
-    options:
-      disableNameSuffixHash: true
-      labels:
-        grafana_dashboard: "1"
   - name: dashboard-unifi-uap
     files:
       - unifi-uap-dashboard.json
-    options:
-      disableNameSuffixHash: true
-      labels:
-        grafana_dashboard: "1"
   - name: dashboard-unifi-clients
     files:
       - unifi-clients-dashboard.json
-    options:
-      disableNameSuffixHash: true
-      labels:
-        grafana_dashboard: "1"
