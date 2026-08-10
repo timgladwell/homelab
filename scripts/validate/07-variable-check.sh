@@ -17,11 +17,18 @@ for site in $(sites); do
     fi
     CLUSTER_VARS="${REPO_ROOT}/clusters/${site}/cluster-vars.yaml"
 
-    # All ${VAR} references in the built manifest (uppercase + underscore convention).
-    # Exclude DS_* variables — Grafana datasource UID template variables in dashboard JSON
-    # ConfigMaps; they use the same ${} syntax but are not Flux substitution variables.
-    # Flux leaves undefined variables as-is, so these are safe to skip here.
-    used=$(grep -oE '\$\{[A-Z_][A-Z0-9_]*\}' "$BUILD_OUTPUT" | sort -u | sed 's/[${}]//g' | grep -v '^DS_')
+    # Resources that opt out of Flux substitution are dropped before scanning:
+    # their ${...} tokens belong to the target application's own templating (a
+    # Grafana dashboard's ${datasource}), not to Flux, and Flux never sees them.
+    #
+    # Everything left is scanned case-insensitively. Lowercase matters: Grafana
+    # dashboards carry ${ds_prometheus}, and an uppercase-only pattern here meant
+    # the whole class was invisible to this check. That is not cosmetic — Flux
+    # v2.9 substitutes in strict mode, where one undefined variable fails the
+    # entire Kustomization, so an unscanned ${var} is an outage waiting to merge.
+    scannable=$(awk 'BEGIN { RS = "\n---\n" }
+        !/kustomize\.toolkit\.fluxcd\.io\/substitute: disabled/' "$BUILD_OUTPUT")
+    used=$(grep -oE '\$\{[A-Za-z_][A-Za-z0-9_]*\}' <<< "$scannable" | sort -u | sed 's/[${}]//g')
 
     if [[ -z "$used" ]]; then
         echo "[$site] No \${VAR} references found — nothing to check."
