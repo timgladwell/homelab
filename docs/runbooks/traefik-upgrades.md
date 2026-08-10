@@ -6,7 +6,7 @@ For any Traefik Helm chart version bump:
 
 1. **Read the chart release notes** ([traefik-helm-chart releases](https://github.com/traefik/traefik-helm-chart/releases)) for the versions between the old and new chart version. Note any breaking changes — values renames/restructuring, provider renames, default changes.
 
-2. **Cross-reference each breaking change against `infrastructure/homelab/traefik/helmrelease.yaml`** — most chart-level breaking changes don't apply since this repo only sets a small subset of values (resources, service, deployment, ingressRoute, ports, providers, additionalArguments, logs). Grep the changed value paths against the file directly rather than guessing.
+2. **Cross-reference each breaking change against `base/traefik/helmrelease.yaml`** — most chart-level breaking changes don't apply since this repo only sets a small subset of values (resources, service, deployment, ingressRoute, ports, providers, additionalArguments, logs). Grep the changed value paths against the file directly rather than guessing.
 
 3. **Check whether the Traefik app version changed** (`appVersion` in the chart, shown in the release notes). If it's a new minor/major (not just a patch), read the [Traefik migration guide](https://doc.traefik.io/traefik/migration/v3/) for that version.
 

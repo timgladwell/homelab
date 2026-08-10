@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Validation
 
-**CI runs this same pipeline** on every pull request and on pushes to `main` and `stable` (`.github/workflows/validate.yml`), so it is enforced regardless of who opened the PR — including Renovate and Dependabot, whose PRs never run the local git hooks. Tool versions are pinned in the workflow; `FLUX_VERSION` deliberately tracks what the clusters run rather than the newest release.
+**CI runs this same pipeline** on every pull request and on pushes to `main` and `stable` (`.github/workflows/validate.yml`), so it is enforced regardless of who opened the PR — including Renovate and Dependabot, whose PRs never run the local git hooks. Tool versions are pinned in the workflow; the Flux CLI pin (`version:` under the `fluxcd/flux2/action` step) deliberately tracks what the clusters run rather than the newest release.
 
 After any change to manifests, run the full validation pipeline from the repo root:
 
