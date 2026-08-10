@@ -4,6 +4,8 @@
 
 Renovate's `flux` manager regenerates the **entire** `gotk-components.yaml` for both sites — CRD schemas, RBAC, NetworkPolicies — not just image tags. A Flux bump is therefore normally review-and-merge, minor releases included.
 
+**That covers the cluster, not the hosts.** A Flux upgrade is two halves. The controllers upgrade themselves by reconciling `gotk-components.yaml`, so no one logs into a box for *them*. The `flux` binary on each box cannot upgrade itself and never will — that is manual, per-host work, and it is [step 4](#rollout-order). It is easy to skip precisely because both clusters report healthy without it, which is how it gets missed.
+
 Confirm the diff really is a regeneration before trusting it: it must move the `# Flux Version:` header **and** carry CRD or schema hunks. If the only changes are `app.kubernetes.io/version` labels and `image:` tags, Renovate did not regenerate — see [Regenerating by hand](#regenerating-by-hand).
 
 The five checks below are what "review" means. They are all answerable from git and the release notes; none require cluster access.
