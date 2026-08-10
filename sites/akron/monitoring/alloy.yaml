@@ -22,38 +22,54 @@ spec:
         namespace: monitoring
       interval: 12h
   values:
+    # NOTE ON NESTING: mounts, resources and volumes must sit under `alloy.*`
+    # and `controller.volumes.extra`. They previously sat at the root of
+    # `values:`, where the chart never reads them — Helm ignores unknown keys
+    # silently and this chart ships no values.schema.json, so the file looked
+    # correct and rendered a container with no limits and no host mounts. The
+    # journal pipeline below was reading a /var/log/journal that did not exist
+    # inside the container. See #213.
     controller:
       type: daemonset
 
-    mounts:
-      varlog: true
-      extra:
-        - name: journal
-          mountPath: /var/log/journal
-          readOnly: true
-        - name: machine-id
-          mountPath: /etc/machine-id
-          readOnly: true
-
-    extraVolumes:
-      - name: journal
-        hostPath:
-          path: /var/log/journal
-          type: Directory
-      - name: machine-id
-        hostPath:
-          path: /etc/machine-id
-          type: File
-
-    resources:
-      requests:
-        cpu: 50m
-        memory: 64Mi
-      limits:
-        cpu: 100m
-        memory: 128Mi
+      volumes:
+        extra:
+          - name: journal
+            hostPath:
+              path: /var/log/journal
+              type: Directory
+          - name: machine-id
+            hostPath:
+              path: /etc/machine-id
+              type: File
 
     alloy:
+      mounts:
+        varlog: true
+        extra:
+          - name: journal
+            mountPath: /var/log/journal
+            readOnly: true
+          - name: machine-id
+            mountPath: /etc/machine-id
+            readOnly: true
+
+      # Observed at ~95MB heap / 155Mi working set while running unconstrained,
+      # so 128Mi would have started OOMKilling this the moment a limit actually
+      # applied. GOMEMLIMIT sits below the ceiling so the Go runtime collects
+      # harder as it approaches rather than being SIGKILLed.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+
+      extraEnv:
+        - name: GOMEMLIMIT
+          value: 230MiB
+
       extraArgs:
         - --disable-reporting
         - --stability.level=public-preview

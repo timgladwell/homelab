@@ -75,6 +75,19 @@ spec:
           cpu: 500m
           memory: 768Mi
 
+      # Raising the limit alone only moves the cliff. GOMEMLIMIT gives the Go
+      # runtime a soft ceiling below the hard one, so as the heap approaches it
+      # the collector collects more aggressively instead of being SIGKILLed —
+      # an OOM becomes a slowdown, which is the right failure mode for the
+      # component whose death hides every other signal.
+      #
+      # Akron runs at ~460MB heap / 524Mi working set against the 768Mi limit;
+      # Eastbank at ~270MB. 690MiB leaves headroom at the larger site while
+      # staying comfortably under the cgroup limit at both.
+      extraEnv:
+        - name: GOMEMLIMIT
+          value: 690MiB
+
       configMap:
         create: true
         # yamllint disable rule:line-length
