@@ -2,7 +2,9 @@
 
 ## Background
 
-Flux authenticates to GitHub via the `flux-system` Secret in the `flux-system` namespace, referenced by the `flux-system` `GitRepository` source (`clusters/homelab/flux-system/gotk-sync.yaml`). It holds a `username`/`password` pair where `password` is the PAT.
+Flux authenticates to GitHub via the `flux-system` Secret in the `flux-system` namespace, referenced by the `flux-system` `GitRepository` source (`clusters/<site>/flux-system/gotk-sync.yaml`). It holds a `username`/`password` pair where `password` is the PAT.
+
+**Each site has its own Secret, so rotation is per-site.** Nothing is shared between Akron and Eastbank — repeat the process below against each cluster in turn.
 
 **Do not use `flux bootstrap` to rotate the token.** Bootstrap also diffs and re-applies the Flux component manifests and commits/pushes any drift directly to `main`, which branch protection blocks (same reason it's banned for [Flux Upgrades](flux-upgrades.md) above). Rotating the token only requires updating the Secret — it's cluster credential state, not GitOps-managed config, so a direct `kubectl apply` is the correct tool here, not a repo change.
 

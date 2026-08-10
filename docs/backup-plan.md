@@ -106,7 +106,7 @@ All repos initialised with `--compression auto` (zstd, restic 0.14+). Benefits P
 ## Files to Create
 
 ```
-infrastructure/homelab/backup/
+sites/akron/backup/
   kustomization.yaml
   namespace.yaml                  # namespace: backup
   backup-pv.yaml                  # 4 static PVs (pihole/prometheus/grafana/loki repos)
@@ -136,8 +136,10 @@ docs/runbooks/
 
 | File | Change |
 |------|--------|
-| `infrastructure/homelab/kustomization.yaml` | Add `- ./backup` |
-| `clusters/homelab/cluster-vars.yaml` | Add `PROMETHEUS_PVC_PATH`, `GRAFANA_PVC_PATH`, `LOKI_PVC_PATH` |
+| `clusters/akron/backup.yaml` | New Flux `Kustomization` → `./sites/akron/backup`, plus an entry in `clusters/akron/kustomization.yaml` (see CLAUDE.md, *Adding a new top-level Flux Kustomization*) |
+| `clusters/akron/cluster-vars.yaml` | Add `PROMETHEUS_PVC_PATH`, `GRAFANA_PVC_PATH`, `LOKI_PVC_PATH` |
+
+Akron-only: it is the only site that stores observability data, so nothing here belongs in `base/`.
 
 ---
 
