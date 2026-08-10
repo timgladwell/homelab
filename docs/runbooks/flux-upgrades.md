@@ -6,9 +6,11 @@ Renovate's `flux` manager regenerates the **entire** `gotk-components.yaml` for 
 
 Confirm the diff really is a regeneration before trusting it: it must move the `# Flux Version:` header **and** carry CRD or schema hunks. If the only changes are `app.kubernetes.io/version` labels and `image:` tags, Renovate did not regenerate — see [Regenerating by hand](#regenerating-by-hand).
 
-The four checks below are what "review" means. They are all answerable from git and the release notes; none require cluster access.
+The five checks below are what "review" means. They are all answerable from git and the release notes; none require cluster access.
 
-## The four checks
+> **Validation passing is not evidence the upgrade is safe.** `flux build` uses the Flux **CLI**, and the CLI and the controllers do not always behave identically — see [check 5](#5-behaviour-changes-in-substitution). CI went green on the v2.9.4 upgrade and Akron's `monitoring` Kustomization broke on merge. The checks below are the real gate.
+
+## The five checks
 
 ### 1. Removed APIs
 
@@ -53,6 +55,38 @@ If brew's stable has already moved past the version you are shipping, install th
 ```bash
 FLUX_VERSION=<x.y.z> curl -s https://fluxcd.io/install.sh | bash
 ```
+
+### 5. Behaviour changes in substitution
+
+The checks above ask what the release *removed*. This one asks what it made **stricter**, which is the failure mode that actually bit.
+
+Scan the release notes for anything touching `postBuild`, `substitute`, `substituteFrom`, `substituteStrategy` or envsubst. v2.9 shipped "Honor `ks.spec.postBuild.substituteStrategy`", which reads like a small fix and was not:
+
+- **On v2.8.8**, an undefined `${var}` was left alone. Harmless.
+- **On v2.9.4**, kustomize-controller substitutes in **strict mode** — one undefined variable fails the entire Kustomization.
+
+Akron carried ~591 Grafana template variables (`${datasource}`, `${ds_prometheus}`) inside dashboard JSON. All harmless for months, all fatal the moment v2.9.4 reconciled:
+
+```
+post build failed for 'ConfigMap.v1.[noGrp]/dashboard-node-exporter-full':
+envsubst error: variable substitution failed: variable not set (strict mode): "ds_prometheus"
+```
+
+**`flux build` does not reproduce this.** The 2.9.4 CLI is lenient about undefined variables while the controller is strict, so validation step 2 exits 0 on manifests that break the cluster. Step 7 (`07-variable-check.sh`) is the only defense, and only because it now scans case-insensitively — the original uppercase-only pattern could not see a lowercase `${ds_prometheus}`.
+
+So when a release touches substitution, verify by reading step 7's output rather than trusting a green run:
+
+```bash
+./scripts/validate/03-kustomize-build.sh && ./scripts/validate/07-variable-check.sh
+```
+
+Any resource whose `${...}` belongs to the target application rather than to Flux must opt out explicitly, and then Flux never touches it:
+
+```yaml
+kustomize.toolkit.fluxcd.io/substitute: disabled
+```
+
+Escaping variables one at a time with `$$` is **not** the fix — that was tried in #90 and #107 and left the mechanism in place for the next dashboard to trip over. Worse, once a resource opts out, nothing unescapes `$$` any more, so old escapes become literal.
 
 Then run `./scripts/validate-k3s.sh` and merge.
 
