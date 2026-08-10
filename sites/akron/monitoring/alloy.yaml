@@ -34,9 +34,21 @@ spec:
 
       volumes:
         extra:
+          # /run/log/journal, not /var/log/journal. journald here runs in
+          # volatile mode: /var/log/journal exists but is empty, and the actual
+          # journal lives on tmpfs under /run. Raspberry Pi OS Lite is built for
+          # SD-card longevity, so this is the image doing the right thing.
+          #
+          # Reading the volatile journal is also the correct choice rather than
+          # a workaround. Enabling persistent journald would put a continuous
+          # write stream on the boot medium — the exact wear pattern that keeps
+          # every non-Akron site from running a Prometheus TSDB. Alloy ships to
+          # Loki within seconds, so Loki is the durable copy and the local
+          # journal only has to survive long enough to be read. The cost is the
+          # few seconds of entries not yet shipped when a node reboots.
           - name: journal
             hostPath:
-              path: /var/log/journal
+              path: /run/log/journal
               type: Directory
           - name: machine-id
             hostPath:
@@ -48,7 +60,7 @@ spec:
         varlog: true
         extra:
           - name: journal
-            mountPath: /var/log/journal
+            mountPath: /run/log/journal
             readOnly: true
           - name: machine-id
             mountPath: /etc/machine-id
@@ -125,7 +137,7 @@ spec:
           }
 
           loki.source.journal "system" {
-            path          = "/var/log/journal"
+            path          = "/run/log/journal"
             forward_to    = [loki.write.default.receiver]
             relabel_rules = discovery.relabel.journal.rules
             labels = {
