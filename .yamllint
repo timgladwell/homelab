@@ -1,10 +1,15 @@
 ---
 extends: default
 
+# .claude/ below: Claude Code tooling (agent/skill defs, and nested git
+# worktrees under .claude/worktrees/), not cluster manifests. A worktree's
+# own content is validated from within its own checkout, not by a scan
+# reaching in from the main tree.
 ignore: |
   clusters/*/flux-system
   base/system-upgrade-controller
   **/*.sops.yaml
+  .claude
 
 rules:
   line-length:

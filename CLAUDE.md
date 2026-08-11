@@ -25,6 +25,8 @@ After any change to manifests, run the full validation pipeline from the repo ro
 ./scripts/validate-k3s.sh
 ```
 
+**When Claude Code runs this pipeline, delegate to the `manifest-validator` subagent** (`.claude/agents/manifest-validator.md`) rather than running `./scripts/validate-k3s.sh` inline. It keeps the full step-by-step tool output (yamllint, trivy, kubeconform, etc.) out of the main conversation and reports back using the fixed pass/fail format defined in the preloaded `flux-validation-conventions` skill (`.claude/skills/flux-validation-conventions/`).
+
 This runs eleven steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
 1. **YAML lint** — `yamllint` against all files (ignores each site's `flux-system/` and `*.sops.yaml`)
 2. **Flux build** — `flux build kustomization --dry-run` for each Flux Kustomization, for each site
