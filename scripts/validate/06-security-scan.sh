@@ -11,8 +11,14 @@ trap 'rm -f "$JSON" "$ERR"' EXIT
 # .claude/ is Claude Code tooling (agent/skill defs, nested git worktrees),
 # not cluster manifests — a worktree's content is scanned from within its
 # own checkout, not by this scan reaching in from the main tree.
-trivy config ./ --ignorefile .trivyignore.yaml --skip-dirs .claude --format json \
-    > "$JSON" 2> "$ERR"
+# --skip-version-check: keeping trivy current is Renovate's job, driven by the
+# `# renovate:` comment on the pin in .github/workflows/validate.yml. Scraping
+# "a newer trivy is available" out of stderr answered the wrong question anyway
+# — it compared local against latest, when what matters is local against the
+# version CI will use — and it would have silently stopped matching the day
+# Aqua reworded the notice.
+trivy config ./ --ignorefile .trivyignore.yaml --skip-dirs .claude \
+    --skip-version-check --format json > "$JSON" 2> "$ERR"
 rc=$?
 
 # No --exit-code is passed, so trivy returns 0 even with findings (they're read
@@ -26,11 +32,6 @@ if [[ $rc -ne 0 ]]; then
     cat "$ERR"
     exit 1
 fi
-
-# Tool upgrade notices land on stderr and would otherwise be lost entirely —
-# only failing steps get their output reported upstream, and a clean scan
-# still deserves to surface "a newer trivy exists" to whoever's watching.
-grep 'is now available' "$ERR" | sed 's/^/NOTICE: /'
 
 fail=0
 

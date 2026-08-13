@@ -32,13 +32,13 @@ script printed them:
 | Policy (conftest) | PASS |
 | CRD Availability | PASS |
 | Security Scan | FAIL |
-| Dependabot Coverage | PASS |
+| Dependency Coverage | PASS |
 | Secrets Encrypted | PASS |
 ```
 
 That is the order `validate-k3s.sh` prints — the three build-gated steps
 (Variable References, Policy, CRD Availability) run *before* Security Scan,
-Dependabot Coverage and Secrets Encrypted, not after.
+Dependency Coverage and Secrets Encrypted, not after.
 
 Below the table:
 
@@ -52,10 +52,9 @@ Below the table:
   this pipeline must stay a fast, stateless "run script, report result"
   operation. If the cause isn't obvious from the output text, say so and
   report the raw error instead of guessing.
-- Never paste output from PASS or SKIP steps — **except** any line starting
-  with `NOTICE:` (e.g. a tool-upgrade notice from the Security Scan step).
-  Always surface those verbatim under their own "Notices" heading, even when
-  every step passed, so they don't get lost inside a passing step's output.
+- Never paste output from PASS or SKIP steps. Nothing in a passing step needs
+  reporting — tool-version drift is handled by the Renovate pins in
+  `.github/workflows/validate.yml`, not by anything this pipeline prints.
 - Ignore the `CHECKED <n> <noun>` line each step prints; it feeds the harness's
   coverage invariant, not the report. The exception is a step that failed
   *because* of it — `checked 0 items` or `printed no CHECKED line`. That is not
