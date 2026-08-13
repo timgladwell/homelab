@@ -48,6 +48,16 @@ Below the table:
   this pipeline must stay a fast, stateless "run script, report result"
   operation. If the cause isn't obvious from the output text, say so and
   report the raw error instead of guessing.
-- Never paste output from PASS or SKIP steps.
+- Never paste output from PASS or SKIP steps — **except** any line starting
+  with `NOTICE:` (e.g. a tool-upgrade notice from the Security Scan step).
+  Always surface those verbatim under their own "Notices" heading, even when
+  every step passed, so they don't get lost inside a passing step's output.
+- Every severity is a failure, not just HIGH/CRITICAL or "warning" grades —
+  the underlying scripts already enforce this (trivy runs unfiltered by
+  severity, kube-score treats any non-OK grade as a finding, conftest runs
+  with `--fail-on-warn`). Don't second-guess a FAIL by re-triaging severity;
+  report it as failed and let the calling conversation decide whether to add
+  an ignore-rule (`.trivyignore.yaml`, a kube-score `--ignore-test`, or a
+  conftest policy exception).
 
 End with the script's own final summary line (`Passed: N  Failed: N  Skipped: N`).

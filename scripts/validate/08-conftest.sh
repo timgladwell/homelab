@@ -17,6 +17,7 @@ for site in $(sites); do
     conftest test "$BUILD_OUTPUT" \
         --policy "$REPO_ROOT/policy" \
         --all-namespaces \
+        --fail-on-warn \
         --no-color || fail=1
 done
 exit $fail
