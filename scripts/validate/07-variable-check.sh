@@ -9,12 +9,14 @@ cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"
 
 fail=0
+checked=0
 for site in $(sites); do
     BUILD_OUTPUT="${BUILD_DIR}/k3s-built-${site}.yaml"
     if [[ ! -f "$BUILD_OUTPUT" ]]; then
         echo "ERROR: $BUILD_OUTPUT not found — run 03-kustomize-build.sh first" >&2
         exit 1
     fi
+    checked=$((checked + 1))
     CLUSTER_VARS="${REPO_ROOT}/clusters/${site}/cluster-vars.yaml"
 
     # Resources that opt out of Flux substitution are dropped before scanning:
@@ -49,4 +51,5 @@ for site in $(sites); do
         echo "$used" | sed 's/^/  ✓ /'
     fi
 done
+echo "CHECKED $checked sites"
 exit $fail

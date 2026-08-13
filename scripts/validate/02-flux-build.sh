@@ -11,10 +11,12 @@ cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"
 
 fail=0
+checked=0
 
 for site in $(sites); do
     while read -r ks path; do
         [[ -n "$ks" ]] || continue
+        checked=$((checked + 1))
         if ! output=$(flux build kustomization "$ks" \
             --path "$path" \
             --kustomization-file "./clusters/${site}/${ks}.yaml" \
@@ -27,4 +29,5 @@ for site in $(sites); do
     done < <(site_kustomizations "$site")
 done
 
+echo "CHECKED $checked kustomizations"
 exit $fail

@@ -29,6 +29,7 @@ source "$(dirname "$0")/lib-sites.sh"
 BUILTIN='^(v1|apps|batch|policy|autoscaling|rbac\.authorization\.k8s\.io|networking\.k8s\.io|storage\.k8s\.io|apiextensions\.k8s\.io|admissionregistration\.k8s\.io|coordination\.k8s\.io|discovery\.k8s\.io|scheduling\.k8s\.io|node\.k8s\.io|certificates\.k8s\.io|events\.k8s\.io|(helm|kustomize|source|notification|image)\.toolkit\.fluxcd\.io)$'
 
 fail=0
+checked=0
 
 for site in $(sites); do
     while read -r ks path; do
@@ -36,6 +37,7 @@ for site in $(sites); do
 
         # Only Kustomizations that run first, with nothing to depend on.
         grep -q '^  dependsOn:' "clusters/${site}/${ks}.yaml" && continue
+        checked=$((checked + 1))
 
         built=$(kustomize build "$path" 2>/dev/null) || {
             echo "✗ [$site] $ks: kustomize build $path failed"
@@ -78,4 +80,5 @@ for site in $(sites); do
     done < <(site_kustomizations "$site")
 done
 
+echo "CHECKED $checked dependency-free kustomizations"
 exit $fail

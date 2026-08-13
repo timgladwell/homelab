@@ -42,8 +42,8 @@ while read -r file; do
     echo "✓ $file"
 done <<< "$(git ls-files '*secret*.yaml' '*secret*.yml')"
 
-if [[ $found -eq 0 ]]; then
-    echo "No secret files found — nothing to check."
-fi
-
+# Zero secret files is not a legitimate pass here: this repo has them, so an
+# empty result means the git ls-files patterns stopped matching, not that the
+# tree became clean. The harness fails the step on CHECKED 0.
+echo "CHECKED $found secret files"
 exit $fail

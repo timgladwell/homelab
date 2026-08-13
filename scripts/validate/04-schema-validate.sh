@@ -12,12 +12,14 @@ BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 SKIP_KINDS="CustomResourceDefinition,Kustomization,GitRepository"
 
 fail=0
+checked=0
 for site in $(sites); do
     BUILD_OUTPUT="${BUILD_DIR}/k3s-built-${site}.yaml"
     if [[ ! -f "$BUILD_OUTPUT" ]]; then
         echo "ERROR: $BUILD_OUTPUT not found — run 03-kustomize-build.sh first" >&2
         exit 1
     fi
+    checked=$((checked + 1))
     echo "--- $site ---"
     kubeconform \
         -skip "$SKIP_KINDS" \
@@ -25,4 +27,5 @@ for site in $(sites); do
         -summary \
         "$BUILD_OUTPUT" || fail=1
 done
+echo "CHECKED $checked sites"
 exit $fail

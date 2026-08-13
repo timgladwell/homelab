@@ -12,9 +12,11 @@ source "$(dirname "$0")/lib-sites.sh"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 
 fail=0
+checked=0
 for site in $(sites); do
     out="${BUILD_DIR}/k3s-built-${site}.yaml"
     : > "$out"
+    checked=$((checked + 1))
 
     # Flux bootstrap manifests, cluster-vars, and the Kustomization objects.
     if ! kustomize build "./clusters/${site}" >> "$out"; then
@@ -24,6 +26,7 @@ for site in $(sites); do
 
     while read -r ks path; do
         [[ -n "$ks" ]] || continue
+        checked=$((checked + 1))
         echo "---" >> "$out"
         if ! kustomize build "$path" >> "$out"; then
             echo "✗ [$site] kustomize build $path ($ks) failed"
@@ -31,4 +34,5 @@ for site in $(sites); do
         fi
     done < <(site_kustomizations "$site")
 done
+echo "CHECKED $checked builds"
 exit $fail
