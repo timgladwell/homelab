@@ -3,8 +3,12 @@
 # addresses on Akron's LAN. Global groups/blocklists live in
 # base/pihole-sync/pihole-config.yaml.
 clients:
-  - address: "10.6.30.10"
+  - address: "10.6.30.100"
     comment: Roku
     groups:
       - Default
-      - Streaming Devices
+      - Streaming Device Addons
+  - address: "10.6.30.110"
+    comment: Jennifer's laptop
+    groups:
+      - Browser Adblock Only Clients

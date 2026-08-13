@@ -10,4 +10,4 @@ clients:
     comment: Chromecast
     groups:
       - Default
-      - Streaming Devices
+      - Streaming Device Addons
