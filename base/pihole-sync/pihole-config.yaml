@@ -6,13 +6,16 @@
 # and live in sites/<site>/dns-config/pihole-clients.yaml, merged into the same
 # generated ConfigMap. sync.py requires that file to exist.
 groups:
-  - name: Streaming Devices
+  # Additional allow-list configurations for streaming devices.
+  - name: Streaming Device Addons
+  # Clients who want relaxed adblocking.
+  - name: Browser Adblock Only Clients
 
 allow_domains:
   - domain: tags.tiqcdn.com
     comment: Otherwise Paramount Plus doesn't remember where you left off
     groups:
-      - Streaming Devices
+      - Streaming Device Addons
 
 block_domains: []
 
@@ -21,161 +24,160 @@ allow_lists:
     comment: So you can click on links like Google ads and link shorteners
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
 block_lists:
   - url: https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling/hosts
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/tif.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/fake.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.plus.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/gambling.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/spam-tlds-adblock.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/dyndns.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd7.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd14-8.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd21-15.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd28-22.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd35-29.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/hoster.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/doh-vpn-proxy-bypass.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/anti.piracy.txt
     groups:
       - Default
-      - Streaming Devices
 
   # yamllint disable-line rule:line-length
   - url: https://raw.githubusercontent.com/DandelionSprout/adfilt/master/Alternate%20versions%20Anti-Malware%20List/AntiMalwareAdGuardHome.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://big.oisd.nl
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://urlhaus.abuse.ch/downloads/hostfile/
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_50.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://threatfox.abuse.ch/downloads/hostfile/
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/RPiList/specials/master/Blocklisten/malware
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/RPiList/specials/master/Blocklisten/easylist
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://v.firebog.net/hosts/Prigent-Crypto.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://hostfiles.frogeye.fr/firstparty-trackers-hosts.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://s3.amazonaws.com/lists.disconnect.me/simple_malvertising.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/blocklistproject/Lists/master/crypto.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_7.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://adaway.org/hosts.txt
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/Turtlecute33/adblocktest/master/src/d3host.adblock
     groups:
       - Default
-      - Streaming Devices
+      - Browser Adblock Only Clients
