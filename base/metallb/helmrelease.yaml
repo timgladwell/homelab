@@ -24,6 +24,11 @@ spec:
     remediation:
       retries: 3
   values:
+    # We only use L2Advertisement (see base/metallb-config/), never BGP, so
+    # the frr-k8s BGP daemon set is dead weight on the RPi — and it ships
+    # with no resource requests/limits, which would break a ResourceQuota.
+    frrk8s:
+      enabled: false
     # Resource limits appropriate for RPi 4B
     controller:
       resources:

@@ -29,6 +29,9 @@ spec:
       # LoadBalancer service. RollingUpdate is now safe because the old pod stays
       # alive (serving DNS) until the new pod passes its readiness probe.
       dnsPolicy: ClusterFirst
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: pihole
           image: pihole/pihole:2026.07.2

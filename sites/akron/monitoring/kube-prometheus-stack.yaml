@@ -63,6 +63,16 @@ spec:
         limits:
           cpu: 1000m
           memory: 768Mi
+      # initChownData has no resources by chart default; the ResourceQuota on
+      # this namespace requires every pod to declare them.
+      initChownData:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
 
     prometheus:
       prometheusSpec:
@@ -139,6 +149,18 @@ spec:
         limits:
           cpu: 200m
           memory: 256Mi
+      # The webhook cert patch Job (a Helm hook) has no resources by chart
+      # default; the ResourceQuota on this namespace requires every pod to
+      # declare them.
+      admissionWebhooks:
+        patch:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
 
     kubeControllerManager:
       enabled: false

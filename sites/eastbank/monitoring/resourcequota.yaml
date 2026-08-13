@@ -1,0 +1,15 @@
+---
+# Eastbank only runs base/metrics-collection/ (collect and ship, store
+# nothing) so this quota is far smaller than Akron's — see
+# sites/akron/monitoring/resourcequota.yaml.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: monitoring
+  namespace: monitoring
+spec:
+  hard:
+    requests.cpu: 300m
+    requests.memory: 512Mi
+    limits.cpu: "1"
+    limits.memory: 1536Mi

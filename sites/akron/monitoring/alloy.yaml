@@ -29,6 +29,17 @@ spec:
     # correct and rendered a container with no limits and no host mounts. The
     # journal pipeline below was reading a /var/log/journal that did not exist
     # inside the container. See #213.
+    # The chart's configReloader default sets requests but no limits; the
+    # ResourceQuota on this namespace requires both.
+    configReloader:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 50Mi
+        limits:
+          cpu: 50m
+          memory: 100Mi
+
     controller:
       type: daemonset
 

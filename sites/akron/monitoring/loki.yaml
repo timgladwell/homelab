@@ -61,6 +61,14 @@ spec:
           cpu: 300m
           memory: 512Mi
 
+    # The rules sidecar watches for ConfigMaps/Secrets labeled loki_rule to load
+    # alerting/recording rules. Nothing in this repo creates one — no alerting
+    # exists yet (#214) — so it's an idle container with no resources by chart
+    # default, which the ResourceQuota on this namespace would otherwise reject.
+    sidecar:
+      rules:
+        enabled: false
+
     chunksCache:
       enabled: false
 
