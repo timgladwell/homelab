@@ -1,0 +1,16 @@
+---
+# Sized with headroom over the sum of every container's declared limits in
+# this namespace (collectors + Prometheus/Grafana/Loki/Alertmanager/Unpoller):
+# roughly 3.5 CPU / 5.4Gi at press time. Akron is the only site that stores
+# observability data, hence the much larger quota than Eastbank's.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: monitoring
+  namespace: monitoring
+spec:
+  hard:
+    requests.cpu: 1200m
+    requests.memory: 3Gi
+    limits.cpu: "4"
+    limits.memory: 6Gi

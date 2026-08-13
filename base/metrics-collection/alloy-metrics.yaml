@@ -33,6 +33,17 @@ spec:
         namespace: monitoring
       interval: 12h
   values:
+    # The chart's configReloader default sets requests but no limits; the
+    # ResourceQuota on this namespace requires both.
+    configReloader:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 50Mi
+        limits:
+          cpu: 50m
+          memory: 100Mi
+
     controller:
       type: statefulset
       replicas: 1

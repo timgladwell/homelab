@@ -5,6 +5,7 @@ resources:
   # Namespace, HelmRepositories and the metrics collector are shared with every
   # other site. Akron additionally stores what it collects.
   - ../../../base/metrics-collection
+  - resourcequota.yaml
   - kube-prometheus-stack.yaml
   - grafana-secret.sops.yaml
   - grafana-ingressroute.yaml
