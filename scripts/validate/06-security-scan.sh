@@ -13,6 +13,19 @@ trap 'rm -f "$JSON" "$ERR"' EXIT
 # own checkout, not by this scan reaching in from the main tree.
 trivy config ./ --ignorefile .trivyignore.yaml --skip-dirs .claude --format json \
     > "$JSON" 2> "$ERR"
+rc=$?
+
+# No --exit-code is passed, so trivy returns 0 even with findings (they're read
+# out of the JSON below). Any non-zero status is therefore a real tool failure —
+# a missing ignorefile, a bad flag — and the explanation is on stderr. Without
+# this, such a run leaves empty stdout, `jq -r .SchemaVersion` on an empty file
+# succeeds with empty output, and the script reports a bogus schema change while
+# the actual FATAL sits unread in $ERR.
+if [[ $rc -ne 0 ]]; then
+    echo "ERROR: trivy exited $rc"
+    cat "$ERR"
+    exit 1
+fi
 
 # Tool upgrade notices land on stderr and would otherwise be lost entirely —
 # only failing steps get their output reported upstream, and a clean scan
@@ -34,18 +47,6 @@ if [[ "$schema_version" != "2" ]]; then
     exit 1
 fi
 
-# A target with no checks run at all ("- Not scanned" in trivy's table view)
-# hides a real coverage gap behind what looks like a clean pass.
-not_scanned=$(jq -r '.Results[]? | select((.MisconfSummary.Successes // 0) == 0 and (.MisconfSummary.Failures // 0) == 0) | .Target' "$JSON") || {
-    echo "ERROR: failed to parse trivy JSON output — schema may have changed"
-    exit 1
-}
-if [[ -n "$not_scanned" ]]; then
-    echo "Not scanned (no checks ran):"
-    echo "$not_scanned" | sed 's/^/  /'
-    fail=1
-fi
-
 # One line per finding instead of trivy's full remediation text and code
 # snippets — file/rule/severity/title is enough to act on; the avd.aquasec.com
 # link trivy prints per-finding has the rest if it's needed.
@@ -57,5 +58,11 @@ if [[ -n "$findings" ]]; then
     echo "$findings"
     fail=1
 fi
+
+# Number of targets trivy actually scanned. A scan that matches no files exits 0
+# and emits schema-2 JSON with no Results key at all, which would otherwise be a
+# silent PASS — an over-broad --skip-dirs or a cwd change turns the whole step
+# into a no-op. The harness fails any step reporting 0 here.
+echo "CHECKED $(jq -r '.Results | length // 0' "$JSON") targets"
 
 exit $fail

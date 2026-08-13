@@ -8,42 +8,36 @@ source "$(dirname "$0")/lib-sites.sh"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 
 fail=0
+checked=0
 for site in $(sites); do
     BUILD_OUTPUT="${BUILD_DIR}/k3s-built-${site}.yaml"
     if [[ ! -f "$BUILD_OUTPUT" ]]; then
         echo "ERROR: $BUILD_OUTPUT not found — run 03-kustomize-build.sh first" >&2
         exit 1
     fi
+    checked=$((checked + 1))
 
-    # JSON + jq instead of the human table: a passing run has hundreds of
-    # per-object/per-check [OK] lines that add nothing once every one of
-    # them is OK. Only checks that didn't pass are worth printing.
-    # --output-version pins the JSON shape so a kube-score upgrade can't
-    # silently change field names out from under the jq query below.
-    json=$(kube-score score -o json --output-version v2 "$BUILD_OUTPUT" 2>&1) || {
-        echo "--- $site ---"
-        echo "$json"
-        fail=1
-        continue
-    }
-
-    findings=$(jq -r '
-        .[] | .object_name as $o |
-        .checks[] | select(.skipped == false and .grade < 10) |
-        "\($o): \(.check.id) (grade \(.grade)) " +
-        ([.comments[]?.summary] | join("; "))
-    ' <<<"$json") || {
-        # A jq error here almost always means kube-score's JSON shape
-        # changed — fail loudly instead of silently reporting no findings.
-        echo "--- $site ---"
-        echo "ERROR: failed to parse kube-score JSON output — schema may have changed"
-        fail=1
-        continue
-    }
-    if [[ -n "$findings" ]]; then
+    # kube-score's own `ci` format, which is already one line per check:
+    #   [CRITICAL] pihole/dns apps/v1/Deployment: (pihole) CPU limit is not set
+    # Dropping the [OK] and [SKIPPED] lines leaves exactly the findings, with
+    # severity, object and container intact — no parsing, so nothing here can
+    # break when kube-score's internals change.
+    #
+    # Deliberately not the JSON or SARIF output. SARIF looks like the portable
+    # choice and is not: kube-score's SARIF drops the object name entirely and
+    # points every finding at line 1 of the file, which for a concatenated
+    # per-site build means every finding has the same useless location.
+    #
+    # --exit-one-on-warning is what makes warnings errors. Use --ignore-test
+    # here if a specific check doesn't apply; never a grade threshold.
+    output=$(kube-score score --exit-one-on-warning -o ci "$BUILD_OUTPUT" 2>&1)
+    rc=$?
+    findings=$(grep -vE '^\[(OK|SKIPPED)\]' <<< "$output")
+    if [[ $rc -ne 0 || -n "$findings" ]]; then
         echo "--- $site ---"
         echo "$findings"
         fail=1
     fi
 done
+echo "CHECKED $checked sites"
 exit $fail

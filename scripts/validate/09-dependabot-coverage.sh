@@ -26,8 +26,10 @@ found=$(grep -rlE "$IMAGE_RE" base/ sites/ --include='*.yaml' 2>/dev/null \
     | xargs -n1 dirname 2>/dev/null | sort -u)
 
 fail=0
+checked=0
 while read -r dir; do
     [[ -n "$dir" ]] || continue
+    checked=$((checked + 1))
     if ! grep -qxF "$dir" <<< "$listed"; then
         echo "✗ $dir has a pinned image but is not in $CONFIG"
         grep -nE "$IMAGE_RE" "$dir"/*.yaml | sed 's/^/    /'
@@ -49,4 +51,7 @@ while read -r dir; do
     fi
 done <<< "$listed"
 
+# Directories with a pinned image. Zero means the image-matching regex stopped
+# matching — which would otherwise read as "every image is covered".
+echo "CHECKED $checked image directories"
 exit $fail

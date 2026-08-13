@@ -28,13 +28,17 @@ script printed them:
 | Kustomize Build | PASS |
 | Schema Validation | PASS |
 | Best Practices | PASS |
+| Variable References | PASS |
+| Policy (conftest) | PASS |
+| CRD Availability | PASS |
 | Security Scan | FAIL |
 | Dependabot Coverage | PASS |
 | Secrets Encrypted | PASS |
-| Variable References | SKIP (kustomize build failed) |
-| Policy (conftest) | SKIP (kustomize build failed) |
-| CRD Availability | SKIP (kustomize build failed) |
 ```
+
+That is the order `validate-k3s.sh` prints — the three build-gated steps
+(Variable References, Policy, CRD Availability) run *before* Security Scan,
+Dependabot Coverage and Secrets Encrypted, not after.
 
 Below the table:
 
@@ -52,6 +56,12 @@ Below the table:
   with `NOTICE:` (e.g. a tool-upgrade notice from the Security Scan step).
   Always surface those verbatim under their own "Notices" heading, even when
   every step passed, so they don't get lost inside a passing step's output.
+- Ignore the `CHECKED <n> <noun>` line each step prints; it feeds the harness's
+  coverage invariant, not the report. The exception is a step that failed
+  *because* of it — `checked 0 items` or `printed no CHECKED line`. That is not
+  a manifest problem, it means the step validated nothing (usually site or
+  layer discovery came back empty), so report it as its own failure and say so
+  plainly rather than looking for a manifest to blame.
 - Every severity is a failure, not just HIGH/CRITICAL or "warning" grades —
   the underlying scripts already enforce this (trivy runs unfiltered by
   severity, kube-score treats any non-OK grade as a finding, conftest runs

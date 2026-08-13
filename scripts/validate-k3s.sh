@@ -27,6 +27,31 @@ run_step() {
 
     echo "$output"
 
+    # Coverage invariant. Every step ends with "CHECKED <n> <noun>" saying how
+    # many things it actually looked at, and a step that looked at nothing is a
+    # failure regardless of its exit code.
+    #
+    # This exists because the pipeline discovers its own work: sites come from a
+    # sites/*/ glob, layers from the Flux Kustomization objects. Discovery
+    # returning empty makes every per-site loop iterate zero times and exit 0 —
+    # five steps report PASS having validated nothing. Same shape of bug as a
+    # scan whose file matcher stops matching, or an over-broad --skip-dirs.
+    # One check here covers all of them, and covers steps added later for free.
+    local checked
+    checked=$(grep -oE '^CHECKED [0-9]+' <<< "$output" | tail -1 | awk '{print $2}')
+    if [[ -z "$checked" ]]; then
+        echo "[FAIL] $name — step printed no CHECKED line (see the coverage invariant in validate-k3s.sh)"
+        RESULTS+=("FAIL  $name (no CHECKED line)")
+        ((FAIL++))
+        return 1
+    fi
+    if [[ "$checked" -eq 0 ]]; then
+        echo "[FAIL] $name — checked 0 items; nothing was validated"
+        RESULTS+=("FAIL  $name (checked nothing)")
+        ((FAIL++))
+        return 1
+    fi
+
     if [[ $exit_code -eq 0 ]]; then
         echo "[PASS] $name"
         RESULTS+=("PASS  $name")

@@ -32,8 +32,8 @@ This runs eleven steps in order, **per site** (Akron, Eastbank — each reconcil
 2. **Flux build** — `flux build kustomization --dry-run` for each Flux Kustomization, for each site
 3. **Kustomize build** — `kustomize build` of the site's entry point and each of its layers, concatenated into `$K3S_BUILD_DIR/k3s-built-<site>.yaml`
 4. **Schema validation** — `kubeconform -summary` against each site's built output
-5. **Best practices** — `kube-score score` against each site's built output
-6. **Security scan** — `trivy config ./ --severity HIGH,CRITICAL` (whole repo, not per-site)
+5. **Best practices** — `kube-score score --exit-one-on-warning` against each site's built output
+6. **Security scan** — `trivy config ./` at every severity (whole repo, not per-site)
 9. **Dependabot coverage** — every directory with a pinned `image:` must be listed in `.github/dependabot.yml`, and every listed directory must exist (whole repo, not per-site)
 10. **Secrets encrypted** — every `*secret*.yaml` tracked by git must have `sops:` metadata and `ENC[]` values (whole repo, not per-site)
 11. **CRD availability** — a Flux Kustomization with no `dependsOn` may only use custom resources whose CRDs it installs itself
@@ -41,6 +41,12 @@ This runs eleven steps in order, **per site** (Akron, Eastbank — each reconcil
 8. **Policy** — `conftest test` against each site's built output using policies in `policy/`
 
 Step 2 gates steps 3–5 and 7–8. Step 3 additionally gates steps 4, 5, 7, and 8. Steps 1, 6, 9 and 10 always run independently.
+
+**Warnings are errors.** Every step fails on any finding at any severity — trivy runs unfiltered, kube-score uses `--exit-one-on-warning`, conftest uses `--fail-on-warn`. A check that genuinely doesn't apply here gets an explicit exception (`.trivyignore.yaml`, a kube-score `--ignore-test`, a conftest policy change), never a severity floor. The exception carries a reason; a threshold silently hides the next finding too.
+
+**Each step ends with a `CHECKED <n> <noun>` line, and `validate-k3s.sh` fails any step that reports zero or prints no such line.** This is the coverage invariant: because the pipeline discovers its own work (sites from a `sites/*/` glob, layers from the Flux `Kustomization` objects), discovery returning empty would make every per-site loop iterate zero times and exit 0 — five steps reporting PASS having validated nothing. The same shape of bug covers a file matcher that stops matching or an over-broad `--skip-dirs`. One check in the harness covers all of them, and covers steps added later for free — a new step just needs to print its own `CHECKED` line.
+
+**Prefer each tool's own machine-readable format over parsing its JSON.** `kube-score -o ci`, `kubeconform -summary` and `conftest -o tap` are already one line per finding, so there's nothing to break when the tool changes internally. Trivy has no line-oriented format and is the one place a `jq` query is justified — it carries a `SchemaVersion` guard so a shape change fails loudly instead of silently reporting nothing. SARIF looks like the portable answer for all of them and is not: trivy buries severity in a multi-line `message.text` and the rule title in a separate `rules[]` array, and kube-score's SARIF drops the object name entirely and points every finding at line 1.
 
 You can also check a specific kustomization in isolation:
 
