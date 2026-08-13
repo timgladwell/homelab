@@ -24,10 +24,23 @@ jobs:
       # kustomize/kubeconform/kube-score/conftest are installed by hand — flux
       # and trivy have first-party setup actions, and there is no first-party
       # action for the other four.
+      #
+      # The `# renovate:` comments are what keeps these current — see the
+      # customManagers entry in renovate.json. Dependabot cannot cover them:
+      # its github-actions ecosystem bumps `uses:` refs, not version strings
+      # in env vars or action inputs. extractVersion strips the upstream tag
+      # down to the bare version these URLs interpolate.
+      # kustomize tags as `kustomize/v5.8.1`; no trailing `$` here only to stay
+      # inside yamllint's 120-column limit — anchoring the start is what matters.
+      # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.+)
       KUSTOMIZE_VERSION: 5.8.1
+      # renovate: datasource=github-releases depName=yannh/kubeconform extractVersion=^v(?<version>.+)$
       KUBECONFORM_VERSION: 0.8.0
+      # renovate: datasource=github-releases depName=zegl/kube-score extractVersion=^v(?<version>.+)$
       KUBE_SCORE_VERSION: 1.20.0
+      # renovate: datasource=github-releases depName=open-policy-agent/conftest extractVersion=^v(?<version>.+)$
       CONFTEST_VERSION: 0.69.0
+      # renovate: datasource=pypi depName=yamllint
       YAMLLINT_VERSION: 1.38.0
 
     steps:
@@ -36,6 +49,8 @@ jobs:
       # Pinned to the version the clusters run (clusters/*/flux-system/), not
       # the newest release: CI should build the way the clusters will. Bump
       # this in the same PR that upgrades Flux — see docs/runbooks/flux-upgrades.md.
+      # Deliberately carries no `# renovate:` comment: an automated bump to the
+      # newest Flux would be the one wrong answer here.
       - name: Setup Flux CLI
         uses: fluxcd/flux2/action@main
         with:
@@ -44,6 +59,7 @@ jobs:
       - name: Setup Trivy
         uses: aquasecurity/setup-trivy@v0.3.1
         with:
+          # renovate: datasource=github-releases depName=aquasecurity/trivy
           version: v0.71.1
 
       - name: Install remaining tools

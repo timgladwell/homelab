@@ -22,6 +22,16 @@
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+version: (?<currentValue>\\S+)"
       ],
       "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
+    },
+    {
+      "description": "Validation tool versions pinned in the CI workflow — env vars and setup-action inputs. Dependabot's github-actions ecosystem only bumps `uses:` refs, so without this the pins go stale silently and CI drifts from what a developer runs locally. The Flux CLI pin is intentionally excluded: it tracks what the clusters run, not the newest release.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s+\\S+: (?<currentValue>\\S+)"
+      ]
     }
   ],
   "schedule": ["every weekend"]

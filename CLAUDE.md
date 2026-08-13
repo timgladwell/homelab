@@ -17,7 +17,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Validation
 
-**CI runs this same pipeline** on every pull request and on pushes to `main` and `stable` (`.github/workflows/validate.yml`), so it is enforced regardless of who opened the PR — including Renovate and Dependabot, whose PRs never run the local git hooks. Tool versions are pinned in the workflow; the Flux CLI pin (`version:` under the `fluxcd/flux2/action` step) deliberately tracks what the clusters run rather than the newest release.
+**CI runs this same pipeline** on every pull request and on pushes to `main` and `stable` (`.github/workflows/validate.yml`), so it is enforced regardless of who opened the PR — including Renovate and Dependabot, whose PRs never run the local git hooks. Tool versions are pinned in the workflow and kept current by Renovate via the `# renovate:` comment above each pin. The Flux CLI pin (`version:` under the `fluxcd/flux2/action` step) is deliberately the exception — it carries no such comment, because it tracks what the clusters run rather than the newest release.
+
+**A pin without a `# renovate:` comment is invisible to Renovate**, so a tool added to the workflow needs one, or it silently freezes. Dependabot cannot substitute: its `github-actions` ecosystem bumps `uses:` refs only, not version strings in env vars or action inputs.
 
 After any change to manifests, run the full validation pipeline from the repo root:
 
@@ -34,7 +36,7 @@ This runs eleven steps in order, **per site** (Akron, Eastbank — each reconcil
 4. **Schema validation** — `kubeconform -summary` against each site's built output
 5. **Best practices** — `kube-score score --exit-one-on-warning` against each site's built output
 6. **Security scan** — `trivy config ./` at every severity (whole repo, not per-site)
-9. **Dependabot coverage** — every directory with a pinned `image:` must be listed in `.github/dependabot.yml`, and every listed directory must exist (whole repo, not per-site)
+9. **Dependency coverage** — every directory with a pinned `image:` must be listed in `.github/dependabot.yml` and every listed directory must exist; and every `# renovate:` comment must be matched by a `customManagers` entry in `renovate.json` (whole repo, not per-site)
 10. **Secrets encrypted** — every `*secret*.yaml` tracked by git must have `sops:` metadata and `ENC[]` values (whole repo, not per-site)
 11. **CRD availability** — a Flux Kustomization with no `dependsOn` may only use custom resources whose CRDs it installs itself
 7. **Variable references** — every `${VAR}` in each site's build output must be defined in that site's `cluster-vars.yaml`
@@ -276,10 +278,12 @@ Apps are exposed via Traefik `IngressRoute` CRs using subdomain routing (`<app>.
 
 Two tools, non-overlapping scopes:
 
-- **Renovate** (`renovate.json`) — Helm chart versions in `HelmRelease` resources. Scoped to the `flux` manager, runs on weekends.
+- **Renovate** (`renovate.json`) — Helm chart versions in `HelmRelease` resources (the `flux` manager), plus two `customManagers`: the k3s version in `base/system-upgrade-controller/plans.yaml`, and the validation tool pins in `.github/workflows/validate.yml`. Runs on weekends.
 - **Dependabot** (`.github/dependabot.yml`) — container images pinned directly in manifests (`pihole`, `unbound`, `unbound-exporter`, `python`, `system-upgrade-controller`), plus GitHub Actions. Its docker ecosystem does read `image:` fields out of Kubernetes YAML.
 
 Dependabot lists explicit directories, so **a component that moves or gains an image needs a `.github/dependabot.yml` entry**. Validation step 9 enforces this in both directions — it exists because this config silently went stale when directories last moved, and nobody noticed images had stopped being updated.
+
+Renovate's `customManagers` fail the same silent way: a `# renovate:` comment whose regex doesn't match, or that sits in a file outside the manager's `managerFilePatterns`, produces no error — Renovate simply never proposes a bump. Step 9 checks both halves together, which is why it covers Renovate as well as Dependabot despite the script's filename.
 
 Flux's own controller images (`clusters/*/flux-system/`) are excluded from both: they are upgraded with the Flux CLI, see `docs/runbooks/flux-upgrades.md`.
 

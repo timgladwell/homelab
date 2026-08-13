@@ -51,7 +51,52 @@ while read -r dir; do
     fi
 done <<< "$listed"
 
-# Directories with a pinned image. Zero means the image-matching regex stopped
-# matching — which would otherwise read as "every image is covered".
-echo "CHECKED $checked image directories"
+# Renovate's other half. Its customManagers are regexes, so a `# renovate:`
+# comment the regex fails to match is invisible — Renovate reports no error, it
+# simply never proposes a bump and the pin freezes. Same silent-staleness bug as
+# the Dependabot directories above, which is why it lives in the same step.
+python3 - <<'PY' || fail=1
+import json, pathlib, re, sys
+
+cfg = json.loads(pathlib.Path("renovate.json").read_text())
+
+# A manager only applies to files its managerFilePatterns select, so both are
+# checked together: a correct matchString against a file the manager never
+# looks at is just as invisible as a regex that fails to match.
+managers = []
+for m in cfg.get("customManagers", []):
+    files = [re.compile(p[1:-1]) for p in m.get("managerFilePatterns", [])
+             if p.startswith("/") and p.endswith("/")]
+    # Renovate matchStrings use JS named groups; Python spells them (?P<name>).
+    strings = [re.compile(re.sub(r"\(\?<(?![=!])", "(?P<", s))
+               for s in m.get("matchStrings", [])]
+    managers.append((files, strings))
+
+failed = 0
+for f in sorted(pathlib.Path(".").rglob("*.y*ml")):
+    if ".claude" in f.parts:
+        continue
+    text = f.read_text(errors="replace")
+    declared = text.count("# renovate: datasource")
+    if not declared:
+        continue
+    hits = sum(len(s.findall(text))
+               for files, strings in managers
+               for s in strings
+               if any(fp.search(str(f)) for fp in files))
+    if hits == declared:
+        print(f"✓ {f} ({hits} renovate pin(s))")
+    else:
+        print(f"✗ {f}: {declared} '# renovate:' comment(s) but {hits} matched a customManager regex")
+        failed = 1
+sys.exit(failed)
+PY
+
+renovate_count=$(grep -rl '# renovate: datasource' --include='*.yaml' --include='*.yml' \
+    . 2>/dev/null | grep -v '/\.claude/' | xargs grep -ch '# renovate: datasource' \
+    | awk '{s += $1} END {print s + 0}')
+
+# Zero means a matcher stopped matching — which would otherwise read as
+# "every dependency is covered".
+echo "CHECKED $((checked + renovate_count)) pinned dependencies"
 exit $fail
