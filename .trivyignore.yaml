@@ -16,7 +16,24 @@ misconfigurations:
       - "clusters/eastbank/flux-system/gotk-components.yaml"
       - "clusters/lottage/flux-system/gotk-components.yaml"
     statement: "Flux bootstrap ClusterRoles require wildcard resource access to manage all Flux CRD types"
-
+  - id: AVD-KSV-0020
+    paths: &flux-gotk-components
+      - "clusters/akron/flux-system/gotk-components.yaml"
+      - "clusters/eastbank/flux-system/gotk-components.yaml"
+      - "clusters/lottage/flux-system/gotk-components.yaml"
+    statement: "Flux bootstrap manifest; controller UIDs are fixed by the upstream image, not configurable here"
+  - id: AVD-KSV-0021
+    paths: *flux-gotk-components
+    statement: "Flux bootstrap manifest; controller GIDs are fixed by the upstream image, not configurable here"
+  - id: AVD-KSV-0049
+    paths: *flux-gotk-components
+    statement: "flux-edit/flux-view ClusterRoles need configmap access to reconcile Kustomizations and report status"
+  - id: AVD-KSV-0111
+    paths: *flux-gotk-components
+    statement: "flux-edit ClusterRoleBinding grants admin-equivalent access by Flux's own bootstrap design"
+  - id: AVD-KSV-0125
+    paths: *flux-gotk-components
+    statement: "Flux controller images are published to ghcr.io, which is not in trivy's default trusted-registry list"
   # pihole runs as root (required for DNS port 53 binding) and FTL writes runtime
   # state to /var/log/pihole and /run/pihole, so readOnlyRootFilesystem cannot be set.
   - id: AVD-KSV-0014
@@ -27,6 +44,31 @@ misconfigurations:
     paths:
       - "base/dns/pihole-deployment.yaml"
     statement: "pihole requires root access for DNS port 53 binding"
+  - id: AVD-KSV-0012
+    paths: &pihole-deployment
+      - "base/dns/pihole-deployment.yaml"
+    statement: "pihole's FTL entrypoint runs as root; it does not drop privileges internally like unbound does"
+  - id: AVD-KSV-0020
+    paths: *pihole-deployment
+    statement: "Root UID (0), tied to the same root requirement as KSV-0012/KSV-0118"
+  - id: AVD-KSV-0021
+    paths: *pihole-deployment
+    statement: "Root GID (0), tied to the same root requirement as KSV-0012/KSV-0118"
+  - id: AVD-KSV-0117
+    paths: *pihole-deployment
+    statement: "Binds UDP/TCP 53, a privileged port, as part of the same root requirement"
+  - id: AVD-KSV-0003
+    paths: *pihole-deployment
+    statement: "FTL's root entrypoint performs chown/setuid-class operations at startup; dropping all capabilities is unverified without live testing and DNS is critical path"
+  - id: AVD-KSV-0004
+    paths: *pihole-deployment
+    statement: "Same as KSV-0003: capability drop unverified against FTL's root startup sequence"
+  - id: AVD-KSV-0106
+    paths: *pihole-deployment
+    statement: "Same as KSV-0003: capability drop unverified against FTL's root startup sequence"
+  - id: AVD-KSV-0125
+    paths: *pihole-deployment
+    statement: "pihole/pihole is published to Docker Hub, which is not in trivy's default trusted-registry list"
 
   # klutchell/unbound starts as root then internally drops to the unbound user via
   # setuid/setgid; runAsNonRoot cannot be set because the image entrypoint runs as
@@ -40,6 +82,28 @@ misconfigurations:
     paths:
       - "base/dns/unbound-deployment.yaml"
     statement: "klutchell/unbound entrypoint runs as root before dropping privileges internally via setuid/setgid"
+  - id: AVD-KSV-0012
+    paths: &unbound-deployment
+      - "base/dns/unbound-deployment.yaml"
+    statement: "klutchell/unbound's entrypoint runs as root before its internal setuid/setgid privilege drop"
+  - id: AVD-KSV-0020
+    paths: *unbound-deployment
+    statement: "Root UID (0) before the entrypoint's internal privilege drop, tied to KSV-0012/KSV-0118"
+  - id: AVD-KSV-0021
+    paths: *unbound-deployment
+    statement: "Root GID (0) before the entrypoint's internal privilege drop, tied to KSV-0012/KSV-0118"
+  - id: AVD-KSV-0003
+    paths: *unbound-deployment
+    statement: "unbound's entrypoint needs CAP_SETUID/CAP_SETGID for its internal privilege drop; dropping all capabilities is unverified without live testing and DNS is critical path"
+  - id: AVD-KSV-0004
+    paths: *unbound-deployment
+    statement: "Same as KSV-0003: capability drop unverified against unbound's internal setuid/setgid drop"
+  - id: AVD-KSV-0106
+    paths: *unbound-deployment
+    statement: "Same as KSV-0003: capability drop unverified against unbound's internal setuid/setgid drop"
+  - id: AVD-KSV-0125
+    paths: *unbound-deployment
+    statement: "klutchell/unbound and cyb3rjak3/unbound-exporter are published to Docker Hub, not in trivy's default trusted-registry list"
 
   # system-upgrade-controller.yaml is the upstream manifest from rancher/system-upgrade-controller.
   # KSV-0014: readOnlyRootFilesystem is enforced via deployment-patch.yaml (kustomize strategic merge).
@@ -53,5 +117,64 @@ misconfigurations:
     paths:
       - "base/system-upgrade-controller/system-upgrade-controller.yaml"
     statement: "Pod-level securityContext added via deployment-patch.yaml; container already enforces runAsNonRoot: true"
+  - id: AVD-KSV-0011
+    paths: &sup-controller
+      - "base/system-upgrade-controller/system-upgrade-controller.yaml"
+    statement: "CPU/memory requests and limits are supplied via deployment-patch.yaml kustomize patch; trivy scans raw source, not patched output"
+  - id: AVD-KSV-0015
+    paths: *sup-controller
+    statement: "Same as KSV-0011: requests/limits added via deployment-patch.yaml"
+  - id: AVD-KSV-0016
+    paths: *sup-controller
+    statement: "Same as KSV-0011: requests/limits added via deployment-patch.yaml"
+  - id: AVD-KSV-0018
+    paths: *sup-controller
+    statement: "Same as KSV-0011: requests/limits added via deployment-patch.yaml"
+  - id: AVD-KSV-0023
+    paths: *sup-controller
+    statement: "system-upgrade-controller's Plans mount hostPath by design, to run OS/k3s upgrades directly on the node filesystem"
+  - id: AVD-KSV-0048
+    paths: *sup-controller
+    statement: "Controller must create/manage Jobs on nodes to orchestrate upgrades; broad workload RBAC is inherent to its function"
+  - id: AVD-KSV-0113
+    paths: *sup-controller
+    statement: "Same as KSV-0048: upgrade orchestration RBAC needs is inherent to the controller's function"
+  - id: AVD-KSV-01010
+    paths: *sup-controller
+    statement: "False positive: flagged ConfigMap fields are TTL/deadline seconds, not credentials"
+  - id: AVD-KSV-0125
+    paths: *sup-controller
+    statement: "rancher/system-upgrade-controller is not in trivy's default trusted-registry list"
+  # system-upgrade namespace deliberately has no ResourceQuota: Plans spawn
+  # upgrade Job pods dynamically (see plans.yaml) without resource
+  # requests/limits in their pod template, and a quota would reject them,
+  # breaking node upgrades. kube-system is k3s-managed, not owned by this
+  # repo's GitOps, and its system pods (kube-proxy, coredns, svclb,
+  # local-path-provisioner) may not declare requests/limits either.
+
+  # KSV-0040 (repo-wide): this repo now has real ResourceQuota objects for
+  # every namespace that can safely take one — base/dns/resourcequota.yaml,
+  # base/metallb/resourcequota.yaml, base/traefik/resourcequota.yaml,
+  # sites/{akron,eastbank}/monitoring/resourcequota.yaml — and deliberately
+  # omits them from system-upgrade/kube-system/flux-system for the reasons
+  # above. But trivy 0.71.1's KSV-0040 check (use_resource_quota.rego)
+  # doesn't do what its name says: its `custom.input.selector` claims to
+  # scope evaluation to `kind: resourcequota` objects only, checking that
+  # each ResourceQuota has all four `hard` fields, but that selector isn't
+  # honored by this trivy version — the rule runs against every Kubernetes
+  # object and denies anything without a literal `spec.hard.*` of its own.
+  # Verified: a Deployment in the very same file, same directory, same scan
+  # invocation as a fully-populated ResourceQuota still fails — there is no
+  # cross-object correlation happening. The check is unsatisfiable for any
+  # manifest that isn't itself a ResourceQuota, regardless of whether a
+  # quota exists for its namespace. Re-check after a trivy bump: try
+  # `trivy config --severity LOW --include-non-failures ./base/dns/` and
+  # look for KSV-0040 failing on pihole-deployment.yaml while passing on
+  # resourcequota.yaml in the same run — if it now passes both, this
+  # exception (and the reasoning above) is stale.
+  - id: AVD-KSV-0040
+    paths:
+      - "**/*.yaml"
+    statement: "trivy 0.71.1 does not honor this check's own kind:resourcequota selector; it denies every K8s object instead of only unquota'd namespaces — see comment above"
 
 # yamllint enable rule:line-length
