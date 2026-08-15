@@ -29,7 +29,7 @@ After any change to manifests, run the full validation pipeline from the repo ro
 
 **When Claude Code runs this pipeline, delegate to the `manifest-validator` subagent** (`.claude/agents/manifest-validator.md`) rather than running `./scripts/validate-k3s.sh` inline. It keeps the full step-by-step tool output (yamllint, trivy, kubeconform, etc.) out of the main conversation and reports back using the fixed pass/fail format defined in the preloaded `flux-validation-conventions` skill (`.claude/skills/flux-validation-conventions/`).
 
-This runs eleven steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
+This runs twelve steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
 1. **YAML lint** — `yamllint` against all files (ignores each site's `flux-system/` and `*.sops.yaml`)
 2. **Flux build** — `flux build kustomization --dry-run` for each Flux Kustomization, for each site
 3. **Kustomize build** — `kustomize build` of the site's entry point and each of its layers, concatenated into `$K3S_BUILD_DIR/k3s-built-<site>.yaml`
@@ -41,8 +41,9 @@ This runs eleven steps in order, **per site** (Akron, Eastbank — each reconcil
 11. **CRD availability** — a Flux Kustomization with no `dependsOn` may only use custom resources whose CRDs it installs itself
 7. **Variable references** — every `${VAR}` in each site's build output must be defined in that site's `cluster-vars.yaml`
 8. **Policy** — `conftest test` against each site's built output using policies in `policy/`
+12. **Alloy configs** — `alloy validate` against every Alloy river config in each site's built output, with that release's own `--stability.level` from its `extraArgs`
 
-Step 2 gates steps 3–5 and 7–8. Step 3 additionally gates steps 4, 5, 7, and 8. Steps 1, 6, 9 and 10 always run independently.
+Step 2 gates steps 3–5, 7–8 and 12. Step 3 additionally gates steps 4, 5, 7, 8 and 12. Steps 1, 6, 9 and 10 always run independently.
 
 **Warnings are errors.** Every step fails on any finding at any severity — trivy runs unfiltered, kube-score uses `--exit-one-on-warning`, conftest uses `--fail-on-warn`. A check that genuinely doesn't apply here gets an explicit exception (`.trivyignore.yaml`, a kube-score `--ignore-test`, a conftest policy change), never a severity floor. The exception carries a reason; a threshold silently hides the next finding too.
 
@@ -195,17 +196,21 @@ Akron is the only site with storage that tolerates a Prometheus TSDB (USB3 NVMe)
 
 **All cardinality-trimming lives in the collector config**, in one place. It used to sit in kube-prometheus-stack's `cAdvisorMetricRelabelings` / `kubeApiServer.metricRelabelings`; those are gone, and the chart's own scraping (`kubelet`, `kubeApiServer`, `nodeExporter`, `kubeStateMetrics`) is disabled so Akron doesn't double-collect. Add drop rules to `alloy-metrics.yaml`, never back to the chart.
 
-**Helm values in this repo are not validated by `./scripts/validate-k3s.sh`.** `kustomize build` and `flux build` treat a `HelmRelease`'s `values:` as opaque YAML — the chart is only rendered on the cluster at reconcile time, and none of these charts ship a `values.schema.json`. A wrong or misspelled value passes all eleven steps and fails after merge. Before changing chart values, render them locally:
+**Helm values in this repo are not validated by `./scripts/validate-k3s.sh`.** `kustomize build` and `flux build` treat a `HelmRelease`'s `values:` as opaque YAML — the chart is only rendered on the cluster at reconcile time, and none of these charts ship a `values.schema.json`. A wrong or misspelled value passes every step and fails after merge. Before changing chart values, render them locally:
 
 ```bash
 helm template alloy-metrics grafana/alloy --version <ver> -f <extracted-values>.yaml
 ```
 
-The Alloy config specifically can be checked properly, and should be — a syntax or argument-name error CrashLoops the collector at *every* site:
+The Alloy config is the exception: it *is* checked, by validation step 12, because a syntax or argument-name error CrashLoops the collector at *every* site. The step extracts each config from the built output, substitutes that site's `cluster-vars`, and runs `alloy validate` with the release's own `--stability.level`, so a public-preview component only passes in a release that opted into one. Nothing is hand-listed — a new Alloy release is picked up automatically.
+
+To check one by hand while iterating:
 
 ```bash
 alloy validate config.alloy    # catches unrecognized attribute names, not just syntax
 ```
+
+Note this covers the config, not the chart values around it — `extraPorts`, `mounts` and the rest are still opaque YAML, so still render those with `helm template`.
 
 ### Variable substitution
 
