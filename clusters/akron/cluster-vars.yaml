@@ -18,3 +18,4 @@ data:
   # Prometheus sitting next to it rather than across the VPN.
   SITE_NAME: akron
   PROMETHEUS_REMOTE_WRITE_URL: "http://kube-prometheus-stack-prometheus.monitoring:9090/api/v1/write"
+  LOKI_PUSH_URL: "http://loki.monitoring:3100/loki/api/v1/push"

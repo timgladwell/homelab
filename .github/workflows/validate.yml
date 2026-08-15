@@ -42,6 +42,11 @@ jobs:
       CONFTEST_VERSION: 0.69.0
       # renovate: datasource=pypi depName=yamllint
       YAMLLINT_VERSION: 1.38.0
+      # Pinned like the rest, but note this one is *not* the version the
+      # clusters run — the alloy chart decides that. It only has to be new
+      # enough to know every component the configs use.
+      # renovate: datasource=github-releases depName=grafana/alloy extractVersion=^v(?<version>.+)$
+      ALLOY_VERSION: 1.18.1
 
     steps:
       - uses: actions/checkout@v7
@@ -85,6 +90,11 @@ jobs:
             "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz"
           tar -xzf conftest.tar.gz conftest && mv conftest "$HOME/.local/bin/"
 
+          curl -fsSL -o alloy.zip \
+            "https://github.com/grafana/alloy/releases/download/v${ALLOY_VERSION}/alloy-linux-amd64.zip"
+          unzip -q alloy.zip && mv alloy-linux-amd64 "$HOME/.local/bin/alloy"
+          chmod +x "$HOME/.local/bin/alloy"
+
           pipx install "yamllint==${YAMLLINT_VERSION}"
 
       - name: Tool versions
@@ -96,6 +106,7 @@ jobs:
           trivy --version | head -1
           conftest --version | head -1
           yamllint --version
+          alloy --version | head -1
 
       # No age key and no cluster: `flux build --dry-run` does not decrypt, and
       # every step reads the repo rather than a live cluster. If a step ever

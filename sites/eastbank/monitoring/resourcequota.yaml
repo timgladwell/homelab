@@ -1,7 +1,11 @@
 ---
-# Eastbank only runs base/metrics-collection/ (collect and ship, store
-# nothing) so this quota is far smaller than Akron's — see
-# sites/akron/monitoring/resourcequota.yaml.
+# Eastbank stores nothing — base/metrics-collection/ plus Unpoller, which
+# polls every UniFi controller and ships the result to Akron. Far smaller than
+# Akron's; see sites/akron/monitoring/resourcequota.yaml.
+#
+# Headroom above the sum of requests is deliberate: a Deployment's rolling
+# update briefly runs old and new pods together, and a quota sized to exactly
+# fit steady state fails that rollout. Akron learned this the hard way.
 apiVersion: v1
 kind: ResourceQuota
 metadata:
@@ -9,7 +13,7 @@ metadata:
   namespace: monitoring
 spec:
   hard:
-    requests.cpu: 300m
-    requests.memory: 512Mi
-    limits.cpu: "1"
-    limits.memory: 1536Mi
+    requests.cpu: 500m
+    requests.memory: 768Mi
+    limits.cpu: "2"
+    limits.memory: 2Gi

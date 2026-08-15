@@ -1,0 +1,27 @@
+---
+# The entry point for remote sites' logs, and the sibling of
+# prometheus-remotewrite-ingressroute.yaml — read that file for why this is
+# path-scoped, why the match is on the LoadBalancer IP rather than a hostname,
+# and why it is plain unauthenticated HTTP. Every word of it applies here.
+#
+# Needed because Unpoller moved to Eastbank (#120) and its UniFi events, IDS
+# records and system-log entries go to Loki, which stays at Akron. Only
+# /loki/api/v1/push is published; Loki's query API is not.
+#
+# Its one client is a remote site's alloy-metrics, never an application: apps
+# push to the collector beside them and it pushes here, so each site has a
+# single process crossing the VPN and a single disk buffer in front of it.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: loki-push
+  namespace: monitoring
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`${METALLB_TRAEFIK_IP}`) && PathPrefix(`/loki/api/v1/push`)
+      kind: Rule
+      services:
+        - name: loki
+          port: 3100

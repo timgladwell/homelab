@@ -32,6 +32,17 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s+\\S+: (?<currentValue>\\S+)"
       ]
+    },
+    {
+      "description": "Image tags pinned inside a HelmRelease's values, used where a chart lags its own application. Neither of the built-in managers sees these: the flux manager reads `spec.chart.spec.version`, and Dependabot's docker ecosystem needs a full `image: repo:tag`, not a bare `tag:` under an `image:` map.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)base/.+\\.ya?ml$/",
+        "/(^|/)sites/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+tag: (?<currentValue>\\S+)"
+      ]
     }
   ],
   "schedule": ["every weekend"]

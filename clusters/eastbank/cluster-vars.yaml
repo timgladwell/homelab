@@ -19,3 +19,7 @@ data:
   # routes only PathPrefix(`/api/v1/write`) through to Prometheus.
   SITE_NAME: eastbank
   PROMETHEUS_REMOTE_WRITE_URL: "http://10.6.1.80/api/v1/write"
+  # Same arrangement for logs: Akron's Traefik, routing only
+  # PathPrefix(`/loki/api/v1/push`) through to Loki. Only this site's Alloy
+  # sends here — see base/metrics-collection/alloy-metrics.yaml.
+  LOKI_PUSH_URL: "http://10.6.1.80/loki/api/v1/push"

@@ -87,8 +87,8 @@ spec:
     # reads. In SingleBinary mode there is one component, so every one of its
     # ~20 proxy_pass directives targets the same backend this chart already
     # exposes as `loki:3100`. Nothing in the repo addresses it: Alloy, Grafana's
-    # datasource and all three Unpollers go direct. It is an nginx process
-    # serving zero requests.
+    # datasource and the loki-push IngressRoute all go direct. It is an nginx
+    # process serving zero requests.
     #
     # Worth re-enabling if Loki ever moves to SimpleScalable, where it becomes
     # the correct single entry point. Until then it is a hop to nowhere.

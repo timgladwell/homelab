@@ -1,13 +1,17 @@
 ---
 # Real observed usage (`kubectl get events`) runs ~3.6 CPU / 5.6Gi at steady
-# state — collectors, Prometheus, Grafana, Loki, Alertmanager, Unpoller x3,
-# plus their config-reloader/admission-webhook sidecars. The first version of
+# state — collectors, Prometheus, Grafana, Loki, Alertmanager, plus their
+# config-reloader/admission-webhook sidecars. The first version of
 # this quota (4 / 6Gi) was sized by hand-summing chart values *before* those
 # sidecars were added, was never re-checked afterward, and left no room for
 # a Deployment's rolling-update overlap (old + new pod briefly coexisting) —
 # it broke Grafana's very next rollout in production. Akron is the only site
 # that stores observability data, hence the much larger quota than
 # Eastbank's.
+#
+# The three Unpollers moved to Eastbank (#120) and the numbers deliberately did
+# not come down with them: the LGTM stack is what is short here, so the slack
+# they leave behind is the point of moving them.
 apiVersion: v1
 kind: ResourceQuota
 metadata:
