@@ -60,7 +60,7 @@ jobs:
         uses: aquasecurity/setup-trivy@v0.3.1
         with:
           # renovate: datasource=github-releases depName=aquasecurity/trivy
-          version: v0.71.1
+          version: v0.74.0
 
       - name: Install remaining tools
         run: |
