@@ -2,6 +2,10 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
+  # Load-bearing beyond the usual Helm-release-name sense: alloy-syslog-service
+  # selects these pods by `app.kubernetes.io/instance`, which is this name.
+  # Renaming it silently detaches the syslog LoadBalancer from its only
+  # listener, and UDP gives no error when that happens.
   name: alloy
   namespace: monitoring
 spec:
