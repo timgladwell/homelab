@@ -122,7 +122,8 @@ sites/<site>/                    # Everything specific to one K3s cluster
   infrastructure-config/         # kustomization.yaml picking the CRD-dependent base components
   dns-config/                    # kustomization.yaml picking base/pihole-sync + this site's pihole-clients.yaml
   monitoring/                    # Every site: base/metrics-collection. Akron adds the storage
-                                 # side — Prometheus + Grafana + Loki + Alloy (logs) + Unpoller
+                                 # side — Prometheus + Grafana + Loki + Alloy (logs).
+                                 # Eastbank adds Unpoller, which polls every site's UniFi
 
 clusters/<site>/                 # Flux entry point — managed by the flux-system Kustomization
   flux-system/                   # Flux's own manifests (managed by flux bootstrap, do not edit)
@@ -150,7 +151,7 @@ There is also a mechanical reason. `clusters/<site>/kustomization.yaml` would ha
 
 **Two different "per-site" concepts coexist — don't confuse them:**
 - **Per-K3s-cluster** — `sites/akron/`, `sites/eastbank/`. One directory per physical cluster.
-- **Per-UniFi-site** — `sites/akron/monitoring/unpoller/{akron,eastbank,lottage}/`. These are *all deployed on Akron*, polling each remote UniFi controller over the Site Magic VPN (base + overlay + `nameSuffix`). The `lottage` one is alive and correct even though Lottage's K3s cluster no longer exists here.
+- **Per-UniFi-site** — the `[[unifi.controller]]` stanzas in Unpoller's config (`sites/eastbank/monitoring/unpoller/`). One Unpoller at Eastbank polls *every* site's UniFi controller over the Site Magic VPN, including Lottage's, which is alive and correct even though Lottage's K3s cluster no longer exists here. It used to be three Unpoller instances on Akron; see #120.
 
 ### How validation discovers what to build
 
@@ -178,7 +179,8 @@ Step 3 assembles each site's complete manifest set the same way Flux does — `k
 Akron is the only site with storage that tolerates a Prometheus TSDB (USB3 NVMe); every other site boots from an SD card, where TSDB write amplification is the classic way to kill the card. So the split is:
 
 - **Collection is identical at every site** — `base/metrics-collection/` deploys node-exporter, kube-state-metrics and an Alloy collector (`alloy-metrics`) that scrapes them plus kubelet, cAdvisor, kube-apiserver and Unbound, then remote-writes the result. Akron runs this too; it is not a remote-site special case.
-- **Storage is Akron-only** — `sites/akron/monitoring/` adds Prometheus, Grafana, Loki, Alertmanager, the log-collecting `alloy` DaemonSet, and Unpoller.
+- **Storage is Akron-only** — `sites/akron/monitoring/` adds Prometheus, Grafana, Loki, Alertmanager and the log-collecting `alloy` DaemonSet.
+- **Unpoller is the exception that proves the rule** — it runs at Eastbank (`sites/eastbank/monitoring/unpoller/`), reaching every site's UniFi controller over the VPN and writing metrics and logs back to Akron. Nothing about polling needs to sit next to the storage, and Akron's headroom is the scarce resource.
 
 `${PROMETHEUS_REMOTE_WRITE_URL}` and `${LOKI_PUSH_URL}` are the only things that differ: Akron writes to the Prometheus and Loki beside it, Eastbank writes to `http://10.6.1.80/...` over the Site Magic VPN. Both endpoints are path-scoped Traefik `IngressRoute`s (`sites/akron/monitoring/prometheus-remotewrite-ingressroute.yaml`, `loki-push-ingressroute.yaml`), so only `/api/v1/write` and `/loki/api/v1/push` are published — not the query UIs. Deliberately IPs, not hostnames: nothing in the telemetry path should depend on cross-site DNS.
 

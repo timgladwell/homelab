@@ -71,7 +71,7 @@ spec:
 
       # Sized for the largest site, not the smallest. Akron carries roughly three
       # times Eastbank's pod count (Prometheus, Grafana, Loki, Alertmanager, the
-      # operator, three Unpollers, two Alloys), so it has far more cAdvisor
+      # operator, two Alloys), so it has far more cAdvisor
       # series and a much larger kube-state-metrics surface to hold in memory.
       #
       # The first cut at 384Mi was sized against Eastbank and killed the Akron
@@ -297,6 +297,54 @@ spec:
             targets         = discovery.relabel.unbound.output
             forward_to      = [prometheus.remote_write.default.receiver]
             job_name        = "unbound"
+            scrape_interval = "60s"
+          }
+
+          // ---------------------------------------------------------------
+          // Unpoller. Runs at exactly one site (Eastbank) but polls every
+          // UniFi controller, so this finds nothing anywhere else and that is
+          // fine — the alternative is a PodMonitor, and the Prometheus
+          // operator that would honour it only exists at Akron, which is not
+          // where Unpoller runs.
+          //
+          // The `site` label here is Eastbank's, from remote_write's external
+          // labels — it says where the poller runs, not which network a series
+          // describes. Unpoller stamps its own `site_name` and `source` on
+          // every metric, and that is what the UniFi dashboards select on.
+          // ---------------------------------------------------------------
+          discovery.relabel "unpoller" {
+            targets = discovery.kubernetes.pods.targets
+
+            rule {
+              source_labels = ["__meta_kubernetes_namespace"]
+              regex         = "monitoring"
+              action        = "keep"
+            }
+
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+              regex         = "unpoller"
+              action        = "keep"
+            }
+
+            // The container declares TCP and UDP on the same port number, so
+            // discovery returns two identical targets without this.
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_port_name"]
+              regex         = "tcp"
+              action        = "keep"
+            }
+
+            rule {
+              target_label = "instance"
+              replacement  = "unpoller"
+            }
+          }
+
+          prometheus.scrape "unpoller" {
+            targets         = discovery.relabel.unpoller.output
+            forward_to      = [prometheus.remote_write.default.receiver]
+            job_name        = "unpoller"
             scrape_interval = "60s"
           }
 

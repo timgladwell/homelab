@@ -984,6 +984,54 @@ Filter by site using the `host` label:
 - All UniFi SIEM events: `{job="unifi-siem"}`
 - Single site: `{job="unifi-siem", host="<udm-hostname>"}`
 
+### Task 6.6 — Consolidate unpoller and move it to Eastbank ✅
+
+**Fixup for Tasks 6.1–6.3.** Those tasks deployed one unpoller per UniFi site
+on Akron. Unpoller is built to run once against many `[[unifi.controller]]`
+stanzas — its chart hard-codes a single PodMonitor name — so the fan-out was
+three of everything for no gain (#120). It is now one release, and it lives at
+`sites/eastbank/monitoring/unpoller/`:
+
+- **One instance, and the split is by kind, not by field.** The three `upConfig`
+  secrets became one `unpoller-controllers` secret under Eastbank's age key
+  holding each controller's URL, username, password and
+  `default_site_name_override` — kept together because a username without its
+  password is still half a credential, and an address without either still says
+  where to point one. What Unpoller *collects* is not secret and sits in the
+  HelmRelease in the clear, so `save_ids` and friends are readable in a diff.
+- **Controllers come from the environment, not the TOML.** There are no
+  `[[unifi.controller]]` stanzas; the secret's keys are literally the
+  `UP_UNIFI_CONTROLLER_<n>_*` env var names Unpoller reads, injected with one
+  `envFrom` in the postRenderer. One source per controller rather than two
+  halves to keep in step, and a fourth site is three keys and nothing else.
+  `[unifi.defaults]` still reaches them: `setControllerDefaults()` copies every
+  unset field onto each controller however it was defined (verified in v3.4.1,
+  `pkg/inputunifi/interface.go`). `default_site_name_override` is what makes the
+  Grafana `Site` variable read as site names rather than three copies of
+  `Default`.
+- **At Eastbank, not Akron.** Polling needs the VPN, not the TSDB. Akron's
+  ResourceQuota kept its old numbers so the slack goes to the LGTM stack.
+- **Scraped by Alloy, not a PodMonitor.** Eastbank runs no Prometheus operator;
+  the job is in `base/metrics-collection/alloy-metrics.yaml` with everything
+  else, and remote-writes to Akron like every other series.
+- **Logs cross sites through the collector, not from the app.** Unpoller's
+  `[loki]` output points at `alloy-metrics:3100` beside it, which serves Loki's
+  push API and forwards to Akron via `loki-push-ingressroute.yaml`, the sibling
+  of the Prometheus remote-write route. Unpoller's own Loki client has no disk
+  buffer and gives up after a short backoff; Alloy's `loki.write` WAL is set to
+  the same 24h as the metrics path, so an outage delays the logs rather than
+  losing them. That block is experimental upstream — see the note in
+  `base/metrics-collection/alloy-metrics.yaml`.
+- **Image pinned to `v3.4.1` ahead of the chart** (#122), which has been parked
+  at appVersion v2.21.0 since Jan 2026. Safe only because the chart is a thin
+  wrapper around `/etc/unpoller/up.conf`. `UP_UNIFI_DEFAULT_SAVE_IDS` — turned
+  off in v2 because the IDS endpoint 404s on UniFi Network 10.x — is back on as
+  `save_ids`, along with v3's `save_syslog`. Drop the pin when a 3.x chart ships.
+
+The v3 default of serving `/metrics` from a 60s background poll is deliberately
+kept (`interval = 0` would restore v2's poll-per-scrape): three controllers over
+a VPN is exactly the case it was added for.
+
 ---
 
 ## Phase 6.5 — NetworkOptimizer (per-site) ✅ COMPLETE

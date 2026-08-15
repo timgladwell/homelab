@@ -8,10 +8,9 @@ creation_rules:
   # Every secret lives under sites/<site>/, so the site directory alone decides
   # which key encrypts it — no path-by-path exceptions to keep in sync.
   #
-  # Note this is the *hosting* site, not the subject: the eastbank/lottage-named
-  # secrets under sites/akron/monitoring/unpoller/ belong to Unpoller instances
-  # that run centrally on Akron polling remote UniFi controllers, so they
-  # correctly take Akron's key.
+  # Note this is the *hosting* site, not the subject: Unpoller's secret holds
+  # credentials for every site's UniFi controller, and takes Eastbank's key
+  # because Eastbank is where Unpoller runs.
   - path_regex: ^sites/akron/.*secret\.sops\.yaml$
     age: age1wfqc89fy2a8l339nf2rlevclkkhjcy28jurdex6gpdjt8laa2sfqswl45d
     encrypted_regex: '^(data|stringData)$'

@@ -13,6 +13,5 @@ resources:
   - loki.yaml
   - alloy.yaml
   - loki-push-ingressroute.yaml
-  - ./unpoller
   - alloy-syslog-service.yaml
   - ./dashboards

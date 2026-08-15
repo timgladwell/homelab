@@ -1,0 +1,146 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: unpoller
+  namespace: monitoring
+spec:
+  interval: 30m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: unpoller
+      version: "~2.x"
+      sourceRef:
+        kind: HelmRepository
+        name: unpoller
+        namespace: monitoring
+      interval: 12h
+  postRenderers:
+    - kustomize:
+        patches:
+          # The chart's PodMonitor is unconditional — there is no value that
+          # turns it off, and it is named `unifi-poller` regardless of release
+          # name, which is the "single instance assumed" behaviour behind #120.
+          # Eastbank has no Prometheus operator, so leaving it in would fail the
+          # install with `no matches for kind "PodMonitor"`. Alloy scrapes this
+          # pod instead; see base/metrics-collection/alloy-metrics.yaml.
+          - target:
+              kind: PodMonitor
+              name: unifi-poller
+            patch: |
+              $patch: delete
+              apiVersion: monitoring.coreos.com/v1
+              kind: PodMonitor
+              metadata:
+                name: unifi-poller
+
+          # The controllers themselves — see the secret. The chart exposes no
+          # env or envFrom, so a patch is the only way in. The secret's keys
+          # *are* the env var names, which keeps this to one reference rather
+          # than one entry per field.
+          - target:
+              kind: Deployment
+              name: unpoller
+            patch: |
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: unpoller
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: unpoller
+                        envFrom:
+                          - secretRef:
+                              name: unpoller-controllers
+  values:
+    image:
+      # The chart has been parked at appVersion v2.21.0 since Jan 2026 while
+      # Unpoller itself shipped v3, so the tag is pinned ahead of the chart
+      # (#122). This is only safe because the chart is a thin wrapper: it
+      # mounts up.conf at /etc/unpoller/up.conf and sets no flags, and that
+      # path is unchanged in v3. Drop this pin when a 3.x chart appears.
+      #
+      # renovate: datasource=docker depName=ghcr.io/unpoller/unpoller
+      tag: v3.4.1
+
+    # Dashboards are provisioned from ConfigMaps in sites/akron/monitoring/
+    # dashboards/. The chart's own provisioning needs the Grafana operator.
+    dashboards:
+      create: false
+      grafana:
+        create: false
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+    # What Unpoller does, in the clear. What it connects to lives entirely in
+    # the secret — URL, username and password together, because a username
+    # without its password is still half a credential and an address without
+    # either still says where to point one. The split is by *kind*, not by
+    # field: nothing here identifies or reaches a controller.
+    #
+    # Note there are no [[unifi.controller]] stanzas. They come from
+    # UP_UNIFI_CONTROLLER_<n>_* environment variables instead, so there is one
+    # source for a controller rather than two halves to keep in step. Every
+    # setting below still reaches them: setControllerDefaults() copies each
+    # unset field from [unifi.defaults] onto every controller, however it was
+    # defined (verified in v3.4.1, pkg/inputunifi/interface.go).
+    #
+    # The chart renders this into its own Secret, mounted at
+    # /etc/unpoller/up.conf.
+    upConfig: |
+      [poller]
+        debug = false
+        quiet = false
+        plugins = []
+
+      # Not a client — this is the /metrics listener the local Alloy scrapes.
+      # 0.0.0.0 because Alloy is a different pod. Akron's Prometheus never
+      # reaches out here; it only receives what Alloy remote-writes.
+      [prometheus]
+        disable = false
+        http_listen = "0.0.0.0:9130"
+        report_errors = false
+        # v3.2.0 serves scrapes from a background poll instead of hitting the
+        # UniFi API per scrape. Kept: three controllers over a VPN is the case
+        # it was added for. `interval = 0` restores the old per-scrape one.
+        interval = "60s"
+
+      [influxdb]
+        disable = true
+
+      # The Alloy beside this pod, not Akron directly — it serves Loki's push
+      # API and forwards with a disk buffer in front of it. See
+      # base/metrics-collection/alloy-metrics.yaml.
+      [loki]
+        disable = false
+        url = "http://alloy-metrics.monitoring.svc.cluster.local:3100"
+
+      [unifi]
+        dynamic = false
+
+      # Applied to every controller defined in the environment.
+      # save_ids was off while the IDS endpoint 404'd on UniFi Network 10.x;
+      # v3.4.1 is what makes it work again (#122). save_syslog is v3-only and
+      # reads the controller's system-log API — that is not the same thing as
+      # the UDM's own device syslog, which is #246.
+      [unifi.defaults]
+        sites = ["all"]
+        save_sites = true
+        save_dpi = true
+        save_syslog = true
+        save_ids = true
+        verify_ssl = false

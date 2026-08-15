@@ -1,0 +1,19 @@
+---
+# One Unpoller polling every UniFi controller, running at Eastbank.
+#
+# It was three instances at Akron (one per UniFi site, base + overlay +
+# nameSuffix). Unpoller takes a list of [[unifi.controller]] stanzas and
+# expects to be run once — the chart's PodMonitor has a single-instance name
+# hard-coded — so the fan-out was working against the tool (#120). Collapsing
+# it also drops three PodMonitors, three postRenderer patches and two secrets.
+#
+# It lives at Eastbank rather than Akron because nothing about it needs to be
+# next to the storage: it polls controllers over the Site Magic VPN and ships
+# results onward either way. Eastbank has the spare headroom and Akron needs
+# what it can get for the LGTM stack.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - helmrepository.yaml
+  - helmrelease.yaml
+  - secret.sops.yaml
