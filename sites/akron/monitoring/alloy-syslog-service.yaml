@@ -8,8 +8,22 @@ metadata:
     metallb.universe.tf/loadBalancerIPs: ${METALLB_SYSLOG_IP}
     kube-score/ignore: service-targets-pod
 spec:
+  # Both halves are required. The chart labels every pod it creates
+  # `app.kubernetes.io/name: alloy` regardless of release, so the name alone
+  # also matches alloy-metrics — a different release, on a different controller
+  # type, that listens on neither of these ports. With it in the selector this
+  # Service had two endpoints and kube-proxy spread inbound syslog across both,
+  # so roughly half of every UDM's log stream was delivered to a pod with
+  # nothing on 1514/1515 and silently dropped. UDP has no handshake to fail and
+  # no retry, so nothing anywhere reported an error; the logs were simply
+  # thinner than they should have been.
+  #
+  # `instance` is the release name, which is what actually distinguishes the
+  # two. It follows that renaming the `alloy` HelmRelease breaks this Service —
+  # see the note in alloy.yaml.
   selector:
     app.kubernetes.io/name: alloy
+    app.kubernetes.io/instance: alloy
   type: LoadBalancer
   ports:
     - name: syslog-udp
