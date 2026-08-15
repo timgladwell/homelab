@@ -99,6 +99,16 @@ spec:
         - name: GOMEMLIMIT
           value: 690MiB
 
+      # The log push endpoint (loki.source.api below). Adding it here is what
+      # puts it on the chart's Service, so in-cluster senders can reach it at
+      # alloy-metrics:3100. The scrape job for Alloy itself filters on the
+      # http-metrics port name, so this second port adds no duplicate target.
+      extraPorts:
+        - name: loki-push
+          port: 3100
+          targetPort: 3100
+          protocol: TCP
+
       configMap:
         create: true
         # yamllint disable rule:line-length
@@ -124,6 +134,55 @@ spec:
             wal {
               truncate_frequency = "2h"
               max_keepalive_time = "24h"
+            }
+          }
+
+          // ---------------------------------------------------------------
+          // The same idea for logs. This collector is the only process at a
+          // site that talks to Akron, for either signal: apps push here and
+          // this pushes onward, rather than every app dialling across the WAN
+          // on its own. Today the only sender is Unpoller, whose UniFi events,
+          // IDS records and system log are Loki-only outputs.
+          //
+          // loki.source.api serves Loki's own push API, so a sender needs no
+          // knowledge that Alloy is in the path — it is pointed at this
+          // Service instead of at Loki.
+          // ---------------------------------------------------------------
+          loki.source.api "push" {
+            http {
+              listen_address = "0.0.0.0"
+              listen_port    = 3100
+            }
+
+            forward_to = [loki.write.default.receiver]
+          }
+
+          loki.write "default" {
+            endpoint {
+              url = "${LOKI_PUSH_URL}"
+            }
+
+            external_labels = {
+              site = "${SITE_NAME}",
+            }
+
+            // The reason for putting Alloy in this path at all. Unpoller's own
+            // Loki client has no disk buffer and gives up after a short
+            // backoff, so a WAN outage silently punches a hole in exactly the
+            // logs you would want afterwards to answer "was this router
+            // compromised, and when". max_segment_age is the ceiling on how
+            // much outage this survives; the chart default is 1h, and 24h
+            // matches the metrics WAL above.
+            //
+            // NOTE: this wal block is flagged *experimental* upstream, unlike
+            // prometheus.remote_write's, which is stable. A breaking change to
+            // it would fail the collector at every site, so it is the first
+            // thing to check if an alloy chart bump misbehaves — and deleting
+            // these six lines is a complete rollback, at the cost of the
+            // buffering.
+            wal {
+              enabled         = true
+              max_segment_age = "24h"
             }
           }
 

@@ -12,6 +12,7 @@ resources:
   - prometheus-remotewrite-ingressroute.yaml
   - loki.yaml
   - alloy.yaml
+  - loki-push-ingressroute.yaml
   - ./unpoller
   - alloy-syslog-service.yaml
   - ./dashboards
