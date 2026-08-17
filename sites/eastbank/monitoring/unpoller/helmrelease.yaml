@@ -141,6 +141,10 @@ spec:
       # no replacement available"), not the 404 v3.4.1 fixed for #122 — dead
       # config on this version, not a regression.
       #
+      # save_alarms is off: GetAlarms 400s against Network 10.5.67 on every
+      # cycle, same shape of library/firmware mismatch as #122 but with no
+      # fix released yet. See #257.
+      #
       # save_traffic is off: per-flow DPI logging, meaningfully higher
       # cardinality and write volume than anything else here, no security-log
       # use case pulls its weight.
@@ -151,7 +155,7 @@ spec:
         save_syslog = true
         save_ids = false
         save_events = true
-        save_alarms = true
+        save_alarms = false
         save_anomalies = true
         save_rogue = true
         save_protect_logs = true
