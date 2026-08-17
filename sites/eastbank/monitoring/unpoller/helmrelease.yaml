@@ -153,5 +153,6 @@ spec:
         save_events = true
         save_alarms = true
         save_anomalies = true
-        save_rogue_aps = true
+        save_rogue = true
+        save_protect_logs = true
         verify_ssl = false
