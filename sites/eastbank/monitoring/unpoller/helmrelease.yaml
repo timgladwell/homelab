@@ -132,15 +132,26 @@ spec:
       [unifi]
         dynamic = false
 
-      # Applied to every controller defined in the environment.
-      # save_ids was off while the IDS endpoint 404'd on UniFi Network 10.x;
-      # v3.4.1 is what makes it work again (#122). save_syslog is v3-only and
-      # reads the controller's system-log API — that is not the same thing as
-      # the UDM's own device syslog, which is #246.
+      # Applied to every controller defined in the environment. save_syslog is
+      # v3-only and reads the controller's system-log API — that is not the
+      # same thing as the UDM's own device syslog, which is #246.
+      #
+      # save_ids is off: confirmed live against Network 10.5.67 that the
+      # endpoint is gone outright ("IDS/IPS endpoint removed (Network 10.x+):
+      # no replacement available"), not the 404 v3.4.1 fixed for #122 — dead
+      # config on this version, not a regression.
+      #
+      # save_traffic is off: per-flow DPI logging, meaningfully higher
+      # cardinality and write volume than anything else here, no security-log
+      # use case pulls its weight.
       [unifi.defaults]
         sites = ["all"]
         save_sites = true
         save_dpi = true
         save_syslog = true
-        save_ids = true
+        save_ids = false
+        save_events = true
+        save_alarms = true
+        save_anomalies = true
+        save_rogue_aps = true
         verify_ssl = false
