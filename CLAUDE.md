@@ -196,11 +196,7 @@ Akron is the only site with storage that tolerates a Prometheus TSDB (USB3 NVMe)
 
 **All cardinality-trimming lives in the collector config**, in one place. It used to sit in kube-prometheus-stack's `cAdvisorMetricRelabelings` / `kubeApiServer.metricRelabelings`; those are gone, and the chart's own scraping (`kubelet`, `kubeApiServer`, `nodeExporter`, `kubeStateMetrics`) is disabled so Akron doesn't double-collect. Add drop rules to `alloy-metrics.alloy`, never back to the chart.
 
-**Helm values in this repo are not validated by `./scripts/validate-k3s.sh`.** `kustomize build` and `flux build` treat a `HelmRelease`'s `values:` as opaque YAML — the chart is only rendered on the cluster at reconcile time, and none of these charts ship a `values.schema.json`. A wrong or misspelled value passes every step and fails after merge. Before changing chart values, render them locally:
-
-```bash
-helm template alloy-metrics grafana/alloy --version <ver> -f <extracted-values>.yaml
-```
+**Helm values in this repo are not validated by `./scripts/validate-k3s.sh`.** `kustomize build` and `flux build` treat a `HelmRelease`'s `values:` as opaque YAML — the chart is only rendered on the cluster at reconcile time, and none of these charts ship a `values.schema.json`. A wrong or misspelled value passes every step and fails after merge. Before changing chart values, render them locally with `flate` (see below) and read the output.
 
 The Alloy config is the exception: it *is* checked, by validation step 12, because a syntax or argument-name error CrashLoops the collector at *every* site. Each config is a real `.alloy` file next to its `HelmRelease` (`base/metrics-collection/alloy-metrics.alloy`, `sites/akron/monitoring/alloy.alloy`), generated into a ConfigMap the release points at with `configMap.create: false`. The step reads each config out of the built output — that is where it is already hydrated with the site's `cluster-vars` — and runs `alloy validate` with the release's own `--stability.level`, so a public-preview component only passes in a release that opted into one. Nothing is hand-listed: a new Alloy release is picked up automatically, and inlining a config back into `values.alloy.configMap.content` fails the step rather than skipping it.
 
@@ -214,7 +210,17 @@ alloy fmt base/metrics-collection/alloy-metrics.alloy
 alloy validate base/metrics-collection/alloy-metrics.alloy   # ${VAR} placeholders make this fail; step 12 is the real check
 ```
 
-Note this covers the config, not the chart values around it — `extraPorts`, `mounts` and the rest are still opaque YAML, so still render those with `helm template`.
+Note this covers the config, not the chart values around it — `extraPorts`, `mounts` and the rest are still opaque YAML.
+
+**To read rendered charts, use `flate`, not `flux-local`.** `flux-local` (#213's Option B) is deprecated and sunsetted upstream in favour of [`flate`](https://github.com/home-operations/flate), and it no longer works here anyway — it shells out to `flux build ks --kustomization-file /dev/stdin`, which segfaults on flux 2.9.4. `flate` renders the whole cluster with the upstream helm/kustomize/source SDKs, applies `postBuild` substitution, skips secrets by default, and caches charts on disk:
+
+```bash
+flate build hr -p clusters/akron        # every chart-rendered object, ~2s warm
+```
+
+That output is the only place workloads like Prometheus, Grafana, Loki and the Alloys are visible at all — everything else in the pipeline stops at the `HelmRelease`. It is what makes a values bug like `alloy.storagePath` mounting nothing legible: grep the rendered StatefulSet for the mount instead of trusting the values block.
+
+**Deliberately not a validation step.** It downloads charts, so it needs network and an external failure mode on every run, in a pipeline that is otherwise hermetic. Render by hand when changing chart values or reviewing a chart bump; leave the pipeline alone. Note `flate diff` does not work in this repo at all — go-git rejects the `worktreeconfig` extension git sets here.
 
 ### Variable substitution
 
