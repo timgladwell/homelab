@@ -23,9 +23,13 @@ updates:
       - "/base/system-upgrade-controller"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
 
   - package-ecosystem: github-actions
     directories:
       - "/**"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
