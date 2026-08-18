@@ -32,14 +32,14 @@ After any change to manifests, run the full validation pipeline from the repo ro
 This runs twelve steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
 1. **YAML lint** — `yamllint` against all files (ignores each site's `flux-system/` and `*.sops.yaml`)
 2. **Flux build** — `flux build kustomization --dry-run` for each Flux Kustomization, for each site
-3. **Kustomize build** — `kustomize build` of the site's entry point and each of its layers, concatenated into `$K3S_BUILD_DIR/k3s-built-<site>.yaml`
+3. **Kustomize build** — `kustomize build` of the site's entry point and each of its layers, concatenated into `$K3S_BUILD_DIR/k3s-built-<site>.yaml`, then hydrated with that site's `cluster-vars` the way Flux's `postBuild` does
 4. **Schema validation** — `kubeconform -summary` against each site's built output
 5. **Best practices** — `kube-score score --exit-one-on-warning` against each site's built output
 6. **Security scan** — `trivy config ./` at every severity (whole repo, not per-site)
 9. **Dependency coverage** — every directory with a pinned `image:` must be listed in `.github/dependabot.yml` and every listed directory must exist; and every `# renovate:` comment must be matched by a `customManagers` entry in `renovate.json` (whole repo, not per-site)
 10. **Secrets encrypted** — every `*secret*.yaml` tracked by git must have `sops:` metadata and `ENC[]` values (whole repo, not per-site)
 11. **CRD availability** — a Flux Kustomization with no `dependsOn` may only use custom resources whose CRDs it installs itself
-7. **Variable references** — every `${VAR}` in each site's build output must be defined in that site's `cluster-vars.yaml`
+7. **Variable references** — no `${VAR}` may survive step 3's substitution in each site's build output
 8. **Policy** — `conftest test` against each site's built output using policies in `policy/`
 12. **Alloy configs** — `alloy validate` against every Alloy river config in each site's built output, with that release's own `--stability.level` from its `extraArgs`
 
@@ -194,7 +194,7 @@ Akron is the only site with storage that tolerates a Prometheus TSDB (USB3 NVMe)
 | `wal.max_keepalive_time: 24h` | `base/metrics-collection/alloy-metrics.yaml` | How long unsent samples survive on disk. Chart default is **8h**. |
 | `tsdb.outOfOrderTimeWindow: 24h` | `sites/akron/monitoring/kube-prometheus-stack.yaml` | Prometheus rejects samples older than its head block (~2h) as "out of bounds". Without this, a replayed buffer is rejected wholesale and the WAL is decorative. |
 
-**All cardinality-trimming lives in the collector config**, in one place. It used to sit in kube-prometheus-stack's `cAdvisorMetricRelabelings` / `kubeApiServer.metricRelabelings`; those are gone, and the chart's own scraping (`kubelet`, `kubeApiServer`, `nodeExporter`, `kubeStateMetrics`) is disabled so Akron doesn't double-collect. Add drop rules to `alloy-metrics.yaml`, never back to the chart.
+**All cardinality-trimming lives in the collector config**, in one place. It used to sit in kube-prometheus-stack's `cAdvisorMetricRelabelings` / `kubeApiServer.metricRelabelings`; those are gone, and the chart's own scraping (`kubelet`, `kubeApiServer`, `nodeExporter`, `kubeStateMetrics`) is disabled so Akron doesn't double-collect. Add drop rules to `alloy-metrics.alloy`, never back to the chart.
 
 **Helm values in this repo are not validated by `./scripts/validate-k3s.sh`.** `kustomize build` and `flux build` treat a `HelmRelease`'s `values:` as opaque YAML — the chart is only rendered on the cluster at reconcile time, and none of these charts ship a `values.schema.json`. A wrong or misspelled value passes every step and fails after merge. Before changing chart values, render them locally:
 
@@ -202,12 +202,16 @@ Akron is the only site with storage that tolerates a Prometheus TSDB (USB3 NVMe)
 helm template alloy-metrics grafana/alloy --version <ver> -f <extracted-values>.yaml
 ```
 
-The Alloy config is the exception: it *is* checked, by validation step 12, because a syntax or argument-name error CrashLoops the collector at *every* site. The step extracts each config from the built output, substitutes that site's `cluster-vars`, and runs `alloy validate` with the release's own `--stability.level`, so a public-preview component only passes in a release that opted into one. Nothing is hand-listed — a new Alloy release is picked up automatically.
+The Alloy config is the exception: it *is* checked, by validation step 12, because a syntax or argument-name error CrashLoops the collector at *every* site. Each config is a real `.alloy` file next to its `HelmRelease` (`base/metrics-collection/alloy-metrics.alloy`, `sites/akron/monitoring/alloy.alloy`), generated into a ConfigMap the release points at with `configMap.create: false`. The step reads each config out of the built output — that is where it is already hydrated with the site's `cluster-vars` — and runs `alloy validate` with the release's own `--stability.level`, so a public-preview component only passes in a release that opted into one. Nothing is hand-listed: a new Alloy release is picked up automatically, and inlining a config back into `values.alloy.configMap.content` fails the step rather than skipping it.
+
+The generated ConfigMaps set `disableNameSuffixHash: true`. Kustomize's nameReference transformer does not know about `HelmRelease.spec.values.alloy.configMap.name`, so a hashed name would leave the release pointing at a ConfigMap that does not exist. No reload is lost — the chart's `configReloader` sidecar watches the mounted file.
 
 To check one by hand while iterating:
 
 ```bash
-alloy validate config.alloy    # catches unrecognized attribute names, not just syntax
+brew install grafana/grafana/alloy   # plain `brew install alloy` is an unrelated package
+alloy fmt base/metrics-collection/alloy-metrics.alloy
+alloy validate base/metrics-collection/alloy-metrics.alloy   # ${VAR} placeholders make this fail; step 12 is the real check
 ```
 
 Note this covers the config, not the chart values around it — `extraPorts`, `mounts` and the rest are still opaque YAML, so still render those with `helm template`.
@@ -216,7 +220,9 @@ Note this covers the config, not the chart values around it — `extraPorts`, `m
 
 Each site's `cluster-vars.yaml` defines its own `${DNS_DOMAIN}`, `${HOSTNAME}`, `${METALLB_ADDRESS_RANGE}`, `${METALLB_TRAEFIK_IP}`, `${METALLB_PIHOLE_IP}`, `${NODE_IP}`, `${SITE_NAME}`, `${PROMETHEUS_REMOTE_WRITE_URL}`. Use these placeholders directly in `base/` manifests — Flux substitutes them at reconcile time via `postBuild.substituteFrom`, from that site's own ConfigMap only (there is no cross-site fallback).
 
-Plain `kustomize build` does not perform this substitution, so the validation pipeline will always contain `${VAR}` literals in its output. Validation step 7 catches any `${VAR}` reference not defined in that site's `cluster-vars.yaml`.
+Plain `kustomize build` does not perform this substitution, and neither does `flux build --dry-run` (with no cluster, it cannot read the `substituteFrom` ConfigMap). Validation step 3 therefore does it itself, so every downstream step sees the values that actually get applied instead of a `${METALLB_TRAEFIK_IP}` string where an IP belongs. Step 7 then fails on anything still looking like `${...}` — an undefined variable, a typo, or envsubst syntax the substitution pass does not implement (`${VAR:=default}`, unused here).
+
+Resources annotated `kustomize.toolkit.fluxcd.io/substitute: disabled` are left alone by both steps: their `${...}` tokens belong to the target application (a Grafana dashboard's `${DS_PROMETHEUS}`), and Flux never touches them either.
 
 **When adding a new variable:** add it to every site's `cluster-vars.yaml` that reconciles the manifest using it, before (or in the same PR as) that manifest.
 
