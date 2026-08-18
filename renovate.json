@@ -45,5 +45,6 @@
       ]
     }
   ],
-  "schedule": ["every weekend"]
+  "schedule": ["every weekend"],
+  "minimumReleaseAge": "3 days"
 }
