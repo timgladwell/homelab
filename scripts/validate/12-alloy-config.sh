@@ -11,7 +11,9 @@
 #
 # Configs are discovered from the built output rather than listed here, so a
 # second Alloy release (Akron already runs two) is covered without touching
-# this file.
+# this file. They come from the built output rather than straight from the
+# .alloy files in the repo because that is where they are already hydrated with
+# each site's cluster-vars (step 3) — without that every ${VAR} is a parse error.
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 cd "$REPO_ROOT"
@@ -38,35 +40,51 @@ for site in $(sites); do
     echo "--- $site ---"
     mkdir -p "$WORK/$site"
 
-    # Substitution is what Flux's postBuild does at reconcile time; without it
-    # every ${VAR} is a parse error and this step would fail on every config.
-    # Step 7 is what catches a variable that has no definition.
-    python3 - "$BUILD_OUTPUT" "clusters/${site}/cluster-vars.yaml" "$WORK/$site" <<'PY'
+    python3 - "$BUILD_OUTPUT" "$WORK/$site" <<'PY' || exit 1
 import pathlib, sys, yaml
 
-built, vars_file, outdir = sys.argv[1], sys.argv[2], pathlib.Path(sys.argv[3])
-cluster_vars = yaml.safe_load(pathlib.Path(vars_file).read_text())["data"]
+built, outdir = sys.argv[1], pathlib.Path(sys.argv[2])
+docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
 
-for doc in yaml.safe_load_all(pathlib.Path(built).read_text()):
-    if not doc or doc.get("kind") != "HelmRelease":
+# Each Alloy release names the ConfigMap holding its config. Pair the two up so
+# the config can be validated with the release's own settings.
+#
+# Alloy refuses to run a component below the process's stability level, so a
+# release that has not opted in must not validate as though it had. Akron's log
+# collector passes --stability.level=public-preview and uses
+# otelcol.receiver.syslog; the metrics collectors pass nothing and must stay on
+# generally-available components.
+releases = {}
+for doc in docs:
+    if doc.get("kind") != "HelmRelease":
         continue
     alloy = doc.get("spec", {}).get("values", {}).get("alloy", {})
-    content = alloy.get("configMap", {}).get("content")
-    if not content:
+    cm = alloy.get("configMap", {})
+    if cm.get("content"):
+        sys.exit(f"ERROR: {doc['metadata']['name']} inlines its Alloy config in "
+                 "values.alloy.configMap.content. Put it in a .alloy file and "
+                 "generate the ConfigMap, so alloy fmt/validate can be pointed "
+                 "at it directly.")
+    if not cm.get("name"):
         continue
-    for key, value in cluster_vars.items():
-        content = content.replace("${%s}" % key, str(value))
-    name = doc["metadata"]["name"]
-    (outdir / f"{name}.alloy").write_text(content)
+    releases[cm["name"]] = (doc["metadata"]["name"], cm.get("key", "config.alloy"),
+                            [a for a in alloy.get("extraArgs", [])
+                             if a.startswith("--stability.level")])
 
-    # Alloy refuses to run a component below the process's stability level, so
-    # a release that has not opted in must not validate as though it had.
-    # Akron's log collector passes --stability.level=public-preview and uses
-    # otelcol.receiver.syslog; the metrics collectors pass nothing and must
-    # stay on generally-available components.
-    flags = [a for a in alloy.get("extraArgs", [])
-             if a.startswith("--stability.level")]
+for doc in docs:
+    if doc.get("kind") != "ConfigMap":
+        continue
+    entry = releases.pop(doc["metadata"]["name"], None)
+    if not entry:
+        continue
+    name, key, flags = entry
+    (outdir / f"{name}.alloy").write_text(doc["data"][key])
     (outdir / f"{name}.args").write_text(" ".join(flags))
+
+# A release pointing at a ConfigMap nothing generates would otherwise vanish
+# from this step silently, and CrashLoop on the cluster.
+if releases:
+    sys.exit("ERROR: no ConfigMap in the built output for: " + ", ".join(releases))
 PY
 
     for config in "$WORK/$site"/*.alloy; do

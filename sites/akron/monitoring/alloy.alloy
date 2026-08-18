@@ -1,0 +1,145 @@
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+discovery.kubernetes "pods" {
+  role = "pod"
+}
+
+discovery.relabel "pod_logs" {
+  targets = discovery.kubernetes.pods.targets
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label  = "namespace"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "pod"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app"]
+    target_label  = "app"
+  }
+}
+
+loki.source.kubernetes "pods" {
+  targets    = discovery.relabel.pod_logs.output
+  forward_to = [loki.write.default.receiver]
+}
+
+discovery.relabel "journal" {
+  targets = []
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+  rule {
+    source_labels = ["__journal__hostname"]
+    target_label  = "host"
+  }
+}
+
+loki.source.journal "system" {
+  path          = "/run/log/journal"
+  forward_to    = [loki.write.default.receiver]
+  relabel_rules = discovery.relabel.journal.rules
+  labels = {
+    job = "systemd-journal",
+  }
+}
+
+loki.source.syslog "unifi_siem" {
+  listener {
+    address  = "0.0.0.0:1514"
+    protocol = "udp"
+    syslog_format = "rfc3164"
+  }
+  forward_to = [loki.process.unifi_siem.receiver]
+}
+
+loki.process "unifi_siem" {
+  stage.static_labels {
+    values = { job = "unifi-siem" }
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
+otelcol.receiver.syslog "unifi_cef" {
+  udp {
+    listen_address = "0.0.0.0:1515"
+  }
+  protocol              = "rfc3164"
+  allow_skip_pri_header = true
+
+  output {
+    logs = [otelcol.exporter.loki.unifi_cef.input]
+  }
+}
+
+otelcol.exporter.loki "unifi_cef" {
+  forward_to = [loki.process.unifi_cef.receiver]
+}
+
+loki.process "unifi_cef" {
+  stage.static_labels {
+    values = { job = "unifi-cef" }
+  }
+
+  // otelcol.exporter.loki wraps the OTel log body as JSON: {"body":"<syslog line>"}
+  stage.json {
+    expressions = { message = "body" }
+  }
+  stage.output {
+    source = "message"
+  }
+
+  // Parse syslog hostname as site label, and the 7 CEF header fields.
+  // CEF format: CEF:Version|Vendor|Product|ProductVersion|SignatureID|Name|Severity|Extension
+  // Vendor is constant ("Ubiquiti") so it is not captured.
+  stage.regex {
+    expression = `^(?:\w{3}\s+\d+\s+\d+:\d+:\d+\s+)?(?P<Site>\S+)\s+CEF:\d+\|(?P<Vendor>[^|]+)\|(?P<Product>[^|]+)\|(?P<ProductVersion>[^|]+)\|(?P<EventSignatureId>[^|]+)\|(?P<EventName>[^|]+)\|(?P<Severity>[^|]+)\|(?P<extension>.*)$`
+  }
+
+  // Map CEF severity to Grafana log level values (unknown/info/warning/error/critical).
+  // First template handles numeric input (CEF: 0=Unknown, 1-3=Low, 4-6=Medium, 7-8=High, 9-10=Very-High).
+  // Second template handles string input (CEF alphanumeric labels); numeric inputs are already mapped.
+  stage.template {
+    source   = "Severity"
+    template = `{{ if eq .Value "0" }}unknown{{ else if eq .Value "1" }}info{{ else if eq .Value "2" }}info{{ else if eq .Value "3" }}info{{ else if eq .Value "4" }}warning{{ else if eq .Value "5" }}warning{{ else if eq .Value "6" }}warning{{ else if eq .Value "7" }}error{{ else if eq .Value "8" }}error{{ else if eq .Value "9" }}critical{{ else if eq .Value "10" }}critical{{ else }}{{ .Value }}{{ end }}`
+  }
+
+  stage.template {
+    source   = "Severity"
+    template = `{{ if eq .Value "Unknown" }}unknown{{ else if eq .Value "Low" }}info{{ else if eq .Value "Medium" }}warning{{ else if eq .Value "High" }}error{{ else if eq .Value "Very-High" }}critical{{ else }}{{ .Value }}{{ end }}`
+  }
+
+  stage.labels {
+    values = {
+      Site  = "",
+      level = "Severity",
+    }
+  }
+
+  stage.structured_metadata {
+    values = {
+      Vendor           = "",
+      Product          = "",
+      ProductVersion   = "",
+      EventSignatureId = "",
+      EventName        = "",
+    }
+  }
+
+  // Replace the full syslog line with just the CEF extension string.
+  stage.output {
+    source = "extension"
+  }
+
+  forward_to = [loki.write.default.receiver]
+}

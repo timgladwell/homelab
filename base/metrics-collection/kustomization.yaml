@@ -9,3 +9,16 @@ resources:
   - node-exporter.yaml
   - kube-state-metrics.yaml
   - alloy-metrics.yaml
+
+# The collector's river config, as a real file. disableNameSuffixHash is
+# required: kustomize's nameReference transformer does not know about
+# HelmRelease.spec.values.alloy.configMap.name, so a hashed name would leave
+# the release pointing at a ConfigMap that does not exist. No reload is lost —
+# the chart's configReloader sidecar watches the mounted file.
+configMapGenerator:
+  - name: alloy-metrics-config
+    namespace: monitoring
+    options:
+      disableNameSuffixHash: true
+    files:
+      - config.alloy=alloy-metrics.alloy

@@ -6,6 +6,12 @@
 # Flux Kustomization, at the path that Kustomization actually declares. This
 # replaces the old clusters/<site>-validation/ directories, which listed the
 # same layers a second time and silently lied whenever the two drifted.
+#
+# The output is then hydrated with that site's cluster-vars, the way Flux's
+# postBuild.substituteFrom does at reconcile time, so every downstream step sees
+# the values that actually get applied instead of ${METALLB_TRAEFIK_IP} where an
+# IP belongs. `flux build --dry-run` cannot do this for us: with no cluster to
+# read the ConfigMap from, it emits the placeholders untouched.
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"
@@ -33,6 +39,17 @@ for site in $(sites); do
             fail=1
         fi
     done < <(site_kustomizations "$site")
+
+    # Substitute in place. Documents annotated substitute: disabled are left
+    # alone — their ${...} tokens belong to the target application (a Grafana
+    # dashboard's ${DS_PROMETHEUS}), and Flux never touches them either.
+    # Plain string replacement, deliberately: Flux's envsubst also supports
+    # ${VAR:=default}, nothing here uses it, and anything this pass leaves
+    # behind is what step 7 fails on.
+    if ! python3 "$(dirname "$0")/substitute.py" "$out" "clusters/${site}/cluster-vars.yaml"; then
+        echo "✗ [$site] variable substitution failed"
+        fail=1
+    fi
 done
 echo "CHECKED $checked builds"
 exit $fail

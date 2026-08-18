@@ -15,3 +15,12 @@ resources:
   - loki-push-ingressroute.yaml
   - alloy-syslog-service.yaml
   - ./dashboards
+
+# See base/metrics-collection/kustomization.yaml for why the hash is disabled.
+configMapGenerator:
+  - name: alloy-logs-config
+    namespace: monitoring
+    options:
+      disableNameSuffixHash: true
+    files:
+      - config.alloy=alloy.alloy

@@ -1,0 +1,441 @@
+// Ship everything collected below to Prometheus. Snappy-compressed
+// protobuf batches: a site of this size is well under 1 kbit/s.
+prometheus.remote_write "default" {
+  endpoint {
+    url = "${PROMETHEUS_REMOTE_WRITE_URL}"
+  }
+
+  external_labels = {
+    site = "${SITE_NAME}",
+  }
+
+  // What makes a remote site survive a WAN outage. Truncation only
+  // discards samples below the lowest successfully-sent timestamp, so
+  // unsent data is kept regardless of age until max_keepalive_time —
+  // that value, not truncate_frequency, is the ceiling on outage
+  // length. The chart default is 8h. Akron's Prometheus must accept
+  // samples this old: see tsdb.outOfOrderTimeWindow in
+  // sites/akron/monitoring/kube-prometheus-stack.yaml, kept in sync.
+  wal {
+    truncate_frequency = "2h"
+    max_keepalive_time = "24h"
+  }
+}
+
+// ---------------------------------------------------------------
+// The same idea for logs. This collector is the only process at a
+// site that talks to Akron, for either signal: apps push here and
+// this pushes onward, rather than every app dialling across the WAN
+// on its own. Today the only sender is Unpoller, whose UniFi events,
+// IDS records and system log are Loki-only outputs.
+//
+// loki.source.api serves Loki's own push API, so a sender needs no
+// knowledge that Alloy is in the path — it is pointed at this
+// Service instead of at Loki.
+// ---------------------------------------------------------------
+loki.source.api "push" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3100
+  }
+
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "${LOKI_PUSH_URL}"
+  }
+
+  external_labels = {
+    site = "${SITE_NAME}",
+  }
+
+  // The reason for putting Alloy in this path at all. Unpoller's own
+  // Loki client has no disk buffer and gives up after a short
+  // backoff, so a WAN outage silently punches a hole in exactly the
+  // logs you would want afterwards to answer "was this router
+  // compromised, and when". max_segment_age is the ceiling on how
+  // much outage this survives; the chart default is 1h, and 24h
+  // matches the metrics WAL above.
+  //
+  // NOTE: this wal block is flagged *experimental* upstream, unlike
+  // prometheus.remote_write's, which is stable. A breaking change to
+  // it would fail the collector at every site, so it is the first
+  // thing to check if an alloy chart bump misbehaves — and deleting
+  // these six lines is a complete rollback, at the cost of the
+  // buffering.
+  wal {
+    enabled         = true
+    max_segment_age = "24h"
+  }
+}
+
+discovery.kubernetes "pods" {
+  role = "pod"
+}
+
+discovery.kubernetes "nodes" {
+  role = "node"
+}
+
+discovery.kubernetes "endpoints" {
+  role = "endpoints"
+}
+
+// ---------------------------------------------------------------
+// Host metrics
+// ---------------------------------------------------------------
+discovery.relabel "node_exporter" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    regex         = "prometheus-node-exporter"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+    regex         = "metrics"
+    action        = "keep"
+  }
+
+  // Node name, not pod IP — matches what Akron's ServiceMonitor used
+  // to produce, so the node-exporter-full dashboard keeps working.
+  rule {
+    source_labels = ["__meta_kubernetes_pod_node_name"]
+    target_label  = "instance"
+  }
+}
+
+prometheus.scrape "node_exporter" {
+  targets         = discovery.relabel.node_exporter.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "node-exporter"
+  scrape_interval = "60s"
+}
+
+// ---------------------------------------------------------------
+// Cluster object state
+// ---------------------------------------------------------------
+discovery.relabel "kube_state_metrics" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    regex         = "kube-state-metrics"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+    regex         = "http"
+    action        = "keep"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "kube-state-metrics"
+  }
+}
+
+prometheus.scrape "kube_state_metrics" {
+  targets         = discovery.relabel.kube_state_metrics.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "kube-state-metrics"
+  scrape_interval = "60s"
+}
+
+// ---------------------------------------------------------------
+// Unbound. The exporter sidecar already runs at every site as part of
+// base/dns; before this component existed, only Akron scraped it.
+// ---------------------------------------------------------------
+discovery.relabel "unbound" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    regex         = "dns"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app"]
+    regex         = "unbound"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+    regex         = "metrics"
+    action        = "keep"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "unbound"
+  }
+}
+
+prometheus.scrape "unbound" {
+  targets         = discovery.relabel.unbound.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "unbound"
+  scrape_interval = "60s"
+}
+
+// ---------------------------------------------------------------
+// Unpoller. Runs at exactly one site (Eastbank) but polls every
+// UniFi controller, so this finds nothing anywhere else and that is
+// fine — the alternative is a PodMonitor, and the Prometheus
+// operator that would honour it only exists at Akron, which is not
+// where Unpoller runs.
+//
+// The `site` label here is Eastbank's, from remote_write's external
+// labels — it says where the poller runs, not which network a series
+// describes. Unpoller stamps its own `site_name` and `source` on
+// every metric, and that is what the UniFi dashboards select on.
+// ---------------------------------------------------------------
+discovery.relabel "unpoller" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    regex         = "monitoring"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    regex         = "unpoller"
+    action        = "keep"
+  }
+
+  // The container declares TCP and UDP on the same port number, so
+  // discovery returns two identical targets without this.
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+    regex         = "tcp"
+    action        = "keep"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "unpoller"
+  }
+}
+
+prometheus.scrape "unpoller" {
+  targets         = discovery.relabel.unpoller.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "unpoller"
+  scrape_interval = "60s"
+}
+
+// ---------------------------------------------------------------
+// The collector itself. Without this there is no way to see WAL
+// depth, remote-write failure rates, or how close the process is to
+// its memory ceiling — the collector is the one component whose
+// failure hides every other signal, so it must not be the one
+// component nobody watches. Also picks up the log-collecting Alloy
+// DaemonSet at sites that run one; both share the chart's app name.
+//
+// Useful series once this lands:
+//   prometheus_remote_storage_samples_pending
+//   prometheus_remote_storage_samples_failed_total
+//   prometheus_remote_storage_highest_timestamp_in_seconds
+//   go_memstats_heap_inuse_bytes
+// ---------------------------------------------------------------
+discovery.relabel "alloy" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    regex         = "monitoring"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    regex         = "alloy"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+    regex         = "http-metrics"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "instance"
+  }
+}
+
+prometheus.scrape "alloy" {
+  targets         = discovery.relabel.alloy.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "alloy"
+  scrape_interval = "60s"
+}
+
+// ---------------------------------------------------------------
+// Kubelet and cAdvisor. Scraped directly on :10250 with the
+// ServiceAccount token; k3s serves a self-signed kubelet certificate,
+// hence insecure_skip_verify.
+// ---------------------------------------------------------------
+discovery.relabel "kubelet" {
+  targets = discovery.kubernetes.nodes.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_node_name"]
+    target_label  = "instance"
+  }
+
+  // kube-prometheus-stack's built-in Kubernetes dashboards select on
+  // job="kubelet" plus metrics_path, so both are reproduced here.
+  rule {
+    target_label = "metrics_path"
+    replacement  = "/metrics"
+  }
+}
+
+discovery.relabel "cadvisor" {
+  targets = discovery.kubernetes.nodes.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_node_name"]
+    target_label  = "instance"
+  }
+
+  rule {
+    target_label = "metrics_path"
+    replacement  = "/metrics/cadvisor"
+  }
+}
+
+prometheus.scrape "kubelet" {
+  targets           = discovery.relabel.kubelet.output
+  forward_to        = [prometheus.remote_write.default.receiver]
+  job_name          = "kubelet"
+  scrape_interval   = "60s"
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+  tls_config {
+    insecure_skip_verify = true
+  }
+}
+
+prometheus.scrape "cadvisor" {
+  targets           = discovery.relabel.cadvisor.output
+  forward_to        = [prometheus.relabel.cadvisor.receiver]
+  job_name          = "kubelet"
+  metrics_path      = "/metrics/cadvisor"
+  scrape_interval   = "60s"
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+  tls_config {
+    insecure_skip_verify = true
+  }
+}
+
+// Cardinality trimming. Ported verbatim from the ServiceMonitor
+// relabelings Akron's kube-prometheus-stack used to carry — this is
+// now the only copy in the repo, which is the point of both sites
+// sharing one collector.
+prometheus.relabel "cadvisor" {
+  forward_to = [prometheus.remote_write.default.receiver]
+
+  // Full cgroup paths are unused by any dashboard and contribute
+  // disproportionately to series cardinality.
+  rule {
+    action = "labeldrop"
+    regex  = "id"
+  }
+
+  // Metric families not referenced by any configured dashboard.
+  rule {
+    source_labels = ["__name__"]
+    regex         = "container_(tasks_state|cpu_load_average_10s|memory_failures_total|memory_mapped_file)"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "container_(network_tcp_usage_total|network_udp_usage_total|blkio_device_usage_total)"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "container_(fs_io_current|fs_io_time_seconds_total|fs_io_time_weighted_seconds_total)"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "container_(fs_reads_merged_total|fs_sector_reads_total|fs_sector_writes_total)"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "container_fs_writes_merged_total"
+    action        = "drop"
+  }
+}
+
+// ---------------------------------------------------------------
+// kube-apiserver
+// ---------------------------------------------------------------
+discovery.relabel "apiserver" {
+  targets = discovery.kubernetes.endpoints.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_service_name", "__meta_kubernetes_endpoint_port_name"]
+    regex         = "default;kubernetes;https"
+    action        = "keep"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "kube-apiserver"
+  }
+}
+
+prometheus.scrape "apiserver" {
+  targets           = discovery.relabel.apiserver.output
+  forward_to        = [prometheus.relabel.apiserver.receiver]
+  job_name          = "apiserver"
+  scrape_interval   = "60s"
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+  tls_config {
+    ca_file     = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    server_name = "kubernetes.default.svc"
+  }
+}
+
+prometheus.relabel "apiserver" {
+  forward_to = [prometheus.remote_write.default.receiver]
+
+  // Histogram buckets account for most apiserver cardinality. _sum and
+  // _count are kept so average latency stays queryable; percentile
+  // queries (histogram_quantile) do not work against these series.
+  rule {
+    source_labels = ["__name__"]
+    regex         = "apiserver_(request_duration_seconds_bucket|response_sizes_bucket)"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "apiserver_(watch_events_sizes_bucket|request_filter_duration_seconds_bucket)"
+    action        = "drop"
+  }
+}
