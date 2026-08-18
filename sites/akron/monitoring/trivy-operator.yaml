@@ -1,0 +1,94 @@
+---
+# trivy-operator is deliberately temporary. It is shipped to answer a question —
+# "does what actually runs at Akron pass the checks validation step 6 runs
+# against the files in git?" — and removed again once the findings are dealt
+# with. See docs/runbooks/trivy-operator-audit.md for the ship / read / fix /
+# unship cycle.
+#
+# It exists because static scanning cannot see chart-rendered workloads
+# (Prometheus, Grafana, Loki, Traefik, both Alloys) and cannot do the
+# cross-object correlation that namespace-scoped checks like KSV-0040 need.
+# Running it in the cluster gets both for free; running it *permanently* would
+# cost a controller watching every object on an 8GB Pi for a report nobody
+# reads between audits.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trivy-system
+---
+# Sized for the operator alone. Every scanner that spawns Jobs is disabled
+# below, so nothing dynamic lands here — re-check this quota before enabling
+# the vulnerability scanner, whose scan Jobs run in this namespace.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: trivy-system
+  namespace: trivy-system
+spec:
+  hard:
+    requests.cpu: 100m
+    requests.memory: 128Mi
+    limits.cpu: 500m
+    limits.memory: 512Mi
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: aqua
+  namespace: trivy-system
+spec:
+  interval: 24h
+  url: https://aquasecurity.github.io/helm-charts/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: trivy-operator
+  namespace: trivy-system
+spec:
+  interval: 30m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: trivy-operator
+      version: "~0.35.0"
+      sourceRef:
+        kind: HelmRepository
+        name: aqua
+        namespace: trivy-system
+      interval: 12h
+  values:
+    operator:
+      # Config audit is the whole point: it runs in-process against live
+      # objects, spawns no Jobs, and downloads only the trivy-checks policy
+      # bundle. Everything else here is off because it costs a Pi real work
+      # for something this audit does not ask.
+      configAuditScannerEnabled: true
+      # In-process too, and free once the operator is running: it answers the
+      # "least privilege" half of the same question.
+      rbacAssessmentScannerEnabled: true
+      # Pulls the CVE database on a schedule and spawns a scan Job per image.
+      # Evaluate separately (#263); it is not what the static-scan gap is.
+      vulnerabilityScannerEnabled: false
+      sbomGenerationEnabled: false
+      exposedSecretScannerEnabled: false
+      # Both spawn node-collector Jobs, which mount host paths privileged to
+      # read kubelet/etcd config. Compliance also depends on the infra
+      # assessment it would have to run first.
+      infraAssessmentScannerEnabled: false
+      clusterComplianceEnabled: false
+    # Reports are read with kubectl during an audit, not scraped — there is no
+    # ServiceMonitor and no dashboard, because both would outlive the thing they
+    # display.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

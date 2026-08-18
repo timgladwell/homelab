@@ -14,6 +14,8 @@ resources:
   - alloy.yaml
   - loki-push-ingressroute.yaml
   - alloy-syslog-service.yaml
+  # Temporary; see docs/runbooks/trivy-operator-audit.md.
+  - trivy-operator.yaml
   - ./dashboards
 
 # See base/metrics-collection/kustomization.yaml for why the hash is disabled.

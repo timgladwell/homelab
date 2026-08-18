@@ -167,11 +167,12 @@ misconfigurations:
   # invocation as a fully-populated ResourceQuota still fails — there is no
   # cross-object correlation happening. The check is unsatisfiable for any
   # manifest that isn't itself a ResourceQuota, regardless of whether a
-  # quota exists for its namespace. Re-check after a trivy bump: try
-  # `trivy config --severity LOW --include-non-failures ./base/dns/` and
-  # look for KSV-0040 failing on pihole-deployment.yaml while passing on
-  # resourcequota.yaml in the same run — if it now passes both, this
-  # exception (and the reasoning above) is stale.
+  # quota exists for its namespace. This is not a version problem and a trivy
+  # bump will not fix it (#242, closed as no fix available) — a file scanner
+  # has nothing to correlate against. The check is re-tested against live
+  # objects instead, during the periodic trivy-operator audit; see
+  # docs/runbooks/trivy-operator-audit.md, which narrows this exception if the
+  # operator resolves the check per-namespace.
   - id: AVD-KSV-0040
     paths:
       - "**/*.yaml"
