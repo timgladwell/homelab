@@ -3520,6 +3520,17 @@
   "templating": {
     "list": [
       {
+        "current": {},
+        "includeAll": false,
+        "label": "Datasource",
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      },
+      {
         "allValue": ".*",
         "current": {},
         "datasource": "${datasource}",
