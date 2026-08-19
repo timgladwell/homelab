@@ -114,6 +114,25 @@ monitoring/daemonset-alloy AVD-KSV-0023
 monitoring/daemonset-alloy AVD-KSV-0118
 
 # ---------------------------------------------------------------------------
+# UID/GID <= 10000, for workloads that are already non-root, unprivileged and
+# free of host mounts. The check guards against a container UID colliding with
+# a real user on the host, which cannot happen to any of these. The UID is also
+# baked into each image's file ownership, so changing it forces a recursive
+# chown of the volume at every start — a 14Gi TSDB, on a Pi.
+#
+# This is the same reasoning already accepted for flux-system above, and it has
+# to cover alloy-metrics too: #265 moved it to the image's own UID 473, which is
+# itself <= 10000. Fixing it in one place and not the others would be
+# incoherent rather than safer.
+# ---------------------------------------------------------------------------
+monitoring/statefulset-prometheus-kube-prometheus-stack-prometheus AVD-KSV-0020
+monitoring/statefulset-prometheus-kube-prometheus-stack-prometheus AVD-KSV-0021
+monitoring/statefulset-alertmanager-kube-prometheus-stack-alertmanager AVD-KSV-0020
+monitoring/statefulset-alertmanager-kube-prometheus-stack-alertmanager AVD-KSV-0021
+monitoring/statefulset-alloy-metrics AVD-KSV-0020
+monitoring/statefulset-alloy-metrics AVD-KSV-0021
+
+# ---------------------------------------------------------------------------
 # The audit tool itself, which is removed at the end of every cycle. Fixing its
 # security context would be work on a workload that is not supposed to outlive
 # the audit.
