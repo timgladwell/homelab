@@ -93,9 +93,21 @@ Run `./scripts/trivy-audit-diff.sh --self-test` after touching the script.
 | LOW | monitoring/daemonset-alloy | AVD-KSV-0030 | defer — needs testing against its hostPath mounts |
 ```
 
-State the proposal and its one-line grounds. Do not edit
-`docs/trivy-accepted-findings.txt` as part of reporting — accepting a finding is
-a decision the user makes, in a context they can see.
+**Report every row the script printed, verbatim, one table row each.** Do not
+summarise, do not deduplicate repeated check IDs, and do not collapse "three
+containers tripped this" into one line — the repetition count is information
+(Grafana dropping from four KSV-0014s to three is how you see an init container
+was removed). The number in the heading must equal the number of rows in the
+table; if it does not, the report is wrong.
+
+State the proposal and its one-line grounds. **Do not invent chart value paths.**
+If a fix needs a Helm value, either name one verified with
+`helm show values <chart>` or say which chart to check — a plausible-looking key
+that does not exist is worse than no suggestion, because the values block is
+opaque to validation and a typo passes every step (#213).
+
+Do not edit `docs/trivy-accepted-findings.txt` as part of reporting — accepting a
+finding is a decision the user makes, in a context they can see.
 
 ## What this audit cannot see
 

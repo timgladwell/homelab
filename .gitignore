@@ -9,3 +9,6 @@ Thumbs.db
 
 # Claude
 .claude/worktrees/**
+# trivy-operator audit dumps (docs/runbooks/trivy-operator-audit.md). A snapshot
+# of one cluster at one moment; a committed one would later read as current.
+*-reports.json

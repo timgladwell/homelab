@@ -131,6 +131,16 @@ monitoring/statefulset-alertmanager-kube-prometheus-stack-alertmanager AVD-KSV-0
 monitoring/statefulset-alertmanager-kube-prometheus-stack-alertmanager AVD-KSV-0021
 monitoring/statefulset-alloy-metrics AVD-KSV-0020
 monitoring/statefulset-alloy-metrics AVD-KSV-0021
+monitoring/replicaset-kube-prometheus-stack-grafana AVD-KSV-0020
+monitoring/replicaset-kube-prometheus-stack-grafana AVD-KSV-0021
+
+# ---------------------------------------------------------------------------
+# system-upgrade-controller mounts host paths because replacing the k3s binary
+# on the node is its entire function. Its Plans also spawn upgrade Job pods with
+# no resource declarations, which is why that namespace deliberately has no
+# ResourceQuota. Mirrors .trivyignore.yaml.
+# ---------------------------------------------------------------------------
+system-upgrade/replicaset-system-upgrade-controller AVD-KSV-0023
 
 # ---------------------------------------------------------------------------
 # The audit tool itself, which is removed at the end of every cycle. Fixing its

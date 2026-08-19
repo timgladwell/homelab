@@ -77,13 +77,22 @@ ignore is wrong or stale.
 new. The cluster host produces raw data and nothing else; the judgement lives in
 the repo, where it is version-controlled and testable.
 
-On the cluster:
+Pull the dump straight here — `ssh <host> "<command>"` streams the remote
+command's stdout back, so the `>` redirect is evaluated locally and nothing is
+left on the Pi to clean up:
 
 ```bash
-kubectl get configauditreports -A -o json > akron-reports.json
+ssh tim@10.6.1.3 "kubectl get configauditreports -A -o json" > akron-reports.json
+ssh tim@10.4.1.3 "kubectl get configauditreports -A -o json" > eastbank-reports.json
 ```
 
-Copy that back, and run it against the accepted list here:
+`scp` works too and is two steps instead of one, leaving a copy at both ends.
+
+Dumps are gitignored (`*-reports.json`). They are a snapshot of one cluster at
+one moment, and a stale one committed to the repo would later be read as
+current — keep them in a scratch directory.
+
+Then run each against the accepted list:
 
 ```bash
 ./scripts/trivy-audit-diff.sh akron-reports.json
