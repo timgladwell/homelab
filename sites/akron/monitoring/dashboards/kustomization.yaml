@@ -9,6 +9,33 @@ namespace: monitoring
 # own template variables — ${datasource}, ${ds_prometheus} — which share the
 # ${VAR} syntax Flux uses for postBuild substitution but have nothing to do with
 # it. Flux must not touch them: they have to reach Grafana verbatim.
+# ADDING A DASHBOARD DOWNLOADED FROM GRAFANA.COM: check its `__inputs` block
+# before committing. "Export for sharing externally" emits a placeholder there —
+# usually `datasource` or `DS_PROMETHEUS` — that every panel then references as
+# ${...}, and it is Grafana's *import wizard* that asks which datasource to use
+# and rewrites the file. Provisioning from a ConfigMap never runs that wizard:
+# the sidecar writes the JSON straight into Grafana's database, so the reference
+# stays a literal string and every panel errors.
+#
+# The file needs a matching `datasource`-type entry in `templating.list`, whose
+# `name` is exactly the token the panels reference. Adding one is not the same
+# as rewriting the token — never rename or $$-escape those, see below.
+#
+# The six unifi-* dashboards lacked this and rendered nothing. They worked
+# originally because older Grafana fell back to the default datasource for an
+# unresolvable reference; Grafana 10/11 made it an error instead, so they broke
+# with a chart bump rather than a change here.
+#
+# Provenance is in each file's own `gnetId`, so a dashboard due an update can be
+# matched to its source without guessing —
+# https://grafana.com/grafana/dashboards/<gnetId>/:
+#
+#   1860   node-exporter-full          21006  unbound
+#   11310  unifi-client-dpi            11311  unifi-sites
+#   11312  unifi-usw                   11313  unifi-usg
+#   11314  unifi-uap                   11315  unifi-clients
+#
+# Re-downloading one discards this datasource fix, so re-apply it after.
 generatorOptions:
   disableNameSuffixHash: true
   labels:
