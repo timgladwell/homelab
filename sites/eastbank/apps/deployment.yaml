@@ -101,6 +101,25 @@ spec:
           # Whatever is stored lands in SQLite on the PVC, which is a local-path
           # directory on this node's SD card: protected against a copied file,
           # not against root on the box.
+          #
+          # That SD card is also why the app's own monitoring half is turned off
+          # in Settings, with short retention on what remains. v2 gives each site
+          # its own InfluxDB buckets fed by SNMP polling — interface counters,
+          # device health, latency probes, WiFi client stats — which is a
+          # continuous time-series write stream onto the boot medium. That is the
+          # exact wear pattern that keeps Prometheus at Akron and nowhere else,
+          # and that made alloy.yaml read the volatile journal rather than enable
+          # persistent journald.
+          #
+          # Most of it is duplicated anyway: Unpoller has polled these same
+          # controllers into Akron's Prometheus since #120, on hardware built for
+          # it. What this app is here for is the part Prometheus cannot do —
+          # audit, topology, path analysis, threat intelligence — none of which
+          # needs long retention.
+          #
+          # Those settings live in the app's database, not here, so they are
+          # invisible to git and will not survive a PVC reset. If the PVC grows
+          # steadily over a week, monitoring came back on.
           env:
             # The container listens on all interfaces so Traefik can reach it.
             # Without this it binds loopback only and the Service goes nowhere.
