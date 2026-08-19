@@ -1,8 +1,14 @@
 ---
-# Sized for two copies of the pod, not one. A Deployment's default rolling
-# update briefly runs the old and new pods together, and a quota that only fits
-# one rejects the new pod rather than delaying it — which is how the monitoring
-# quota broke Grafana's rollout (see sites/akron/monitoring/resourcequota.yaml).
+# One pod's worth plus margin, which is the right sizing *because* the Deployment
+# uses Recreate: the old pod is gone before the new one starts, so old and new
+# never coexist and the overlap headroom a RollingUpdate needs does not apply.
+# If that strategy ever changes back, this has to double — a quota that fits only
+# one pod rejects the incoming pod outright rather than delaying it, which is how
+# the monitoring quota broke Grafana's rollout (sites/akron/monitoring/).
+#
+# The margin above one pod is deliberate: the workload's own limits were raised
+# once already after a GeoLite2 download OOMKilled it, and a quota pinned exactly
+# to the pod turns the next such adjustment into two changes instead of one.
 apiVersion: v1
 kind: ResourceQuota
 metadata:
@@ -10,7 +16,7 @@ metadata:
   namespace: apps
 spec:
   hard:
-    requests.cpu: 200m
-    requests.memory: 512Mi
-    limits.cpu: "1"
-    limits.memory: 1Gi
+    requests.cpu: 300m
+    requests.memory: 768Mi
+    limits.cpu: "2"
+    limits.memory: 1536Mi

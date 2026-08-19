@@ -154,14 +154,28 @@ spec:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 15
+          # Carried over from the single-site v1 deployment at first, and too
+          # small for what v2 actually does: 512Mi OOMKilled the container the
+          # first time the MaxMind GeoLite2 database was downloaded, and idle
+          # with three sites connected sits at ~395Mi — 77% of that limit with
+          # nothing happening.
+          #
+          # Note a GC ceiling would not have helped, unlike Alloy's GOMEMLIMIT.
+          # .NET already caps its managed heap near 75% of the cgroup limit by
+          # default; being killed anyway means the spike was unmanaged memory,
+          # decompressing and loading a ~120MB .mmdb. That needs a bigger
+          # ceiling, not more aggressive collection.
+          #
+          # GeoLite2 refreshes periodically rather than once, so the headroom
+          # has to be standing, not just enough for first run.
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 384Mi
               ephemeral-storage: 50Mi
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: "1"
+              memory: 1Gi
               ephemeral-storage: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
