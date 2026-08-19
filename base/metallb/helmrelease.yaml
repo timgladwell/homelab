@@ -47,6 +47,17 @@ spec:
           cpu: 100m
           memory: 128Mi
     speaker:
+      # The last finding from the #263 audit at either site. hostNetwork and
+      # NET_RAW stay — answering ARP for the LoadBalancer IPs on the node's real
+      # interface is L2 mode working as designed, and both are accepted in
+      # docs/trivy-accepted-findings.txt. seccomp is a different axis: it filters
+      # syscalls, not capabilities, and RuntimeDefault permits the AF_PACKET
+      # sockets the speaker opens. The controller got this in #265; the speaker
+      # was left out because its other findings looked inherent, which this one
+      # is not.
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       resources:
         requests:
           cpu: 10m
