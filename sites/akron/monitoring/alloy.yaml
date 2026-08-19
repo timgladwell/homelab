@@ -33,6 +33,14 @@ spec:
     # correct and rendered a container with no limits and no host mounts. The
     # journal pipeline below was reading a /var/log/journal that did not exist
     # inside the container. See #213.
+    # seccomp was the other thing missing here. RuntimeDefault is the profile
+    # every other workload in this namespace now runs under, and it constrains
+    # the syscall surface without touching the uid this collector needs.
+    global:
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
+
     # The chart's configReloader default sets requests but no limits; the
     # ResourceQuota on this namespace requires both.
     configReloader:
@@ -71,6 +79,19 @@ spec:
               type: File
 
     alloy:
+      # This one keeps root and a writable root filesystem — it reads
+      # /var/log/pods and the volatile journal through hostPath mounts, which is
+      # the entire reason it exists, and those findings are accepted in
+      # docs/trivy-accepted-findings.txt. Capabilities are a different question:
+      # reading root-owned 0644 log files needs none of them, so dropping the
+      # set costs nothing and removes the privilege-escalation path that makes a
+      # root container worth worrying about.
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+
       mounts:
         varlog: true
         extra:

@@ -44,6 +44,11 @@ spec:
         security:
           disable_gravatar: true
       sidecar:
+        # Both sidecars write only into the emptyDirs they mount
+        # (/tmp/dashboards and the datasource provisioning dir), so neither
+        # needs the root filesystem writable either.
+        securityContext:
+          readOnlyRootFilesystem: true
         resources:
           requests:
             cpu: 10m
@@ -63,16 +68,28 @@ spec:
         limits:
           cpu: 1000m
           memory: 768Mi
-      # initChownData has no resources by chart default; the ResourceQuota on
-      # this namespace requires every pod to declare them.
+      # An init container whose whole job is to chown /var/lib/grafana to
+      # Grafana's UID — which the pod's own `fsGroup: 472` already does when the
+      # volume is mounted. It ran as root, added CHOWN, and needed a writable
+      # root filesystem to do it, which is five of this pod's audit findings
+      # (KSV-0105, 0022, 0106, 0001 and one 0014) for work that was already
+      # done. Re-enable only if a storage class turns up that ignores fsGroup;
+      # local-path does not.
       initChownData:
-        resources:
-          requests:
-            cpu: 10m
-            memory: 16Mi
-          limits:
-            cpu: 50m
-            memory: 32Mi
+        enabled: false
+
+      # The remaining KSV-0014s. Grafana writes its state to the PVC at
+      # /var/lib/grafana and the sidecars write to their own emptyDir mounts, so
+      # nothing needs a writable root — except /tmp, which Grafana uses for
+      # scratch space during provisioning and plugin unpacking. Giving it an
+      # emptyDir is what makes readOnlyRootFilesystem survivable rather than a
+      # CrashLoop waiting for the first operation that needs a temp file.
+      containerSecurityContext:
+        readOnlyRootFilesystem: true
+
+      extraEmptyDirMounts:
+        - name: grafana-tmp
+          mountPath: /tmp
 
     prometheus:
       prometheusSpec:
