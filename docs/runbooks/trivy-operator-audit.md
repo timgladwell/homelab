@@ -89,6 +89,15 @@ Copy that back, and run it against the accepted list here:
 ./scripts/trivy-audit-diff.sh akron-reports.json
 ```
 
+**When Claude Code does this, delegate to the `trivy-auditor` subagent**
+(`.claude/agents/trivy-auditor.md`) rather than running the script inline. A raw
+dump is hundreds of findings across ~60 reports and the filtered result is
+usually a handful or none; the subagent keeps the former out of the conversation
+and reports back in the format defined by the preloaded `trivy-audit-conventions`
+skill (`.claude/skills/trivy-audit-conventions/`), which also carries the
+fix/accept/defer rules. It proposes; accepting a finding stays a decision made in
+the main conversation.
+
 `docs/trivy-accepted-findings.txt` holds the decisions from previous cycles with
 the reason for each. An empty result means nothing has changed since the last
 audit, which is the answer you want most cycles.
