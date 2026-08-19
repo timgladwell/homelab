@@ -1,9 +1,0 @@
----
-# One file, not the usual split into namespace/helmrepository/helmrelease: this
-# component is shipped for the length of an audit and removed again, so the
-# whole thing is meant to be added or deleted as a unit. See
-# docs/runbooks/trivy-operator-audit.md.
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - trivy-operator.yaml
