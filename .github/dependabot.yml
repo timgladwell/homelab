@@ -21,6 +21,7 @@ updates:
       - "/base/dns"
       - "/base/pihole-sync"
       - "/base/system-upgrade-controller"
+      - "/sites/eastbank/apps"
     schedule:
       interval: weekly
     cooldown:

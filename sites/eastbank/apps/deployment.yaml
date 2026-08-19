@@ -1,0 +1,156 @@
+---
+# NetworkOptimizer, restored at Eastbank rather than Akron and as one instance
+# rather than three.
+#
+# It used to run as three Deployments on Akron — one per UniFi site, because the
+# app handled a single controller and its state lives in a SQLite file it owns
+# exclusively. v2 manages every site from one instance, which is why this was
+# deleted rather than moved during the restructure. Eastbank is where it belongs
+# for the same reason Unpoller moved there in #120: it reaches every site's
+# controller over the Site Magic VPN, nothing about that needs to sit next to
+# Akron's storage, and Akron's headroom is the scarce resource.
+#
+# UniFi credentials are NOT here. v2 takes the controller URL and a local-only
+# account (or an API key) through its own Settings UI and keeps them in its
+# SQLite database, so there is nothing to encrypt and nothing that belongs in
+# git. APP_PASSWORD below is the app's own admin login, not a controller
+# credential.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-optimizer
+  namespace: apps
+  annotations:
+    # container-security-context-readonlyrootfilesystem: the Blazor Server
+    #   runtime writes ASP.NET temp files and app logs outside /app/data.
+    # container-security-context-user-group-id: the image sets APP_UID=1654 but
+    #   no USER, and ships its own /entrypoint.sh — it starts as root and drops
+    #   privileges internally, the same shape as pihole and unbound. Forcing
+    #   runAsUser pre-empts that and breaks startup. Verified against the arm64
+    #   manifest of 2.6.4, rather than assumed as the previous annotation did.
+    # pod-probes-identical: /api/health is the only health endpoint the app
+    #   exposes; different endpoints would need upstream changes.
+    # pod-networkpolicy: no NetworkPolicy yet, tracked separately.
+    # deployment-replicas: one replica is deliberate. State is a SQLite file
+    #   plus a local InfluxDB, neither of which tolerates concurrent writers.
+    # container-image-pull-policy: the tag is a pinned semver release, so
+    #   IfNotPresent avoids re-pulling a 200MB image on an RPi.
+    # deployment-strategy: Recreate drops availability during an update, which
+    #   is exactly what is wanted — see the strategy comment below. Rolling
+    #   would not roll anyway, it would deadlock on the ReadWriteOnce volume.
+    kube-score/ignore: >-
+      container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,pod-probes-identical,pod-networkpolicy,deployment-replicas,container-image-pull-policy,deployment-strategy
+spec:
+  replicas: 1
+  # The PVC is ReadWriteOnce and SQLite has one writer. A rolling update would
+  # start the new pod before the old one released the volume, so it would block
+  # on the mount rather than roll.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: network-optimizer
+  template:
+    metadata:
+      labels:
+        app: network-optimizer
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: network-optimizer
+          image: ghcr.io/ozark-connect/network-optimizer:2.6.4
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8042
+              protocol: TCP
+          # APP_PASSWORD is deliberately absent. It only preseeds the admin
+          # login, which the app then stores in its SQLite database on the PVC —
+          # so leaving it out costs one `kubectl logs` to read the generated
+          # password at first start, and nothing after that. Preseeding it would
+          # mean a SOPS secret to keep it out of git: a key and a file to
+          # maintain for a credential written down once.
+          #
+          #   kubectl -n apps logs deploy/network-optimizer | grep -A5 AUTO-GENERATED
+          #
+          # UniFi credentials are not here and never will be: they are entered
+          # in the app's own Settings UI, one per controller.
+          #
+          # Use a restricted Local Access Only account on each controller —
+          # Network: View Only, Protect: View Only, User & Account Management:
+          # None — and NOT a UniFi API key. The key is documented as encrypted
+          # at rest, which is the better storage story, but it carries no
+          # permissions of its own: it inherits the role of whoever created it,
+          # and nothing outside the controller can assert what that role was.
+          # A restricted account's permissions are visible in the UniFi UI and
+          # can be checked at any time.
+          #
+          # That is the trade taken deliberately: a bound we can verify over an
+          # encryption claim we cannot. Encryption at rest protects the
+          # credential from being copied; it does nothing to limit what the
+          # credential can do if the app is compromised or simply wrong.
+          #
+          # The consequence is that anything which writes to the controller —
+          # WAN Steering, applying optimizations — will fail. That is expected.
+          # The audit, monitoring and topology features read only, and those are
+          # what this is here for. Widening is a decision to take later, per
+          # feature, not a default to start from.
+          #
+          # Whatever is stored lands in SQLite on the PVC, which is a local-path
+          # directory on this node's SD card: protected against a copied file,
+          # not against root on the box.
+          env:
+            # The container listens on all interfaces so Traefik can reach it.
+            # Without this it binds loopback only and the Service goes nowhere.
+            - name: BIND_LOCALHOST_ONLY
+              value: "false"
+            # Required for path analysis under bridge networking. The upstream
+            # compose file uses network_mode: host instead; this is the
+            # documented alternative and keeps the pod off the host network.
+            - name: HOST_IP
+              value: "${NODE_IP}"
+            - name: TZ
+              value: "UTC"
+          volumeMounts:
+            # /app/data, not the /data this used to mount. Neither image
+            # declares a VOLUME or a data-path env var, so the only authority is
+            # upstream's compose file, which maps ./data:/app/data, against a
+            # WorkingDir of /app in both 1.22.2 and 2.6.4. Whether the old mount
+            # was wrong or the path changed is not worth establishing — but it
+            # does mean the first start here should be checked for state
+            # actually landing on the PVC rather than the ephemeral layer.
+            - name: data
+              mountPath: /app/data
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+              ephemeral-storage: 50Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+              ephemeral-storage: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            # Capabilities are deliberately not dropped: the entrypoint needs
+            # CHOWN/SETUID/SETGID to hand off to UID 1654. This is the one
+            # workload tonight's audit work would have hardened wrongly.
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: network-optimizer

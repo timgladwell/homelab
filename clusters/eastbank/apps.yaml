@@ -1,0 +1,32 @@
+---
+# NetworkOptimizer. Its own Kustomization rather than a directory inside
+# infrastructure because it needs the Traefik IngressRoute CRD, which the
+# infrastructure layer installs — the same ordering reason infrastructure-config
+# exists.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./sites/eastbank/apps
+  prune: true
+  wait: true
+  timeout: 5m
+  dependsOn:
+    - name: infrastructure
+  # Nothing in this layer is encrypted yet — kept because every other layer has
+  # it, and adding a secret later without it fails with a decryption error that
+  # reads like a key problem rather than a missing four lines.
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-vars
