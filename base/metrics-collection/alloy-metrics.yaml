@@ -33,6 +33,24 @@ spec:
         namespace: monitoring
       interval: 12h
   values:
+    # This collector scrapes HTTP endpoints and writes a WAL to its PVC. It has
+    # no reason to be root, and the chart leaves it root by default. 473 is the
+    # UID the upstream alloy image is built with; fsGroup makes the existing
+    # WAL volume writable to it. The configReloader sidecar already ships
+    # hardened, which is why only the alloy container needed this.
+    #
+    # The logs DaemonSet in sites/akron/monitoring/alloy.yaml deliberately does
+    # NOT get the same treatment: it reads /var/log/pods through a hostPath and
+    # needs root to do it.
+    global:
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 473
+        runAsGroup: 473
+        fsGroup: 473
+        seccompProfile:
+          type: RuntimeDefault
+
     # The chart's configReloader default sets requests but no limits; the
     # ResourceQuota on this namespace requires both.
     configReloader:
@@ -63,6 +81,15 @@ spec:
     alloy:
       storagePath: /var/lib/alloy
       enableReporting: false
+
+      # Everything alloy writes goes to storagePath, which is the PVC mounted
+      # below — nothing needs a writable root filesystem.
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
 
       mounts:
         extra:

@@ -24,6 +24,11 @@ spec:
   values:
     loki:
       auth_enabled: false
+      # The chart already runs Loki as 10001 with a read-only root and no
+      # capabilities; seccomp is the only thing it leaves unset.
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
       analytics:
         reporting_enabled: false
       commonConfig:

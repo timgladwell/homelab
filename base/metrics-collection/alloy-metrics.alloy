@@ -148,6 +148,41 @@ prometheus.scrape "kube_state_metrics" {
 }
 
 // ---------------------------------------------------------------
+// k3s CoreDNS. Previously scraped only at Akron, by a Service and
+// ServiceMonitor kube-prometheus-stack created in kube-system — the one
+// piece of chart-side collection that outlived the move to this file.
+// Scraping it here covers every site and puts no objects in a namespace
+// k3s owns.
+// ---------------------------------------------------------------
+discovery.relabel "coredns" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_k8s_app"]
+    regex         = "kube-dns"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+    regex         = "metrics"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "instance"
+  }
+}
+
+prometheus.scrape "coredns" {
+  targets         = discovery.relabel.coredns.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "coredns"
+  scrape_interval = "60s"
+}
+
+// ---------------------------------------------------------------
 // Unbound. The exporter sidecar already runs at every site as part of
 // base/dns; before this component existed, only Akron scraped it.
 // ---------------------------------------------------------------
