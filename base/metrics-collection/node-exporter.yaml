@@ -32,6 +32,20 @@ spec:
       monitor:
         enabled: false
 
+    # hostNetwork, hostPID and the /proc + /sys hostPath mounts are what this
+    # exporter is for, and stay. Capabilities are not: it reads those paths as
+    # an unprivileged user (the chart already runs it as 65534) and needs none
+    # of them. seccomp is missing from the chart's pod context entirely.
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+
     resources:
       requests:
         cpu: 20m

@@ -31,6 +31,14 @@ spec:
       enabled: false
     # Resource limits appropriate for RPi 4B
     controller:
+      # The chart runs this as UID 65534 but leaves the group at 0 and sets no
+      # seccomp profile. The speaker gets neither: it needs hostNetwork and
+      # NET_RAW to answer ARP for the LoadBalancer IPs, which is L2 mode
+      # working as designed.
+      securityContext:
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       resources:
         requests:
           cpu: 10m
