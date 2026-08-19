@@ -353,7 +353,7 @@ discovery.relabel "cadvisor" {
 
 prometheus.scrape "kubelet" {
   targets           = discovery.relabel.kubelet.output
-  forward_to        = [prometheus.remote_write.default.receiver]
+  forward_to        = [prometheus.relabel.drop_histogram_buckets.receiver]
   job_name          = "kubelet"
   scrape_interval   = "60s"
   scheme            = "https"
@@ -444,7 +444,7 @@ discovery.relabel "apiserver" {
 
 prometheus.scrape "apiserver" {
   targets           = discovery.relabel.apiserver.output
-  forward_to        = [prometheus.relabel.apiserver.receiver]
+  forward_to        = [prometheus.relabel.drop_histogram_buckets.receiver]
   job_name          = "apiserver"
   scrape_interval   = "60s"
   scheme            = "https"
@@ -456,21 +456,31 @@ prometheus.scrape "apiserver" {
   }
 }
 
-prometheus.relabel "apiserver" {
+// Every histogram bucket from the kubelet and apiserver jobs, which between
+// them are the overwhelming majority of this cluster's series. A histogram
+// costs one series per bucket boundary per label combination, so a single
+// family like apiserver_request_sli_duration_seconds_bucket is 36k series on
+// its own — more than every non-Kubernetes exporter here combined.
+//
+// This replaces the curated name list from #147, which is the point rather
+// than a detail. That list was accurate when written and then silently stopped
+// covering things as upstream added metrics: apiserver_request_sli_duration
+// arrived in k8s 1.29, apiserver_watch_list_duration and
+// apiserver_watch_cache_read_wait later still, and k3s serves etcd_* and
+// workqueue_* from the same endpoint. None were in the list, and together they
+// are ~120k series. A name list has to be revisited on every k8s bump to keep
+// working; a rule about the shape of the metric does not.
+//
+// _sum and _count survive, so rate() and average latency stay queryable.
+// histogram_quantile does not work without buckets — that is the trade, and it
+// is the right one here: nobody is debugging apiserver p99 on a single-node
+// homelab, and the series are paid for continuously whether queried or not.
+prometheus.relabel "drop_histogram_buckets" {
   forward_to = [prometheus.remote_write.default.receiver]
 
-  // Histogram buckets account for most apiserver cardinality. _sum and
-  // _count are kept so average latency stays queryable; percentile
-  // queries (histogram_quantile) do not work against these series.
   rule {
     source_labels = ["__name__"]
-    regex         = "apiserver_(request_duration_seconds_bucket|response_sizes_bucket)"
-    action        = "drop"
-  }
-
-  rule {
-    source_labels = ["__name__"]
-    regex         = "apiserver_(watch_events_sizes_bucket|request_filter_duration_seconds_bucket)"
+    regex         = ".*_bucket"
     action        = "drop"
   }
 }
