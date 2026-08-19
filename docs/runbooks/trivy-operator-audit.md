@@ -55,9 +55,11 @@ Anything reached only through a chart's rendered output exists nowhere else.
 ```bash
 # Everything that failed, worst first
 kubectl get configauditreports -A -o json | jq -r '
-  .items[] | .metadata.namespace as $ns | .report.checks[]
+  .items[] | .metadata.namespace as $ns | .metadata.name as $n | .report.checks[]
   | select(.success == false)
-  | [.severity, $ns, .checkID, .title] | @tsv' | sort | column -t -s $'\t'
+  | [.severity, ($ns + "/" + $n), .checkID, .title] | @tsv' \
+  | sed -E 's#(/[a-z-]+)-[a-f0-9]{5,10}\t#\1\t#' \
+  | sort | column -t -s $'\t'
 
 # Which workloads carry the most
 kubectl get configauditreports -A \
@@ -70,6 +72,58 @@ kubectl get rbacassessmentreports,clusterrbacassessmentreports -A
 The interesting column is `checkID`. Cross-reference it against
 `.trivyignore.yaml`: a check that fails here and is ignored there means the
 ignore is wrong or stale.
+
+**Then filter out what is already accepted**, so the output is only what is
+new. The cluster host produces raw data and nothing else; the judgement lives in
+the repo, where it is version-controlled and testable.
+
+Pull the dump straight here — `ssh <host> "<command>"` streams the remote
+command's stdout back, so the `>` redirect is evaluated locally and nothing is
+left on the Pi to clean up:
+
+```bash
+ssh tim@10.6.1.3 "kubectl get configauditreports -A -o json" > akron-reports.json
+ssh tim@10.4.1.3 "kubectl get configauditreports -A -o json" > eastbank-reports.json
+```
+
+`scp` works too and is two steps instead of one, leaving a copy at both ends.
+
+Dumps are gitignored (`*-reports.json`). They are a snapshot of one cluster at
+one moment, and a stale one committed to the repo would later be read as
+current — keep them in a scratch directory.
+
+Then run each against the accepted list:
+
+```bash
+./scripts/trivy-audit-diff.sh akron-reports.json
+```
+
+**When Claude Code does this, delegate to the `trivy-auditor` subagent**
+(`.claude/agents/trivy-auditor.md`) rather than running the script inline. A raw
+dump is hundreds of findings across ~60 reports and the filtered result is
+usually a handful or none; the subagent keeps the former out of the conversation
+and reports back in the format defined by the preloaded `trivy-audit-conventions`
+skill (`.claude/skills/trivy-audit-conventions/`), which also carries the
+fix/accept/defer rules. It proposes; accepting a finding stays a decision made in
+the main conversation.
+
+`docs/trivy-accepted-findings.txt` holds the decisions from previous cycles with
+the reason for each. An empty result means nothing has changed since the last
+audit, which is the answer you want most cycles.
+
+The three entry shapes in that file are all the filter understands: a bare
+`AVD-KSV-NNNN` accepts that check everywhere, a bare `namespace/` accepts
+everything under it, and `namespace/workload AVD-KSV-NNNN` accepts one exact
+pair. Workload names have their ReplicaSet hash stripped, so entries survive
+rollouts. Accepting a workload never hides a *new* check against it — only the
+specific decisions are filtered, which is the property that keeps this from
+rotting into a blindfold, and `./scripts/trivy-audit-diff.sh --self-test` is
+what proves it still holds.
+
+Anything that survives the filter is either new or was never decided. Deal with
+it under step 3, then add it to the accepted file **only if the decision is
+"won't fix"** — a deferred item belongs in an issue, not in a file whose whole
+job is to stop things being looked at.
 
 ## 3. Deal with them
 
