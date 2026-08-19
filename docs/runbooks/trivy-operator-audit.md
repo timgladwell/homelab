@@ -74,39 +74,33 @@ The interesting column is `checkID`. Cross-reference it against
 ignore is wrong or stale.
 
 **Then filter out what is already accepted**, so the output is only what is
-new. `docs/trivy-accepted-findings.txt` holds the decisions from previous
-cycles, with the reason for each:
+new. The cluster host produces raw data and nothing else; the judgement lives in
+the repo, where it is version-controlled and testable.
+
+On the cluster:
 
 ```bash
-kubectl get configauditreports -A -o json | jq -r '
-  .items[] | .metadata.namespace as $ns | .metadata.name as $n | .report.checks[]
-  | select(.success == false)
-  | [.severity, ($ns + "/" + $n), .checkID, .title] | @tsv' \
-  | sed -E 's#(/[a-z-]+)-[a-f0-9]{5,10}\t#\1\t#' \
-  | awk -F'[ \t]+' '
-      NR==FNR {
-        sub(/#.*/, ""); if ($0 ~ /^[ \t]*$/) next
-        if (NF == 1) { if ($1 ~ /^AVD-/) chk[$1]; else pfx[$1] }
-        else pair[$1 " " $2]
-        next
-      }
-      ($3 in chk) { next }
-      (($2 " " $3) in pair) { next }
-      { for (p in pfx) if (index($2, p) == 1) next; print }
-    ' accepted.txt - \
-  | sort | column -t -s $'\t'
+kubectl get configauditreports -A -o json > akron-reports.json
 ```
 
-`accepted.txt` is that file — `curl` it from the repo, or paste it, since the
-repo is not checked out on the cluster host. An empty result means nothing has
-changed since the last audit, which is the answer you want most cycles.
+Copy that back, and run it against the accepted list here:
 
-The three entry shapes in that file are all the awk understands: a bare
+```bash
+./scripts/trivy-audit-diff.sh akron-reports.json
+```
+
+`docs/trivy-accepted-findings.txt` holds the decisions from previous cycles with
+the reason for each. An empty result means nothing has changed since the last
+audit, which is the answer you want most cycles.
+
+The three entry shapes in that file are all the filter understands: a bare
 `AVD-KSV-NNNN` accepts that check everywhere, a bare `namespace/` accepts
 everything under it, and `namespace/workload AVD-KSV-NNNN` accepts one exact
-pair. Accepting a workload never hides a *new* check against it — only the
+pair. Workload names have their ReplicaSet hash stripped, so entries survive
+rollouts. Accepting a workload never hides a *new* check against it — only the
 specific decisions are filtered, which is the property that keeps this from
-rotting into a blindfold.
+rotting into a blindfold, and `./scripts/trivy-audit-diff.sh --self-test` is
+what proves it still holds.
 
 Anything that survives the filter is either new or was never decided. Deal with
 it under step 3, then add it to the accepted file **only if the decision is
