@@ -144,6 +144,27 @@ spec:
     prometheusOperator:
       kubeletService:
         enabled: false
+      # The operator injects a config-reloader sidecar and an
+      # init-config-reloader initContainer into every Prometheus and
+      # Alertmanager pod, taking their resources from its own CLI flags rather
+      # than from the workload's spec. The chart leaves this `{}`, so both
+      # arrive with nothing declared and the ResourceQuota on this namespace
+      # refuses to create the pod at all — StatefulSet stuck at 0/1, no pod
+      # object, no scheduling event.
+      #
+      # A running pod is not evicted by a quota, so this stays invisible until
+      # something restarts it; the 88.2.0 -> 88.4.0 bump did, and Prometheus and
+      # Alertmanager were both down for five hours before anyone looked.
+      # Nothing renders these values either — they become operator flags, so
+      # neither the pipeline nor a `flate` render of the StatefulSet shows them.
+      prometheusConfigReloader:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
       resources:
         requests:
           cpu: 100m
