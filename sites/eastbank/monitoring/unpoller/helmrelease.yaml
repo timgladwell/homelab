@@ -86,6 +86,31 @@ spec:
         cpu: 200m
         memory: 256Mi
 
+    # The chart ships no security context at all, so this ran as root with a
+    # writable root filesystem and every capability — 13 findings, and the only
+    # workload in this repo nothing had ever scanned. It is chart-rendered, so
+    # validation step 6 sees a HelmRelease and stops; and it runs only at
+    # Eastbank, so the Akron audit never saw it either (#263).
+    #
+    # It needs none of it: a Go binary that polls UniFi controllers over HTTP,
+    # takes its configuration from envFrom above and a read-only ConfigMap at
+    # /etc/unpoller/up.conf, and writes nothing to disk. 65534 rather than the
+    # chart's suggested 1000 so it clears KSV-0020/0021 as well, matching
+    # node-exporter.
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      runAsGroup: 65534
+      seccompProfile:
+        type: RuntimeDefault
+
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+
     # What Unpoller does, in the clear. What it connects to lives entirely in
     # the secret — URL, username and password together, because a username
     # without its password is still half a credential and an address without
