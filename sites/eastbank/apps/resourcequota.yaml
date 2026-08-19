@@ -1,0 +1,16 @@
+---
+# Sized for two copies of the pod, not one. A Deployment's default rolling
+# update briefly runs the old and new pods together, and a quota that only fits
+# one rejects the new pod rather than delaying it — which is how the monitoring
+# quota broke Grafana's rollout (see sites/akron/monitoring/resourcequota.yaml).
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: apps
+  namespace: apps
+spec:
+  hard:
+    requests.cpu: 200m
+    requests.memory: 512Mi
+    limits.cpu: "1"
+    limits.memory: 1Gi

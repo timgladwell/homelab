@@ -145,6 +145,39 @@ misconfigurations:
   - id: AVD-KSV-0125
     paths: *sup-controller
     statement: "rancher/system-upgrade-controller is not in trivy's default trusted-registry list"
+  # NetworkOptimizer: the image sets APP_UID=1654 but no USER, and ships its own
+  # /entrypoint.sh — it starts as root and drops privileges internally, the same
+  # shape as pihole and unbound above. Verified against the arm64 manifest of
+  # 2.6.4 rather than assumed. Forcing runAsUser or dropping the capabilities
+  # the handoff needs (CHOWN/SETUID/SETGID) pre-empts that and breaks startup.
+  # The Blazor Server runtime also writes ASP.NET temp files and logs outside
+  # /app/data, so the root filesystem cannot be read-only.
+  - id: AVD-KSV-0012
+    paths: &network-optimizer
+      - "sites/eastbank/apps/deployment.yaml"
+    statement: "the image's entrypoint starts as root and drops to APP_UID 1654 itself"
+  - id: AVD-KSV-0014
+    paths: *network-optimizer
+    statement: "Blazor Server writes ASP.NET temp files and logs outside /app/data"
+  - id: AVD-KSV-0020
+    paths: *network-optimizer
+    statement: "Root UID (0) at start, tied to the same privilege-drop requirement as KSV-0012"
+  - id: AVD-KSV-0021
+    paths: *network-optimizer
+    statement: "Root GID (0) at start, tied to the same privilege-drop requirement as KSV-0012"
+  - id: AVD-KSV-0003
+    paths: *network-optimizer
+    statement: "the entrypoint needs CHOWN/SETUID/SETGID to hand off to UID 1654; dropping all capabilities breaks startup"
+  - id: AVD-KSV-0004
+    paths: *network-optimizer
+    statement: "same as KSV-0003: the privilege drop requires capabilities the check wants removed"
+  - id: AVD-KSV-0106
+    paths: *network-optimizer
+    statement: "same as KSV-0003: the privilege drop requires capabilities beyond NET_BIND_SERVICE"
+  - id: AVD-KSV-0125
+    paths: *network-optimizer
+    statement: "ghcr.io is not in trivy's default trusted-registry list"
+
   # system-upgrade namespace deliberately has no ResourceQuota: Plans spawn
   # upgrade Job pods dynamically (see plans.yaml) without resource
   # requests/limits in their pod template, and a quota would reject them,

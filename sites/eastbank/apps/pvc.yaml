@@ -1,0 +1,15 @@
+---
+# SQLite plus the InfluxDB time-series store the app keeps for SNMP polling,
+# latency probes and WiFi client stats. 10Gi matches what this ran with before;
+# retention is configurable in the UI if it grows.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: network-optimizer
+  namespace: apps
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
