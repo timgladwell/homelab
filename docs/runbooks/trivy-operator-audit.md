@@ -55,9 +55,11 @@ Anything reached only through a chart's rendered output exists nowhere else.
 ```bash
 # Everything that failed, worst first
 kubectl get configauditreports -A -o json | jq -r '
-  .items[] | .metadata.namespace as $ns | .report.checks[]
+  .items[] | .metadata.namespace as $ns | .metadata.name as $n | .report.checks[]
   | select(.success == false)
-  | [.severity, $ns, .checkID, .title] | @tsv' | sort | column -t -s $'\t'
+  | [.severity, ($ns + "/" + $n), .checkID, .title] | @tsv' \
+  | sed -E 's#(/[a-z-]+)-[a-f0-9]{5,10}\t#\1\t#' \
+  | sort | column -t -s $'\t'
 
 # Which workloads carry the most
 kubectl get configauditreports -A \
@@ -70,6 +72,46 @@ kubectl get rbacassessmentreports,clusterrbacassessmentreports -A
 The interesting column is `checkID`. Cross-reference it against
 `.trivyignore.yaml`: a check that fails here and is ignored there means the
 ignore is wrong or stale.
+
+**Then filter out what is already accepted**, so the output is only what is
+new. `docs/trivy-accepted-findings.txt` holds the decisions from previous
+cycles, with the reason for each:
+
+```bash
+kubectl get configauditreports -A -o json | jq -r '
+  .items[] | .metadata.namespace as $ns | .metadata.name as $n | .report.checks[]
+  | select(.success == false)
+  | [.severity, ($ns + "/" + $n), .checkID, .title] | @tsv' \
+  | sed -E 's#(/[a-z-]+)-[a-f0-9]{5,10}\t#\1\t#' \
+  | awk -F'[ \t]+' '
+      NR==FNR {
+        sub(/#.*/, ""); if ($0 ~ /^[ \t]*$/) next
+        if (NF == 1) { if ($1 ~ /^AVD-/) chk[$1]; else pfx[$1] }
+        else pair[$1 " " $2]
+        next
+      }
+      ($3 in chk) { next }
+      (($2 " " $3) in pair) { next }
+      { for (p in pfx) if (index($2, p) == 1) next; print }
+    ' accepted.txt - \
+  | sort | column -t -s $'\t'
+```
+
+`accepted.txt` is that file — `curl` it from the repo, or paste it, since the
+repo is not checked out on the cluster host. An empty result means nothing has
+changed since the last audit, which is the answer you want most cycles.
+
+The three entry shapes in that file are all the awk understands: a bare
+`AVD-KSV-NNNN` accepts that check everywhere, a bare `namespace/` accepts
+everything under it, and `namespace/workload AVD-KSV-NNNN` accepts one exact
+pair. Accepting a workload never hides a *new* check against it — only the
+specific decisions are filtered, which is the property that keeps this from
+rotting into a blindfold.
+
+Anything that survives the filter is either new or was never decided. Deal with
+it under step 3, then add it to the accepted file **only if the decision is
+"won't fix"** — a deferred item belongs in an issue, not in a file whose whole
+job is to stop things being looked at.
 
 ## 3. Deal with them
 
