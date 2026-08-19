@@ -16,17 +16,24 @@ Run this every few months, and after any change that adds a Helm release.
 
 ## 1. Ship it
 
-Restore `sites/akron/monitoring/trivy-operator.yaml` and its line in
-`sites/akron/monitoring/kustomization.yaml`. Both are in git history — find the
-last audit's removal commit and revert it:
+Restore `base/trivy-operator/` and the line that opts each site in. All of it is
+in git history — find the last audit's removal commit and revert it:
 
 ```bash
-git log --oneline --diff-filter=D -- sites/akron/monitoring/trivy-operator.yaml
-git checkout <that-commit>^ -- sites/akron/monitoring/trivy-operator.yaml
+git log --oneline --diff-filter=D -- base/trivy-operator/trivy-operator.yaml
+git checkout <that-commit>^ -- base/trivy-operator
 ```
 
-Then a normal PR to `main`. Akron only — do **not** promote to `stable`; the
-audit runs at one site and the findings apply to manifests both sites share.
+Then add to the `monitoring` kustomization of each site being audited:
+
+```yaml
+  - ../../../base/trivy-operator
+```
+
+Then a normal PR to `main`. Akron reconciles it straight away; **Eastbank only
+sees it after a promotion to `stable`**, so auditing Eastbank costs two
+promotions — one to ship, one to unship. Fold them into promotions you are doing
+anyway rather than promoting twice for the audit alone.
 
 Wait for reconciliation:
 
@@ -37,6 +44,11 @@ kubectl -n trivy-system rollout status deploy/trivy-operator
 
 First run downloads the trivy-checks policy bundle and scans every workload;
 give it a few minutes.
+
+**Audit each site at least once.** Most findings are in `base/`, so a fix at
+Akron fixes both — but not all of them. `Unpoller` runs only at Eastbank, and
+`Prometheus`, `Grafana`, `Loki` and the logs `alloy` DaemonSet only at Akron.
+Anything reached only through a chart's rendered output exists nowhere else.
 
 ## 2. Read the findings
 
@@ -70,6 +82,16 @@ Each finding is one of three things:
 - **A check that does not apply here** — exception with a reason, never a
   severity floor.
 
+**What this audit still cannot see.** A container the *operator* injects at
+pod-creation time — the prometheus-operator's `config-reloader` and
+`init-config-reloader` are the known case — is configured by controller CLI
+flags, not by anything in git or in a rendered chart. If such a pod is rejected
+(a `ResourceQuota` refusing a container that declares no limits) it is never
+created, so there is nothing for the operator to scan and the workload simply
+shows 0/1 with no pod object. Check `kubectl get statefulset,deploy -A` for
+zero-ready workloads alongside the reports; that is the gap alerting covers
+(#214), not this.
+
 `KSV-0040` specifically: check whether the operator resolves it per-namespace
 the way the check's name implies. If it passes on workloads in namespaces that
 have a `ResourceQuota` and fails only where one is missing, that is the answer
@@ -79,9 +101,10 @@ should narrow to the namespaces that deliberately have no quota
 
 ## 4. Unship it
 
-Once the findings are closed out, delete `trivy-operator.yaml` and its
-`kustomization.yaml` line in a PR. Flux's `prune: true` removes the Deployment,
-the namespace and the reports with it.
+Once the findings are closed out, delete `base/trivy-operator/` and every
+`kustomization.yaml` line pointing at it, in a PR. Flux's `prune: true` removes
+the Deployment, the namespace and the reports with it. Remember Eastbank needs
+the promotion to actually lose it.
 
 The chart's CRDs are **not** pruned — Flux does not remove CRDs installed by a
 Helm chart on release deletion, and that is fine: they are inert without the

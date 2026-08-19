@@ -1,12 +1,13 @@
 ---
 # trivy-operator is deliberately temporary. It is shipped to answer a question —
-# "does what actually runs at Akron pass the checks validation step 6 runs
-# against the files in git?" — and removed again once the findings are dealt
-# with. See docs/runbooks/trivy-operator-audit.md for the ship / read / fix /
-# unship cycle.
+# "does what actually runs here pass the checks validation step 6 runs against
+# the files in git?" — and removed again once the findings are dealt with. See
+# docs/runbooks/trivy-operator-audit.md for the ship / read / fix / unship
+# cycle, and for why a site opts in by adding a line rather than by this
+# component existing.
 #
 # It exists because static scanning cannot see chart-rendered workloads
-# (Prometheus, Grafana, Loki, Traefik, both Alloys) and cannot do the
+# (Prometheus, Grafana, Loki, Traefik, both Alloys, Unpoller) and cannot do the
 # cross-object correlation that namespace-scoped checks like KSV-0040 need.
 # Running it in the cluster gets both for free; running it *permanently* would
 # cost a controller watching every object on an 8GB Pi for a report nobody

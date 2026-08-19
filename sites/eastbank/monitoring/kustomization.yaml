@@ -8,3 +8,7 @@ resources:
   - ../../../base/metrics-collection
   - resourcequota.yaml
   - ./unpoller
+  # Temporary; see docs/runbooks/trivy-operator-audit.md. Unpoller is the one
+  # workload in this repo that nothing has ever scanned — it runs only here,
+  # and its rendered Deployment is invisible to validation step 6.
+  - ../../../base/trivy-operator
