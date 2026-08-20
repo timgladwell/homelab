@@ -12,3 +12,4 @@ Operational procedures for tasks that fall outside the normal GitOps flow.
 - [One-Time Reset of `stable`, and Switching to Fast-Forward Promotion](runbooks/stable-promotion-reset.md)
 - [Standing Up a New Headless Box (Flash + Cloud-Init)](runbooks/new-box-standup.md)
 - [Periodic Cluster Security Audit with trivy-operator](runbooks/trivy-operator-audit.md)
+- [Renaming the K3s Node](runbooks/node-rename.md)
