@@ -104,6 +104,14 @@ The rule that makes this work: **`base/` never contains anything site-specific.*
 
   `stable`'s ruleset is therefore reduced to `deletion` + `non_fast_forward`, with **no bypass actor**. A `pull_request` rule would block the workflow's push, and it cannot be bypassed — app bypass actors require an organization, and this repo is user-owned. That is the better outcome: with no bypass, `non_fast_forward` applies to everyone including the repository owner, so `stable` can only ever move forward and nobody can rewrite it. The workflow never passes `--force` either.
 
+### Naming
+
+**`docs/naming-convention.md` is the reference for every hostname, site identifier and node name.** Read it before choosing a name for anything — a service, an ingress host, a node, a DNS label.
+
+It describes the **target** state (`<role>.<site>.internal.zerpzorp.com`), which is being rolled out by #228 and is not live yet. Everything currently deployed is still on `home.arpa` (`grafana.homelab.home.arpa`), so do not rename existing resources to match it opportunistically — the cutover is iteration 4 of #228 and lands with TLS and the remote-write change in one PR. Until then the convention governs *new* names and reviews, not migrations.
+
+The part that already applies: the **site identifier** (`akron`, `eastbank`, `lottage`) is used verbatim for the UniFi site, `sites/<site>/`, `clusters/<site>/`, `SITE_NAME` and the future DNS label. That is why those all match today, and a new site must keep them matching.
+
 ### Directory layout
 
 ```
