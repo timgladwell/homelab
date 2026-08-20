@@ -110,6 +110,8 @@ The rule that makes this work: **`base/` never contains anything site-specific.*
 
 It describes the **target** state (`<role>.<site>.internal.zerpzorp.com`), which is being rolled out by #228 and is not live yet. Everything currently deployed is still on `home.arpa` (`grafana.homelab.home.arpa`), so do not rename existing resources to match it opportunistically — the cutover is iteration 4 of #228 and lands with TLS and the remote-write change in one PR. Until then the convention governs *new* names and reviews, not migrations.
 
+It also covers **Kubernetes object names** (function in the name, identity in `app.kubernetes.io/*` labels, no site prefix, no kind suffix). Those rules are equally forward-looking — most existing object names predate them. Apply them to new objects and to anything an iteration of #228 is already touching; do not open a mass-rename PR.
+
 The part that already applies: the **site identifier** (`akron`, `eastbank`, `lottage`) is used verbatim for the UniFi site, `sites/<site>/`, `clusters/<site>/`, `SITE_NAME` and the future DNS label. That is why those all match today, and a new site must keep them matching.
 
 ### Directory layout
