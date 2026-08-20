@@ -112,3 +112,11 @@ Raspberry Pi OS (bookworm+, including trixie) provisions the first boot via **cl
    ```
 
 8. **Clone dotfiles** — follow the [servers section of the dotfiles README](https://github.com/timgladwell/dotfiles#servers).
+
+## Appendix: why step 6 persists differently per box
+
+Which of the two paths in step 6's verify command applies is decided at imaging time, not by anything you configure. The official Raspberry Pi Imager installs `raspberrypi-net-mods`, which layers netplan in front of NetworkManager; `dd`-flashed boxes (this runbook's method, see Background) don't get that package, so NM manages the connection directly with no netplan involved. Both end up on the same trixie base with the same NetworkManager-managed `eth0` — this is a difference in which convenience packages the provisioning path installs, not a difference in the network stack itself.
+
+On a netplan-rendered box, `/etc/netplan/90-NM-<uuid>.yaml` is a generated **passthrough mirror** of the live NM connection, not a source netplan applies from — confirmed empirically: running the `nmcli` commands in step 6 updates that file's contents automatically, with no netplan command ever run. NetworkManager remains the actual source of truth either way, so step 6 works unmodified regardless of which path a given box took; only the connection name (`nmcli -g NAME connection show`) and where the config lands on disk differ.
+
+Don't install `raspberrypi-net-mods` (or the Imager's other convenience packages, `rpi-cloud-init-mods` and `rpi-usb-gadget`) on a `dd`-imaged box for parity with an Imager-provisioned one — `rpi-cloud-init-mods` only feeds the Imager GUI's customization wizard, which this runbook's hand-written `user-data` never uses, and `rpi-usb-gadget` is Pi Zero/CM4 USB gadget-mode networking, not applicable to the Pi 4Bs this repo runs on. Adding them would only reproduce the netplan mirroring layer for no functional gain.
