@@ -101,6 +101,7 @@ Raspberry Pi OS (bookworm+, including trixie) provisions the first boot via **cl
    sudo ls /etc/NetworkManager/system-connections/   # plain NM: *.nmconnection
    sudo ls /etc/netplan/                             # netplan renderer: 90-NM-*.yaml
    ```
+   Which path applies is decided at imaging time and needs no different commands — see the appendix below.
 
    This config lives on the box, not in git, and no GitOps reconcile restores it. Renaming the host or reinstalling k3s leaves it alone — NM profiles bind to the interface, not the hostname — but a reflash loses it, which is why it is a step here.
 
