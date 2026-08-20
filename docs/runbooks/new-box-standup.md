@@ -43,7 +43,7 @@ Raspberry Pi OS (bookworm+, including trixie) provisions the first boot via **cl
    The boot partition already ships a `user-data` file, entirely commented out as a template/reference — leave those comments in place and add the real config below them. `timezone` and `manage_etc_hosts` are native cloud-config keys, so both can be set here instead of as manual post-login steps:
    ```yaml
    #cloud-config
-   hostname: <replace>
+   hostname: <fqdn, e.g. k3s01.akron.internal.zerpzorp.com>
    manage_etc_hosts: true
    timezone: America/Toronto
 
@@ -61,6 +61,8 @@ Raspberry Pi OS (bookworm+, including trixie) provisions the first boot via **cl
      - systemctl enable ssh
      - systemctl start ssh
    ```
+   **`hostname` must be the node's full FQDN** per [the naming convention](../naming-convention.md) — K3s takes its node name from the hostname, so a short name here means the cluster registers under the wrong identity and has to be renamed after the fact (see [Renaming the K3s Node](node-rename.md)). Note that `manage_etc_hosts: true` makes cloud-init rewrite `/etc/hosts` on every boot, which is why `scripts/set-node-identity.sh` disables cloud-init outright — getting the name right here avoids ever needing that.
+
    `sudo: NOPASSWD` here is intentional and temporary — it's only to get past first login without a working password prompt; revoke it in the last step below. DNS fallback (next step) is left as a manual post-login step rather than cloud-init `network-config` — it depends on the NetworkManager connection profile actually created on this boot, which isn't reliably targetable in the seed file.
 
 3. **Boot the Pi and refresh SSH host key trust** (needed on re-flash — the new image has a new host key under the same IP). Find the box's IP (router/DHCP lease list, or `arp -a`), then substitute it as `<IP>`:
