@@ -1,5 +1,20 @@
 # DNS Proxy — Design Plan
 
+## Status
+
+**Unimplemented, and its premise has narrowed.** #229 gave each K3s node a
+public-resolver fallback (`<site-pihole-ip> 1.1.1.1 1.0.0.1`), so the specific
+failure this plan opens with — PiHole down taking out the tools needed to fix
+PiHole — no longer applies to the nodes themselves.
+
+What it would still solve is the **client** VLAN, where #173 deliberately did
+*not* add a second resolver: UniFi hands DNS servers to clients as an unordered
+list and mixed clients race them, which would bypass ad-blocking. A proxy is
+still the only way to get failover there without losing filtering.
+
+Paths below were updated for the `base/` + `sites/` layout; nothing else here
+has been revisited.
+
 ## Context
 
 PiHole runs in Kubernetes at MetalLB IP `10.6.1.53`. When PiHole breaks (pod crashloop, bad config, failed image pull, PVC issue), DNS goes down for the whole home network — blocking internet access and also blocking the tools needed to fix it (GitHub for Flux reconciliation, package registries, etc.). The cluster itself rarely goes down; it's PiHole that causes trouble.
@@ -88,7 +103,7 @@ services/
       index.html       # minimal switch UI (embedded via go:embed)
     Dockerfile         # multi-stage ARM64 build
 
-infrastructure/homelab/dns/
+base/dns/
   dns-proxy-deployment.yaml    # Deployment (dns namespace)
   dns-proxy-service.yaml       # LoadBalancer service (10.6.1.52, ports 53 UDP+TCP)
   dns-proxy-ui-service.yaml    # ClusterIP service (port 8080, for Traefik)
@@ -218,7 +233,7 @@ These are lightweight integration tests — real DNS wire protocol, no network e
 
 ## Verification Steps
 
-1. `kustomize build infrastructure/homelab/dns/` succeeds
+1. `kustomize build base/dns/` succeeds
 2. `./scripts/validate-k3s.sh` passes
 3. After merge + Flux reconcile: `dig @10.6.1.52 google.com` returns a result; PiHole query log shows the hit
 4. Flip to bypass in UI → `dig @10.6.1.52 google.com` still resolves; PiHole log shows no new hit
