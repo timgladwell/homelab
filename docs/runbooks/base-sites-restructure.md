@@ -21,9 +21,9 @@ Three changes are not no-ops:
 
 ## No manual `kubectl apply` is needed
 
-The previous restructure ([akron-multisite-migration.md](akron-multisite-migration.md))
-did need one, because it changed the **root** `flux-system` Kustomization's own
-`spec.path` — a value stored in the cluster, not re-read from git.
+The earlier `clusters/homelab/` → `clusters/akron/` migration did need one,
+because it changed the **root** `flux-system` Kustomization's own `spec.path` —
+a value stored in the cluster, not re-read from git.
 
 This PR does not touch it. `clusters/<site>/flux-system/gotk-sync.yaml` still
 says `path: ./clusters/akron`. Every `spec.path` that changed belongs to a

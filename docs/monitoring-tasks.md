@@ -43,7 +43,7 @@ SOPS-encrypted secrets, subdomain routing via Traefik.
 ### Key conventions
 
 - Namespace: `monitoring`
-- New files land in `infrastructure/homelab/monitoring/`
+- New files land in `sites/akron/monitoring/` (storage side) or `base/metrics-collection/` (collection, every site)
 - Monitoring is wired into the existing `infrastructure` Flux Kustomization
   (same pattern as `dns/` and `traefik/`; no new Flux Kustomization object needed)
 - All secrets follow the `*secret.sops.yaml` naming convention and are SOPS-encrypted
@@ -1174,7 +1174,7 @@ in-cluster via the ClusterIP, which is exactly what Prometheus needs.
 
 **File to modify:**
 ```
-infrastructure/homelab/traefik/helmrelease.yaml
+base/traefik/helmrelease.yaml
 ```
 
 Add to Traefik Helm values to enable Prometheus metrics:
@@ -1186,7 +1186,7 @@ metrics:
 
 **File to create:**
 ```
-infrastructure/homelab/traefik/metrics-service.yaml
+base/traefik/metrics-service.yaml
 ```
 
 A ClusterIP `Service` in namespace `traefik` that exposes port 9000 without
@@ -1206,11 +1206,11 @@ spec:
       targetPort: 9000
 ```
 
-Add `metrics-service.yaml` to `infrastructure/homelab/traefik/kustomization.yaml`.
+Add `metrics-service.yaml` to `base/traefik/kustomization.yaml`.
 
 **File to create:**
 ```
-infrastructure/homelab/monitoring/traefik-servicemonitor.yaml
+sites/akron/monitoring/traefik-servicemonitor.yaml
 ```
 
 `ServiceMonitor` targeting the `traefik-metrics` ClusterIP service:
@@ -1239,7 +1239,7 @@ spec:
 
 Download dashboard JSON from Grafana.com ID **17346** and add to `dashboards/`:
 ```
-infrastructure/homelab/monitoring/dashboards/traefik-dashboard.json
+sites/akron/monitoring/dashboards/traefik-dashboard.json
 ```
 Add a `configMapGenerator` entry to `dashboards/kustomization.yaml` following the
 existing pattern.
@@ -1250,7 +1250,7 @@ existing pattern.
 
 **File to create:**
 ```
-infrastructure/homelab/monitoring/flux-servicemonitor.yaml
+sites/akron/monitoring/flux-servicemonitor.yaml
 ```
 
 `ServiceMonitor` (or multiple) targeting the Flux controller services in
@@ -1263,7 +1263,7 @@ Include a relabeling rule to set `instance` to the controller name
 
 Download dashboard JSON from Grafana.com ID **16714** and add to `dashboards/`:
 ```
-infrastructure/homelab/monitoring/dashboards/flux-dashboard.json
+sites/akron/monitoring/dashboards/flux-dashboard.json
 ```
 Add a `configMapGenerator` entry to `dashboards/kustomization.yaml` following the
 existing pattern.
@@ -1276,7 +1276,7 @@ existing pattern.
 
 **File to create:**
 ```
-infrastructure/homelab/monitoring/alerting-rules.yaml
+sites/akron/monitoring/alerting-rules.yaml
 ```
 
 `PrometheusRule` in namespace `monitoring` with the following alert groups:
@@ -1341,7 +1341,7 @@ Without this layer, every new app would need to independently expose a Prometheu
 
 **File to create:**
 ```
-infrastructure/homelab/monitoring/otel-helmrepo.yaml
+sites/akron/monitoring/otel-helmrepo.yaml
 ```
 
 `HelmRepository` for the OpenTelemetry Operator:
@@ -1355,7 +1355,7 @@ infrastructure/homelab/monitoring/otel-helmrepo.yaml
 
 **File to create:**
 ```
-infrastructure/homelab/monitoring/otel-operator.yaml
+sites/akron/monitoring/otel-operator.yaml
 ```
 
 `HelmRelease` for chart `opentelemetry-operator`. The operator manages
@@ -1380,7 +1380,7 @@ OTel Operator images are ARM64-compatible ✓.
 
 **File to create:**
 ```
-infrastructure/homelab/monitoring/otel-collector.yaml
+sites/akron/monitoring/otel-collector.yaml
 ```
 
 `OpenTelemetryCollector` CR in namespace `monitoring`, mode `Deployment`.
@@ -1436,7 +1436,7 @@ hard-coding the address.
 
 **File to create:**
 ```
-infrastructure/homelab/monitoring/otel-endpoints-configmap.yaml
+sites/akron/monitoring/otel-endpoints-configmap.yaml
 ```
 
 ---
@@ -1475,7 +1475,7 @@ After each phase, run the validation pipeline:
 ./scripts/validate-k3s.sh
 ```
 
-The pipeline now has 7 steps. Step 7 runs `conftest` against `policy/` and enforces
+The pipeline has 12 steps. Step 8 runs `conftest` against `policy/` and enforces
 that every `ServiceMonitor` and `PodMonitor` endpoint has a `targetLabel: instance`
 relabeling rule (PR #99). Any new monitor missing this will fail the build.
 
@@ -1518,7 +1518,7 @@ Files marked `[×N]` are created once per UniFi site. The examples below use `ho
 and `remote` as site names; substitute the actual site names when implementing.
 
 ```
-infrastructure/homelab/monitoring/
+sites/akron/monitoring/
 ├── kustomization.yaml                            ✅ DONE
 ├── namespace.yaml                                ✅ DONE
 ├── prometheus-helmrepo.yaml                      ✅ DONE
@@ -1569,10 +1569,10 @@ apps/homelab/
     └── lottage/{ingressroute,patch-env,secret.sops,kustomization}.yaml
 
 policy/servicemonitor_instance_label.rego         ✅ DONE (PR #99)
-scripts/validate/07-conftest.sh                   ✅ DONE (PR #99)
-infrastructure/homelab/kustomization.yaml         ✅ DONE
-infrastructure/homelab/traefik/helmrelease.yaml   (add Prometheus metrics config)
-infrastructure/homelab/dns/unbound-configmap.yaml ✅ DONE
-infrastructure/homelab/dns/unbound-deployment.yaml ✅ DONE
-clusters/homelab/cluster-vars.yaml                (add METALLB_SYSLOG_IP)
+scripts/validate/08-conftest.sh                   ✅ DONE (PR #99)
+sites/akron/infrastructure/kustomization.yaml         ✅ DONE
+base/traefik/helmrelease.yaml   (add Prometheus metrics config)
+base/dns/unbound-configmap.yaml ✅ DONE
+base/dns/unbound-deployment.yaml ✅ DONE
+clusters/akron/cluster-vars.yaml                  ✅ DONE (METALLB_SYSLOG_IP)
 ```

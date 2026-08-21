@@ -5,7 +5,7 @@
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
-  name: homelab-pool
+  name: lan
   namespace: metallb-system
 spec:
   addresses:
