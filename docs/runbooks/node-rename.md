@@ -170,7 +170,61 @@ re-provision.
 
 The verification step below reboots specifically to prove it.
 
-## Trap 3 — DNS during the restart
+## Trap 3 — the FQDN hostname breaks DNS for every pod
+
+**This cost four hours on Akron.** It is handled by
+`scripts/set-node-identity.sh`, but know the shape, because the symptoms point
+everywhere except DNS.
+
+An FQDN hostname makes NetworkManager derive a search domain from it, and
+kubelet copies the node's search list into every pod:
+
+```
+search dns.svc.cluster.local svc.cluster.local cluster.local akron.internal.zerpzorp.com
+options ndots:5
+```
+
+`ndots:5` means any name with fewer than five dots tries **every search suffix
+before the name itself**. So a pod resolving `pypi.org` first asks for
+`pypi.org.akron.internal.zerpzorp.com`.
+
+That is normally harmless — a suffix that does not exist returns NXDOMAIN and
+the resolver moves to the next one. `internal.zerpzorp.com` is a real
+Cloudflare-hosted zone, and Cloudflare answers **NODATA** (`NOERROR`, zero
+records, SOA in authority) rather than NXDOMAIN. glibc reads NODATA as "the
+name exists and has no address" and **stops**, never trying the real name.
+
+So it only breaks under a *publicly-hosted* hostname domain. Under `home.arpa`
+the same suffix would NXDOMAIN harmlessly. Moving DNS to Cloudflare in
+iteration 0 and renaming the node in iteration 1 were each safe alone.
+
+**What it looks like:** `dig` works, so DNS "looks fine". Anything using the C
+library — `getent`, `ping`, `curl`, Python — fails. Observed as `pihole -g`
+reporting "DNS resolution is currently unavailable" (its check is
+`getent hosts pi.hole`) and the `pihole-sync` Job failing to reach pypi.org.
+The host is unaffected: it defaults to `ndots:1`, so it tries real names first.
+
+**The fix is at kubelet, not the host.** The host should *keep* its search
+domain — it is the same suffix #234 adds via DHCP so short names work, and it
+becomes useful once `internal.zerpzorp.com` resolves. Pods never type short
+external names and gain nothing from it. `set-node-identity.sh` writes
+`/etc/rancher/k3s/resolv.conf` (the host's, minus the `search` line) and adds
+`kubelet-arg: "resolv-conf=..."` to `/etc/rancher/k3s/config.yaml`.
+
+Neither takes effect until k3s restarts, and **pods keep the resolv.conf they
+were created with**, so existing pods need recreating. The restart in step 4
+covers both if the script runs first.
+
+Verify after the rename:
+
+```bash
+kubectl -n dns exec deploy/pihole -- cat /etc/resolv.conf   # no <site> suffix
+kubectl -n dns exec deploy/pihole -- getent hosts pi.hole   # must answer
+```
+
+`getent`, not `dig` — `dig` does not reproduce the failure.
+
+## Trap 4 — DNS during the restart
 
 The node resolves through its own PiHole VIP, which is down while K3s restarts.
 This is survivable only because of the public-resolver fallback added in #229
@@ -193,10 +247,19 @@ verified healthy.
    kubectl get svc -A -o wide | grep LoadBalancer
    ```
 
-2. **Confirm the DNS fallback is in place** (Trap 3):
+2. **Confirm the DNS fallback is in place** (Trap 4), and check for stale
+   host-level DNS config while you are there — the rename changes which of
+   these matters:
    ```bash
-   cat /etc/resolv.conf     # PiHole VIP, then 1.1.1.1, 1.0.0.1
+   cat /etc/resolv.conf              # PiHole VIP, then 1.1.1.1, 1.0.0.1
+   cat /etc/rancher/k3s/resolv.conf  # usually absent; the script creates it
+   grep -n domain_name_servers /etc/dhcpcd.conf 2>/dev/null
+   systemctl is-active dhcpcd
    ```
+   Akron carried a stale `static domain_name_servers=127.0.0.1` in
+   `dhcpcd.conf` from an earlier attempt at the #229 fallback. dhcpcd was not
+   running so it was inert, but two things competing to write `/etc/resolv.conf`
+   is how that bug happened in the first place. Delete it rather than leave it.
 
 3. **Set the new identity:**
    ```bash
