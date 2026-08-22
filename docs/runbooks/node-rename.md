@@ -17,11 +17,14 @@ is ever needed. Do not reimage a working node to rename it.
 Sequence:
 
 1. **Merge the PR** carrying the MetalLB rename and this runbook. Akron watches
-   `main`, so the `IPAddressPool`/`L2Advertisement` rename reconciles there
-   within a couple of minutes and needs no action on the node. Confirm it landed
-   and Traefik and PiHole still hold their IPs *before* touching the hostname —
-   two changes in flight at once makes any failure ambiguous.
-2. **Get the script onto the node.** It runs on the host, not in the cluster:
+   `main`, so it reaches the cluster within a couple of minutes.
+2. **Finish the MetalLB rename by hand.** It does *not* apply on its own —
+   `infrastructure-config` goes `False` and stays there. See
+   [Trap 0](#trap-0--the-metallb-rename-deadlocks-flux).
+   Get `infrastructure-config` back to `True`, with Traefik and PiHole still on
+   their original IPs, *before* touching the hostname — two changes in flight at
+   once makes any failure ambiguous.
+3. **Get the script onto the node.** It runs on the host, not in the cluster:
    ```bash
    # if the repo is already cloned on the node
    git -C ~/homelab pull
@@ -29,8 +32,8 @@ Sequence:
    # otherwise, from your dev machine
    scp scripts/set-node-identity.sh tim@<node-ip>:~
    ```
-3. **Run the procedure below**, Akron first.
-4. **Promote to `stable`** once Akron is verified, then repeat on Eastbank.
+4. **Run the procedure below**, Akron first.
+5. **Promote to `stable`** once Akron is verified, then repeat on Eastbank.
    Eastbank does not see the MetalLB rename until that promotion.
 
 ## Background
@@ -46,6 +49,54 @@ Linux hostname. Renaming the host and restarting K3s therefore registers a
 Names stay on `home.arpa` throughout — this settles the node's identity without
 touching the DNS zone, so a failure here is one machine rather than one machine
 plus every hostname.
+
+## Trap 0 — the MetalLB rename deadlocks Flux
+
+Renaming `homelab-pool`/`homelab-l2` to `lan` is not self-applying. Flux applies
+before it prunes, so both pools exist at apply time and MetalLB's validating
+webhook rejects the new one:
+
+```
+IPAddressPool/metallb-system/lan dry-run failed (Forbidden): admission webhook
+"ipaddresspoolvalidationwebhook.metallb.io" denied the request: CIDR
+"10.6.1.10/31" in pool "lan" overlaps with already defined CIDR "10.6.1.10/31"
+```
+
+The apply fails, so the prune never removes `homelab-pool`, so the next
+reconcile fails the same way. `infrastructure-config` sits `False` forever and
+**every other change in that Kustomization is blocked behind it** — this is not
+a cosmetic warning.
+
+Delete the old objects by hand, dependents first:
+
+```bash
+kubectl -n metallb-system get ipaddresspool,l2advertisement
+
+kubectl -n metallb-system delete l2advertisement homelab-l2
+kubectl -n metallb-system delete ipaddresspool homelab-pool
+
+flux reconcile kustomization infrastructure-config --with-source
+```
+
+`L2Advertisement` goes first because it references the pool by name.
+
+Between the delete and the reconcile there is no L2 advertisement, so ARP for
+the PiHole and Traefik VIPs goes unanswered — a real, brief DNS outage for LAN
+clients. Run the reconcile immediately rather than waiting out the interval.
+The node itself keeps resolving via the `1.1.1.1` fallback from #229.
+
+Verify before continuing:
+
+```bash
+kubectl -n metallb-system get ipaddresspool,l2advertisement   # only lan / lan
+flux get kustomizations                                        # infrastructure-config True
+kubectl get svc -A | grep LoadBalancer                         # IPs unchanged
+```
+
+The Services pin their addresses with `metallb.universe.tf/loadBalancerIPs`, so
+they reclaim the same IPs from the new pool. That pinning is what makes the
+*assignment* safe; it does nothing for the *apply*, which is why this trap
+exists at all.
 
 ## Trap 1 — PersistentVolumes do not survive
 

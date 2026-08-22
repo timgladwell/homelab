@@ -160,6 +160,10 @@ There is also a mechanical reason. `clusters/<site>/kustomization.yaml` would ha
 
 **Renaming a Flux `Kustomization` object is destructive.** `flux-system` prunes the old name and cascade-deletes everything it owned, PVCs included. Change `spec.path` freely; treat `metadata.name` as load-bearing.
 
+**Renaming any resource guarded by a validating webhook that rejects duplicates deadlocks Flux.** Flux applies before it prunes, so both the old and new names exist at apply time. If a webhook rejects the new object *because* the old one still holds the same value, the apply fails, the prune never runs, and every subsequent reconcile fails identically — it does not self-heal.
+
+Hit for real renaming MetalLB's `IPAddressPool` (#230): `ipaddresspoolvalidationwebhook.metallb.io` denied `lan` because its CIDR overlapped `homelab-pool`, which was still there precisely because the apply had failed. The fix is to delete the old objects by hand, dependents first, then `flux reconcile`. Assume this shape for any CRD whose webhook enforces uniqueness on a field — an overlapping CIDR, a duplicate hostname, a claimed port. Pinning the value elsewhere (these Services pin their IPs with `metallb.universe.tf/loadBalancerIPs`) protects the *assignment*, not the *apply*, so it is not evidence the rename is safe.
+
 **Two different "per-site" concepts coexist — don't confuse them:**
 - **Per-K3s-cluster** — `sites/akron/`, `sites/eastbank/`. One directory per physical cluster.
 - **Per-UniFi-site** — the `[[unifi.controller]]` stanzas in Unpoller's config (`sites/eastbank/monitoring/unpoller/`). One Unpoller at Eastbank polls *every* site's UniFi controller over the Site Magic VPN, including Lottage's, which is alive and correct even though Lottage's K3s cluster no longer exists here. It used to be three Unpoller instances on Akron; see #120.
