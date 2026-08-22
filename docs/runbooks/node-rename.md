@@ -102,10 +102,25 @@ exists at all.
 
 local-path PVs carry a `nodeAffinity` pinned to the node name, and
 `PersistentVolume.spec.nodeAffinity` is **immutable**. After the rename every PV
-references a node that no longer exists, goes `Released`, and can never rebind.
-There is no in-place fix; the options are PV surgery or deletion.
+references a node that no longer exists. There is no in-place fix; the volume
+has to be replaced.
 
-We delete. Per #228, blanking state is acceptable for this phase:
+**The symptom is not what you would expect.** An already-bound PV does *not* go
+`Released` — `kubectl get pv | grep -v Bound` comes back empty and everything
+looks fine. `nodeAffinity` constrains *scheduling*, not binding, so the failure
+surfaces one layer up: pods stuck `Pending` with
+`node(s) had volume node affinity conflict`. Check pods, not PVs.
+
+**Delete the PVC, never the PV.** `reclaimPolicy: Delete` means the PV goes with
+its claim. Deleting PVs directly races the controllers, which recreate PVCs
+within seconds — local-path then provisions replacements pinned to the *new*
+node name, and a blanket `kubectl get pv -o name | xargs kubectl delete` wipes
+those healthy replacements instead of the stale originals. They wedge in
+`Terminating` behind the `pv-protection` finalizer, cannot be un-deleted, and
+their new PVCs have to be deleted as well to clear them. This happened during
+Akron's rename on 2026-08-22.
+
+Per #228, blanking state is acceptable for this phase:
 
 - **Prometheus and Loki** restart with no history. Note the date — future-you
   will otherwise debug the gap as a collection fault.
@@ -200,15 +215,40 @@ verified healthy.
    kubectl delete node <old-name>
    ```
 
-6. **Delete the orphaned storage.** Every PV is `Released` at this point:
+6. **Replace the orphaned storage — delete PVCs only, never PVs.** Every PV has
+   `reclaimPolicy: Delete`, so removing a PVC removes its PV. Deleting PVs by
+   hand is not just redundant, it actively breaks things (see Trap 1).
+
+   Stop the workloads first, or the delete hangs on the
+   `kubernetes.io/pvc-protection` finalizer while pods still mount the volumes.
+   Suspend Flux too, or it recreates the pods underneath you:
    ```bash
-   kubectl get pv | grep -v Bound
-   kubectl delete pvc --all -n monitoring
-   kubectl delete pvc --all -n dns
-   kubectl get pv -o name | xargs -r kubectl delete
+   flux suspend kustomization monitoring
+
+   kubectl -n monitoring scale statefulset --all --replicas=0
+   kubectl -n monitoring scale deployment  --all --replicas=0
+   kubectl -n dns        scale deployment  --all --replicas=0
+
+   kubectl -n monitoring delete pvc --all
+   kubectl -n dns        delete pvc --all
+
+   kubectl get pv,pvc -A     # both empty, or only volumes created since the rename
    ```
-   Flux and the Prometheus operator recreate the PVCs on the next reconcile, and
-   local-path provisions fresh empty volumes.
+
+   Then restore. A Kustomization reconcile does not necessarily revert a manual
+   `kubectl scale`, so force the charts to re-apply:
+   ```bash
+   flux resume kustomization monitoring
+   flux reconcile kustomization monitoring --with-source
+
+   kubectl -n monitoring get statefulset,deployment    # if still 0/0:
+   flux get helmreleases -n monitoring
+   flux reconcile helmrelease <name> -n monitoring --force
+   ```
+
+   Prometheus' and Alertmanager's StatefulSets are created by
+   prometheus-operator rather than by Helm, so they return on their own once
+   `kube-prometheus-stack-operator` is running again.
 
 7. **Reclaim the disk.** Deleting the PV does not always remove its directory,
    and these are the largest things on the node:
@@ -250,5 +290,5 @@ run this:**
 
 | Site | Renamed on |
 |---|---|
-| Akron | |
+| Akron | 2026-08-22 |
 | Eastbank | |
