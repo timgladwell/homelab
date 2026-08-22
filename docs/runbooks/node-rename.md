@@ -175,8 +175,21 @@ verified healthy.
 4. **Restart K3s** to re-register under the new name:
    ```bash
    sudo systemctl restart k3s
-   kubectl get nodes -o wide     # both names appear; the new one becomes Ready
+   kubectl get nodes -o wide
    ```
+
+   **Registration lags the restart by 30–60 seconds.** Checked immediately, this
+   shows only the *old* node, still `Ready` — that is not a failure, the new one
+   has not registered yet. Wait and re-run until both appear:
+
+   ```
+   NAME                                STATUS     ROLES           AGE
+   akron                               NotReady   control-plane   212d
+   k3s01.akron.internal.zerpzorp.com   Ready      control-plane   66s
+   ```
+
+   The old entry going `NotReady` is the signal it has been superseded; nothing
+   is running on it.
 
    No cordon or drain. On a single-node cluster draining only makes every pod
    `Pending` with nowhere to go, and the restart stops them anyway — the state
