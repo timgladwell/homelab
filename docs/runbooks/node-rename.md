@@ -124,9 +124,25 @@ Per #228, blanking state is acceptable for this phase:
 
 - **Prometheus and Loki** restart with no history. Note the date — future-you
   will otherwise debug the gap as a collection fault.
-- **PiHole** rebuilds gravity on the next `dns-config` sync job.
+- **PiHole** loses its gravity database and needs the sync Job re-run by hand.
+  It does *not* rebuild on the next reconcile: `dns-config` sets `force: true`,
+  but that only recreates the Job when its *spec* changes, and nothing in git
+  changed — the completed Job just sits there. Delete it so Flux recreates it:
+  ```bash
+  kubectl -n dns delete job pihole-sync
+  flux reconcile kustomization dns-config --with-source   # blocks, ~10m
+  dig +short doubleclick.net @<site-pihole-ip>            # expect 0.0.0.0
+  ```
+  DNS resolution keeps working throughout — FTL creates an empty gravity.db on
+  start and the `address=` records come from `FTLCONF_misc_dnsmasq_lines` in the
+  SOPS secret, not the PVC. Only ad-blocking is missing until the Job finishes,
+  which is easy to overlook because nothing looks broken.
 - **Grafana dashboards** are provisioned from ConfigMaps in git and are
   unaffected.
+
+Nothing lost here is irreproducible: gravity is derived from `pihole-config.yaml`
+and `pihole-clients.yaml`, dashboards are ConfigMaps, and the only genuinely
+unrecoverable data is Prometheus and Loki history — which #228 accepts.
 
 ## Trap 2 — cloud-init rewrites /etc/hosts on every boot
 
