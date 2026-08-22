@@ -45,7 +45,61 @@ self_test() {
     # A short name must not silently produce "host host".
     ! validate_fqdn k3s01 2>/dev/null
     validate_fqdn k3s01.akron.internal.zerpzorp.com
+
+    # strip_search drops the search list and nothing else — a kubelet
+    # resolv.conf that lost its nameservers would break DNS for every pod.
+    local stripped
+    stripped=$(printf '# comment\nsearch akron.internal.zerpzorp.com\nnameserver 10.6.1.53\nnameserver 1.1.1.1\n' | strip_search)
+    [[ "$stripped" != *search* ]]
+    [[ $(grep -c '^nameserver ' <<<"$stripped") -eq 2 ]]
+    # "searchdomain" is not a search directive and must survive.
+    [[ $(printf 'nameserver 1.1.1.1\nsearchdomain foo\n' | strip_search | wc -l) -eq 2 ]]
+
     echo "self-test ok"
+}
+
+# Give kubelet a resolv.conf without the search list.
+#
+# An FQDN hostname makes NetworkManager derive a search domain from it, and
+# kubelet copies the host's search list into every pod. Pods also run with
+# ndots:5, which means any name with fewer than five dots tries every search
+# suffix BEFORE the name itself — so a pod resolving "pypi.org" first asks for
+# "pypi.org.<site>.internal.zerpzorp.com".
+#
+# That is normally harmless: a suffix that does not exist returns NXDOMAIN and
+# the resolver moves on. internal.zerpzorp.com is a real Cloudflare-hosted
+# zone, and Cloudflare answers NODATA (NOERROR, no records) instead. glibc
+# treats NODATA as "found it, no address" and STOPS — it never tries the real
+# name. Every external lookup from every pod fails while the host, at the
+# default ndots:1, is unaffected.
+#
+# Fixed at the kubelet layer rather than by removing the search domain,
+# because the host wants to keep it: it is the same suffix #234 adds via DHCP
+# so short names work, and once internal.zerpzorp.com resolves for real it
+# becomes useful rather than harmful. Pods never type short external names and
+# gain nothing from it.
+#
+# The nameservers are copied from the host rather than restated, so
+# NetworkManager stays the single source of truth. This is a snapshot — re-run
+# this script after changing the host's resolvers.
+# Drop the search list, keep everything else. Separate so the self-test can
+# exercise it without writing to /etc.
+strip_search() {
+    grep -v '^[[:space:]]*search[[:space:]]'
+}
+
+configure_kubelet_resolv() {
+    local kubelet_resolv=/etc/rancher/k3s/resolv.conf
+    local k3s_config=/etc/rancher/k3s/config.yaml
+
+    [[ -d /etc/rancher/k3s ]] || { echo "no /etc/rancher/k3s — skipping kubelet DNS"; return; }
+
+    strip_search < /etc/resolv.conf > "$kubelet_resolv"
+
+    if ! grep -qs 'resolv-conf=' "$k3s_config"; then
+        printf 'kubelet-arg:\n  - "resolv-conf=%s"\n' "$kubelet_resolv" >> "$k3s_config"
+        echo "added kubelet-arg to $k3s_config"
+    fi
 }
 
 validate_fqdn() {
@@ -80,8 +134,11 @@ main() {
     # root filesystem, so this cannot suppress a genuine re-provision.
     touch /etc/cloud/cloud-init.disabled
 
+    configure_kubelet_resolv
+
     echo "hostname: $(hostnamectl --static)"
     echo "next: restart k3s, then delete the old Node object — see docs/runbooks/node-rename.md"
+    echo "      existing pods keep their old DNS config; they need recreating"
 }
 
 main "$@"
