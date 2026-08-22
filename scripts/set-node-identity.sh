@@ -96,10 +96,23 @@ configure_kubelet_resolv() {
 
     strip_search < /etc/resolv.conf > "$kubelet_resolv"
 
-    if ! grep -qs 'resolv-conf=' "$k3s_config"; then
-        printf 'kubelet-arg:\n  - "resolv-conf=%s"\n' "$kubelet_resolv" >> "$k3s_config"
-        echo "added kubelet-arg to $k3s_config"
+    if grep -qs 'resolv-conf=' "$k3s_config"; then
+        return
     fi
+
+    # Appending a second `kubelet-arg:` key would be a duplicate mapping key —
+    # YAML parsers keep the last one, silently discarding whatever args were
+    # already there. Refuse rather than write a YAML editor in shell.
+    if grep -qs '^kubelet-arg:' "$k3s_config"; then
+        cat >&2 <<EOF
+$k3s_config already has a kubelet-arg key. Add this to the existing list by hand:
+  - "resolv-conf=$kubelet_resolv"
+EOF
+        return 1
+    fi
+
+    printf 'kubelet-arg:\n  - "resolv-conf=%s"\n' "$kubelet_resolv" >> "$k3s_config"
+    echo "added kubelet-arg to $k3s_config"
 }
 
 validate_fqdn() {
