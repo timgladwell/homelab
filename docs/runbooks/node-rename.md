@@ -157,9 +157,32 @@ Per #228, blanking state is acceptable for this phase:
   unaffected.
 - **NetworkOptimizer** (Eastbank's `apps` layer) loses its UniFi credentials.
   They are entered through its web UI and stored in SQLite on its PVC, not
-  injected from a Secret, so they must be re-entered afterwards. Its admin
-  password does come from the SOPS secret. This is the only state in this
-  procedure that is not reproducible from git.
+  injected from a Secret, so they must be re-entered afterwards. This is the
+  only state in this procedure that is not reproducible from git. There is no
+  `APP_PASSWORD` to look up either — the deployment deliberately omits it, and
+  the app generates an admin password and prints it once at first start.
+
+  **If you cannot log in afterwards, delete the PVC and start clean. Do not
+  reset the password.** The app keeps two credentials: a legacy hash in
+  `AdminSettings`, and the ASP.NET Identity user in `AspNetUsers` that logins
+  actually authenticate against. Identity is seeded *from* the legacy hash, and
+  only when no Identity user exists yet. So blanking `AdminSettings` regenerates
+  and prints a new password that nothing checks, while `AspNetUsers` keeps the
+  old hash — every reset appears to work and none of them do. The tell is:
+
+  ```
+  [..] AUTO-GENERATED ADMIN PASSWORD ... Password: <new>
+  [..] Local sign-in failed for admin: bad password.
+  ```
+
+  A clean volume seeds both together, which shows up in the log as
+  `Identity bootstrap: seeded local admin user (source=LegacyHash...)`. Scale to
+  zero, delete the PVC, scale back up. This cost an hour on 2026-08-22.
+
+  Note that deleting the PVC while its Kustomization is **suspended** leaves
+  nothing to recreate it, and the pod sits `Pending` on
+  `persistentvolumeclaim "network-optimizer" not found`. Either resume Flux or
+  `kubectl apply -f sites/<site>/apps/pvc.yaml` by hand.
 
 Nothing lost here is irreproducible: gravity is derived from `pihole-config.yaml`
 and `pihole-clients.yaml`, dashboards are ConfigMaps, and the only genuinely
