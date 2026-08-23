@@ -70,27 +70,22 @@ block_lists:
   - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd7.txt
     groups:
       - Default
-      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd14-8.txt
     groups:
       - Default
-      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd21-15.txt
     groups:
       - Default
-      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd28-22.txt
     groups:
       - Default
-      - Browser Adblock Only Clients
 
   - url: https://raw.githubusercontent.com/hagezi/nrd/main/adblock/nrd35-29.txt
     groups:
       - Default
-      - Browser Adblock Only Clients
 
   - url: https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/hoster.txt
     groups:
