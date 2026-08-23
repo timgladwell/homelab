@@ -88,21 +88,24 @@ loudly, because the fast-forward check will fail.
    result — rebase-merging it would replay main's commits onto `stable` under
    fresh SHAs again, recreating the divergence it is meant to fix.
 
-3. **Reduce the ruleset to the two history rules.** Read-modify-write, so
-   nothing else about the ruleset changes:
+3. **Drop only the rules that block the push.** Read-modify-write, so nothing
+   else about the ruleset changes. Select the rules to *keep* rather than
+   listing what to remove — an earlier version of this step hard-coded
+   `deletion` and `non_fast_forward`, which silently stripped
+   `required_signatures` once that was added:
 
    ```bash
    gh api "repos/timgladwell/homelab/rulesets/$RULESET" | jq '{
      name, target, enforcement, conditions, bypass_actors,
-     rules: [.rules[] | select(.type == "deletion" or .type == "non_fast_forward")]
+     rules: [.rules[] | select(.type != "pull_request")]
    }' | gh api --method PUT "repos/timgladwell/homelab/rulesets/$RULESET" --input -
 
    gh api "repos/timgladwell/homelab/rulesets/$RULESET" \
      --jq '{enforcement, rules: [.rules[].type], bypass_actors}'
    ```
 
-   Expect `["deletion","non_fast_forward"]`, `enforcement: active`, and an empty
-   `bypass_actors`.
+   Expect `["deletion","non_fast_forward","required_signatures"]` in some order,
+   `enforcement: active`, and an empty `bypass_actors`.
 
 4. **Reset `stable` to `main`.** A fast-forward is impossible until this is
    done, and this is the only force-push the scheme will ever need.
