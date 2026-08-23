@@ -122,9 +122,11 @@ base/                            # Site-agnostic components. No secrets. No site
   traefik/                       # Ingress controller
   metallb/                       # L2 load balancer
   system-upgrade-controller/
+  cert-manager/                  # cert-manager HelmRelease (installs the CRDs)
   coredns-config/                # k3s CoreDNS custom stub (needs no CRDs, but grouped with config)
   metallb-config/                # MetalLB IP pools (needs MetalLB CRDs)
   traefik-routes/                # PiHole IngressRoute (needs Traefik CRDs)
+  cert-manager-config/           # ClusterIssuers + wildcard Certificate (needs cert-manager's CRDs)
   pihole-sync/                   # Syncs DNS blocklists into each site's own local PiHole
   metrics-collection/            # node-exporter + kube-state-metrics + Alloy, remote-writing to Akron
 
@@ -312,6 +314,8 @@ Before moving a resource across a Kustomization boundary, check whether it's a `
 Apps are exposed via Traefik `IngressRoute` CRs using subdomain routing (`<app>.${HOSTNAME}`). Traefik is a MetalLB `LoadBalancer` at `${METALLB_TRAEFIK_IP}`. See `base/traefik-routes/pihole-ingressroute.yaml` for the canonical pattern.
 
 **Every Traefik CR goes in `base/traefik-routes/`, never next to the HelmRelease in `base/traefik/`.** `traefik-routes` is reconciled by `infrastructure-config`, which `dependsOn: infrastructure`, so the `IngressRoute` CRD is installed by the time these apply. A Traefik CR in `base/traefik/` ships in the same Kustomization as the Helm release that provides its CRD — which works on a cluster that already has Traefik, and fails on a fresh one with `no matches for kind "IngressRoute"`. This shipped twice before validation step 11 started catching it.
+
+**`base/cert-manager/` and `base/cert-manager-config/` follow the same split, for the same reason.** `cert-manager/` holds the Namespace + HelmRelease and lives in `infrastructure` because it installs the `ClusterIssuer`/`Certificate` CRDs. `cert-manager-config/` holds the `ClusterIssuer`s and the per-site wildcard `Certificate` — all CRs — and lives in `infrastructure-config`, which `dependsOn: infrastructure`. A `ClusterIssuer` in `cert-manager/` would hit the same fresh-cluster failure as an `IngressRoute` in `base/traefik/`.
 
 ### Dependency management
 

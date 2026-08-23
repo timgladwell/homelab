@@ -1,0 +1,25 @@
+---
+# Requested but not yet consumed by anything — no IngressRoute or TLSStore
+# references this Secret. Deliberate for this iteration (#231): a failure
+# here is invisible to users and can be debugged without an outage. Wiring
+# this into Traefik is iteration 4 of #228, alongside the staging ->
+# production issuer flip.
+#
+# Lives in the traefik namespace (not cert-manager) because that's where
+# it will actually be consumed once wired up, avoiding a cross-namespace
+# secret move later.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: internal-wildcard
+  namespace: traefik
+spec:
+  secretName: internal-wildcard-tls
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  dnsNames:
+    - ${SITE_NAME}.internal.zerpzorp.com
+    - "*.${SITE_NAME}.internal.zerpzorp.com"
+    - internal.zerpzorp.com
+    - "*.internal.zerpzorp.com"
