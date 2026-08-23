@@ -8,3 +8,4 @@ resources:
   - ../../../base/coredns-config
   - ../../../base/metallb-config
   - ../../../base/traefik-routes
+  - ../../../base/cert-manager-config

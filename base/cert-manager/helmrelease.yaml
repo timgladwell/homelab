@@ -1,0 +1,65 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  interval: 30m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: cert-manager
+      version: "v1.21.1"
+      sourceRef:
+        kind: HelmRepository
+        name: cert-manager
+        namespace: cert-manager
+      interval: 12h
+
+  values:
+    crds:
+      enabled: true
+      keep: true
+
+    # DNS-01 propagation checks must not go through Akron's PiHole: once
+    # PiHole becomes authoritative for internal.zerpzorp.com (iteration 4 of
+    # #228), it answers _acme-challenge TXT queries with NODATA instead of
+    # forwarding them, and cert-manager's self-check would hang forever
+    # waiting for a record that will never appear from that resolver. Forcing
+    # public recursive resolvers here means the behaviour is already correct
+    # when that lands, instead of surfacing as a mystery regression then.
+    extraArgs:
+      - --dns01-recursive-nameservers-only
+      - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+    webhook:
+      resources:
+        requests:
+          cpu: 20m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+
+    cainjector:
+      resources:
+        requests:
+          cpu: 20m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi

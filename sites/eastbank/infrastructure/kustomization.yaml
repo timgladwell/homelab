@@ -9,4 +9,6 @@ resources:
   - ../../../base/traefik
   - ../../../base/dns
   - ../../../base/system-upgrade-controller
+  - ../../../base/cert-manager
   - pihole-secret.sops.yaml
+  - cloudflare-secret.sops.yaml
