@@ -146,14 +146,21 @@ spec:
             httpGet:
               path: /api/health
               port: http
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
             periodSeconds: 30
+            # A Blazor Server app on a Pi routinely takes longer than the 1s
+            # default to answer /api/health under load. Three slow-but-successful
+            # responses used to be enough to kill a healthy process; it
+            # crashlooped for hours after its database was reprovisioned in #230.
+            timeoutSeconds: 5
+            failureThreshold: 5
           readinessProbe:
             httpGet:
               path: /api/health
               port: http
             initialDelaySeconds: 30
             periodSeconds: 15
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 100m
