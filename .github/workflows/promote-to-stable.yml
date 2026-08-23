@@ -11,7 +11,8 @@ name: Promote to stable
 # main's work onto stable under fresh SHAs, and git lost track of the fact that
 # the two branches held identical content.
 #
-# Needs `stable`'s ruleset reduced to `deletion` + `non_fast_forward`. A
+# Needs `stable`'s ruleset reduced to `deletion` + `non_fast_forward` +
+# `required_signatures`. A
 # `pull_request` rule blocks this push, and it cannot be bypassed: app bypass
 # actors require an organization, and this is a user-owned repo. That turns out
 # better than a bypass — with no bypass actor, `non_fast_forward` applies to
