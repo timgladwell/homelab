@@ -63,3 +63,17 @@ spec:
         limits:
           cpu: 100m
           memory: 64Mi
+
+    # startupapicheck is a Helm-hook Job (webhook readiness probe on install/
+    # upgrade), not a Deployment — it doesn't inherit the top-level
+    # `resources:` value above and needs its own, or the namespace
+    # ResourceQuota rejects it outright:
+    #   forbidden: failed quota: cert-manager: must specify limits.cpu ...
+    startupapicheck:
+      resources:
+        requests:
+          cpu: 20m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
