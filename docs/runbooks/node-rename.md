@@ -124,21 +124,65 @@ Per #228, blanking state is acceptable for this phase:
 
 - **Prometheus and Loki** restart with no history. Note the date — future-you
   will otherwise debug the gap as a collection fault.
-- **PiHole** loses its gravity database and needs the sync Job re-run by hand.
-  It does *not* rebuild on the next reconcile: `dns-config` sets `force: true`,
-  but that only recreates the Job when its *spec* changes, and nothing in git
-  changed — the completed Job just sits there. Delete it so Flux recreates it:
+- **PiHole** loses its gravity database, and whether it recovers on its own
+  depends entirely on the order of operations. Its entrypoint rebuilds gravity
+  when the file is missing — but that rebuild needs working DNS, and its own
+  check is `getent hosts pi.hole`, the exact call Trap 3 breaks.
+
+  **Run `set-node-identity.sh` and restart k3s before replacing the PVC** and
+  PiHole self-heals: Eastbank came back with a populated `gravity.db` and
+  blocking live, no intervention. Replace the PVC while the poisoned search
+  domain is still in effect and the rebuild fails silently, leaving no
+  `gravity.db` at all — that was Akron, and it reads as an independent PiHole
+  fault rather than as Trap 3 wearing a different face.
+
+  If it does end up missing, `pihole -g` cannot fix it either (same failing
+  check), so fix DNS first and then:
+  ```bash
+  kubectl -n dns exec -it deploy/pihole -- pihole -g
+  ```
+
+  Either way, run the sync Job afterwards — the entrypoint only builds from the
+  default `adlists.list`, while the Job restores the adlists, groups and clients
+  declared in `pihole-config.yaml` and `pihole-clients.yaml`. It does **not**
+  re-run on its own: `dns-config` sets `force: true`, but that only recreates
+  the Job when its spec changes, and nothing in git changed.
   ```bash
   kubectl -n dns delete job pihole-sync
   flux reconcile kustomization dns-config --with-source   # blocks, ~10m
   dig +short doubleclick.net @<site-pihole-ip>            # expect 0.0.0.0
   ```
-  DNS resolution keeps working throughout — FTL creates an empty gravity.db on
-  start and the `address=` records come from `FTLCONF_misc_dnsmasq_lines` in the
-  SOPS secret, not the PVC. Only ad-blocking is missing until the Job finishes,
-  which is easy to overlook because nothing looks broken.
+
 - **Grafana dashboards** are provisioned from ConfigMaps in git and are
   unaffected.
+- **NetworkOptimizer** (Eastbank's `apps` layer) loses its UniFi credentials.
+  They are entered through its web UI and stored in SQLite on its PVC, not
+  injected from a Secret, so they must be re-entered afterwards. This is the
+  only state in this procedure that is not reproducible from git. There is no
+  `APP_PASSWORD` to look up either — the deployment deliberately omits it, and
+  the app generates an admin password and prints it once at first start.
+
+  **If you cannot log in afterwards, delete the PVC and start clean. Do not
+  reset the password.** The app keeps two credentials: a legacy hash in
+  `AdminSettings`, and the ASP.NET Identity user in `AspNetUsers` that logins
+  actually authenticate against. Identity is seeded *from* the legacy hash, and
+  only when no Identity user exists yet. So blanking `AdminSettings` regenerates
+  and prints a new password that nothing checks, while `AspNetUsers` keeps the
+  old hash — every reset appears to work and none of them do. The tell is:
+
+  ```
+  [..] AUTO-GENERATED ADMIN PASSWORD ... Password: <new>
+  [..] Local sign-in failed for admin: bad password.
+  ```
+
+  A clean volume seeds both together, which shows up in the log as
+  `Identity bootstrap: seeded local admin user (source=LegacyHash...)`. Scale to
+  zero, delete the PVC, scale back up. This cost an hour on 2026-08-22.
+
+  Note that deleting the PVC while its Kustomization is **suspended** leaves
+  nothing to recreate it, and the pod sits `Pending` on
+  `persistentvolumeclaim "network-optimizer" not found`. Either resume Flux or
+  `kubectl apply -f sites/<site>/apps/pvc.yaml` by hand.
 
 Nothing lost here is irreproducible: gravity is derived from `pihole-config.yaml`
 and `pihole-clients.yaml`, dashboards are ConfigMaps, and the only genuinely
@@ -370,4 +414,4 @@ run this:**
 | Site | Renamed on |
 |---|---|
 | Akron | 2026-08-22 |
-| Eastbank | |
+| Eastbank | 2026-08-22 |

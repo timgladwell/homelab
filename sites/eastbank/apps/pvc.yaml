@@ -1,7 +1,13 @@
 ---
-# SQLite plus the InfluxDB time-series store the app keeps for SNMP polling,
-# latency probes and WiFi client stats. 10Gi matches what this ran with before;
-# retention is configurable in the UI if it grows.
+# SQLite, and nothing else in practice. The app's own monitoring half — the
+# InfluxDB buckets fed by SNMP polling — is turned off in Settings, because a
+# continuous time-series write stream onto this node's SD card is the wear
+# pattern that keeps Prometheus at Akron and nowhere else. See the reasoning in
+# deployment.yaml.
+#
+# 10Gi therefore has plenty of headroom, and is deliberately not trimmed: it
+# matches what this ran with before, and local-path allocates on use rather
+# than up front, so a large claim costs nothing until something fills it.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

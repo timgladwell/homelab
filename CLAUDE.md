@@ -135,6 +135,7 @@ sites/<site>/                    # Everything specific to one K3s cluster
   monitoring/                    # Every site: base/metrics-collection. Akron adds the storage
                                  # side — Prometheus + Grafana + Loki + Alloy (logs).
                                  # Eastbank adds Unpoller, which polls every site's UniFi
+  apps/                          # Eastbank only: NetworkOptimizer
 
 clusters/<site>/                 # Flux entry point — managed by the flux-system Kustomization
   flux-system/                   # Flux's own manifests (managed by flux bootstrap, do not edit)
@@ -144,6 +145,7 @@ clusters/<site>/                 # Flux entry point — managed by the flux-syst
   monitoring.yaml                # -> sites/<site>/monitoring
   infrastructure-config.yaml     # -> sites/<site>/infrastructure-config
   dns-config.yaml                # -> sites/<site>/dns-config
+  apps.yaml                      # -> sites/<site>/apps  (Eastbank only)
 
 ```
 
@@ -187,7 +189,7 @@ Step 3 assembles each site's complete manifest set the same way Flux does — `k
 3. `infrastructure-config` → `sites/akron/infrastructure-config` — depends on `infrastructure`
 4. `dns-config` → `sites/akron/dns-config` — depends on `infrastructure`
 
-**Eastbank** (watches `stable`) — `clusters/eastbank/` → `infrastructure` (`sites/eastbank/infrastructure`) → `monitoring`, `infrastructure-config` and `dns-config`, all depending on `infrastructure`.
+**Eastbank** (watches `stable`) — `clusters/eastbank/` → `infrastructure` (`sites/eastbank/infrastructure`) → `monitoring`, `infrastructure-config`, `dns-config` and `apps`, all depending on `infrastructure`.
 
 ### Observability: collect everywhere, store at Akron
 
@@ -259,9 +261,11 @@ Opting a site out is just *not adding the line* — there is no delete-patch pat
 
 **Specific to one site** (e.g. Akron's monitoring stack): create it under `sites/<site>/<layer>/` and add it to that layer's `kustomization.yaml`. Nothing else changes.
 
-**There is no `apps` layer right now**, but it is expected back — NetworkOptimizer was deleted to be re-added fresh on its new multi-UniFi-site version. Restore it with the steps in *Adding a new top-level Flux Kustomization* below, creating `sites/akron/apps/` with a namespace and the app.
+**The `apps` layer exists at Eastbank only** (`sites/eastbank/apps/`, `clusters/eastbank/apps.yaml`), holding NetworkOptimizer. Akron has none. Add one to another site with the steps in *Adding a new top-level Flux Kustomization* below.
 
-When it returns, **leave `dns-config`'s `dependsOn` on `infrastructure`**. It used to depend on `apps`, but that was incidental ordering — `pihole-sync` talks to `pihole-web`, which the infrastructure layer owns. It has no dependency on apps in either direction.
+**`dns-config` depends on `infrastructure`, not `apps`.** It used to depend on `apps`, but that was incidental ordering — `pihole-sync` talks to `pihole-web`, which the infrastructure layer owns. There is no dependency in either direction; do not reintroduce one.
+
+**NetworkOptimizer's UniFi credentials are the only state here not reproducible from git.** They are entered through its web UI and stored in SQLite on its PVC, so anything that replaces that volume — a node rename, a PVC rebuild — means re-entering them. Its admin password comes from the SOPS secret; the UniFi credentials do not.
 
 **If a component needs a per-site secret**, put the Secret in `sites/<site>/<layer>/` and list it alongside the base component. Never in `base/`.
 
