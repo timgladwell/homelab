@@ -19,7 +19,18 @@ spec:
     name: letsencrypt-staging
     kind: ClusterIssuer
   dnsNames:
-    - ${SITE_NAME}.internal.zerpzorp.com
+    # Three names, not four. ${SITE_NAME}.internal.zerpzorp.com is
+    # deliberately absent: a wildcard matches exactly one label, so
+    # *.internal.zerpzorp.com already covers akron.internal.zerpzorp.com,
+    # and Let's Encrypt rejects the whole order if one name in it is
+    # covered by another:
+    #
+    #   400 urn:ietf:params:acme:error:malformed: Domain name
+    #   "akron.internal.zerpzorp.com" is redundant with a wildcard domain
+    #   in the same request.
+    #
+    # *.${SITE_NAME}.internal… is still needed (two labels, not covered),
+    # and so is the bare apex (no wildcard covers a bare name).
     - "*.${SITE_NAME}.internal.zerpzorp.com"
     # The apex pair below is deliberately identical at every site — it is
     # not a missing ${SITE_NAME}. Each site's PiHole answers
