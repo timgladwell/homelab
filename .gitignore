@@ -12,3 +12,6 @@ Thumbs.db
 # trivy-operator audit dumps (docs/runbooks/trivy-operator-audit.md). A snapshot
 # of one cluster at one moment; a committed one would later read as current.
 *-reports.json
+
+# Byte-compiled sync.py (running its --self-check locally leaves these)
+__pycache__/

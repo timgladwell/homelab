@@ -158,6 +158,27 @@ def _resolve_group_ids(names, name_to_id):
     return ids
 
 
+def _reconcile_groups(existing, entry, name_to_id, path, payload, sid, label):
+    """
+    Rewrite an existing object when its group membership drifted from config.
+
+    Pi-hole only accepts group membership in an object's own body, so an object
+    that already exists keeps whatever groups it was created with until it is
+    explicitly PUT back. Returns True if a PUT was sent.
+    """
+    desired = _resolve_group_ids(entry.get("groups", []), name_to_id)
+    current = existing.get("groups", [])
+    if sorted(current) == sorted(desired):
+        return False
+    payload["groups"] = desired
+    status, resp = _request_with_retry("PUT", path, payload, sid=sid)
+    if status in (200, 201):
+        log(f"  updated groups for {label}: {sorted(current)} -> {sorted(desired)}")
+        return True
+    log(f"  ERROR updating groups for {label} ({status}): {resp}", err=True)
+    return False
+
+
 def sync_groups(cfg, sid):
     log("--- Syncing groups ---")
     status, resp = _request_with_retry("GET", "/api/groups", sid=sid)
@@ -205,10 +226,13 @@ def remove_extra_groups(cfg, sid, name_to_id):
 
 def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
     """
-    Add/remove adlists. Returns True if a gravity update is needed.
+    Add/remove adlists and fix drifted group membership. Returns True if a
+    gravity update is needed.
 
     Gravity is needed if any list is added or removed, or if any desired list
     has 0 domains loaded (gravity was not completed for that list previously).
+    A group change is not enough: `vw_gravity` joins adlist_by_group at query
+    time, so regrouping an already-downloaded list applies immediately.
     """
     log(f"--- Syncing {list_type}lists ---")
     status, resp = _request_with_retry("GET", f"/api/lists?type={list_type}", sid=sid)
@@ -235,6 +259,19 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
             lst = existing[url]
             log(f"  {list_type}list exists "
                 f"(id={lst['id']}, domains={lst.get('number', '?')}): {url}")
+            # No gravity: the domains are already in the `gravity` table
+            # tagged with this adlist_id, and `vw_gravity` resolves group
+            # membership by joining adlist_by_group at query time. Rewriting
+            # that join takes effect immediately.
+            _reconcile_groups(
+                lst, entry, name_to_id,
+                f"/api/lists/{urllib.parse.quote(url, safe='')}?type={list_type}",
+                {
+                    "address": url,
+                    "enabled": lst.get("enabled", True),
+                    "comment": entry.get("comment", ""),
+                },
+                sid, f"{list_type}list {url}")
             continue
         groups = _resolve_group_ids(entry.get("groups", []), name_to_id)
         status, resp = _request_with_retry("POST", f"/api/lists?type={list_type}", {
@@ -278,14 +315,25 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
         raise RuntimeError(
             f"GET /api/domains/{domain_type}/exact failed ({status}): {resp}")
 
-    existing = {d["domain"]: d["id"] for d in resp.get("domains", [])}
+    existing = {d["domain"]: d for d in resp.get("domains", [])}
     desired = {entry["domain"] for entry in cfg.get(cfg_key, [])}
     log(f"  Existing: {len(existing)}, desired: {len(desired)}")
 
     for entry in cfg.get(cfg_key, []):
         domain = entry["domain"]
         if domain in existing:
-            log(f"  {domain_type} domain exists (id={existing[domain]}): {domain}")
+            dom = existing[domain]
+            log(f"  {domain_type} domain exists (id={dom['id']}): {domain}")
+            _reconcile_groups(
+                dom, entry, name_to_id,
+                f"/api/domains/{domain_type}/exact/"
+                f"{urllib.parse.quote(domain, safe='')}",
+                {
+                    "domain": domain,
+                    "enabled": dom.get("enabled", True),
+                    "comment": entry.get("comment", ""),
+                },
+                sid, f"{domain_type} domain {domain}")
             continue
         groups = _resolve_group_ids(entry.get("groups", []), name_to_id)
         status, resp = _request_with_retry(
@@ -323,7 +371,7 @@ def sync_clients(cfg, sid, name_to_id):
     if status != 200:
         raise RuntimeError(f"GET /api/clients failed ({status}): {resp}")
 
-    existing = {c["client"] for c in resp.get("clients", [])}
+    existing = {c["client"]: c for c in resp.get("clients", [])}
     desired = {entry["address"] for entry in cfg.get("clients", [])}
     log(f"  Existing: {len(existing)}, desired: {len(desired)}")
 
@@ -331,6 +379,14 @@ def sync_clients(cfg, sid, name_to_id):
         address = entry["address"]
         if address in existing:
             log(f"  client exists: {address} ({entry.get('comment', '')})")
+            _reconcile_groups(
+                existing[address], entry, name_to_id,
+                f"/api/clients/{urllib.parse.quote(address, safe='')}",
+                {
+                    "client": address,
+                    "comment": entry.get("comment", ""),
+                },
+                sid, f"client {address}")
             continue
         groups = _resolve_group_ids(entry.get("groups", []), name_to_id)
         status, resp = _request_with_retry("POST", "/api/clients", {
@@ -440,5 +496,43 @@ def main():
     log(f"Sync complete ({elapsed:.0f}s).")
 
 
+def self_check():
+    """
+    Offline check of the one thing that silently failed before: an object that
+    already exists but whose groups drifted from config must be PUT back — and
+    that PUT alone must not drag in a gravity rebuild.
+    Run with `PIHOLE_URL=x python3 sync.py --self-check`.
+    """
+    global _request_with_retry
+    calls = []
+
+    def fake(method, path, body=None, sid=None, timeout=60):
+        calls.append((method, path, body))
+        if method == "GET" and path.startswith("/api/lists"):
+            return 200, {"lists": [
+                # id=1 is in group 0 only; config below wants 0 and 7.
+                {"address": "http://a", "id": 1, "number": 5, "groups": [0]},
+                {"address": "http://b", "id": 2, "number": 5, "groups": [0]},
+            ]}
+        return 200, {}
+
+    _request_with_retry = fake
+    cfg = {"block_lists": [
+        {"url": "http://a", "groups": ["Default", "Extra"]},
+        {"url": "http://b", "groups": ["Default"]},
+    ]}
+    gravity = sync_lists(cfg, "", {"Default": 0, "Extra": 7}, "block", "block_lists")
+
+    puts = [c for c in calls if c[0] == "PUT"]
+    assert len(puts) == 1, f"expected exactly one PUT, got {puts}"
+    assert puts[0][1] == "/api/lists/http%3A%2F%2Fa?type=block", puts[0][1]
+    assert sorted(puts[0][2]["groups"]) == [0, 7], puts[0][2]
+    assert gravity is False, "a regroup alone must not trigger gravity"
+    log("self-check passed.")
+
+
 if __name__ == "__main__":
-    main()
+    if "--self-check" in sys.argv:
+        self_check()
+    else:
+        main()
