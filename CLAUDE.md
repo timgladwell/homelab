@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Enterprise best practices always.** Treat this as a high-scale production K8s environment in terms of design, structure, and operational patterns, even though it runs on a single node. This means proper namespace isolation, resource limits, health checks, RBAC, and GitOps workflows.
 - **GitOps is the single source of truth.** All cluster state is declared in this repository. Manual `kubectl apply` or imperative changes are not acceptable. Everything flows through Flux CD reconciliation.
+
+  **The exceptions are inventoried in `docs/host-state.md`** — node-level configuration, the two bootstrap secrets, and everything in UniFi and Cloudflare. Read it before assuming a rebuild restores something. Every item there fails silently: nothing alerts when the kubelet resolver config is missing, you find out when pods cannot resolve anything. **Adding host-level configuration means adding it to that page in the same PR.**
 - **Security by default.** No secrets in the repo (use SOPS/Age encryption). Pre-commit hooks enforce this. All manifests should follow least-privilege principles.
 - **Keep it simple.** Avoid over-engineering. The RPi has limited resources (300m CPU / 150Mi memory is a typical ceiling for a single workload). Don't add abstractions, features, or tooling that aren't needed yet.
 
@@ -200,6 +202,8 @@ Akron is the only site with storage that tolerates a Prometheus TSDB (USB3 NVMe)
 - **Unpoller is the exception that proves the rule** — it runs at Eastbank (`sites/eastbank/monitoring/unpoller/`), reaching every site's UniFi controller over the VPN and writing metrics and logs back to Akron. Nothing about polling needs to sit next to the storage, and Akron's headroom is the scarce resource.
 
 `${PROMETHEUS_REMOTE_WRITE_URL}` and `${LOKI_PUSH_URL}` are the only things that differ: Akron writes to the Prometheus and Loki beside it, Eastbank writes to `http://10.6.1.80/...` over the Site Magic VPN. Both endpoints are path-scoped Traefik `IngressRoute`s (`sites/akron/monitoring/prometheus-remotewrite-ingressroute.yaml`, `loki-push-ingressroute.yaml`), so only `/api/v1/write` and `/loki/api/v1/push` are published — not the query UIs. Deliberately IPs, not hostnames: nothing in the telemetry path should depend on cross-site DNS.
+
+**Pod logs are collected at Akron only.** Other sites run `alloy-metrics`, which ships metrics and accepts application pushes but does not read pod logs. So at a remote site a pod's logs die with the pod: `kubectl logs --previous` reaches one generation back, and a crashlooping pod destroys its own evidence. Capture with `kubectl logs -f` while it is happening.
 
 **The collector is the only thing at a site that crosses the VPN.** An application that produces logs pushes them to its local `alloy-metrics` (which serves Loki's push API on `alloy-metrics:3100`) and Alloy forwards them on — Unpoller is the first of these. Pointing an app straight at Akron would work and is wrong twice over: it couples every app to a remote endpoint, and it loses the WAL, so a WAN outage becomes a hole in the data instead of a delay. Note `loki.write`'s `wal` block is **experimental** upstream, unlike `prometheus.remote_write`'s.
 
