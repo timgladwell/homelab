@@ -21,5 +21,22 @@ spec:
   dnsNames:
     - ${SITE_NAME}.internal.zerpzorp.com
     - "*.${SITE_NAME}.internal.zerpzorp.com"
+    # The apex pair below is deliberately identical at every site — it is
+    # not a missing ${SITE_NAME}. Each site's PiHole answers
+    # *.internal.zerpzorp.com with its own local addresses, so
+    # pihole.internal.zerpzorp.com resolves to whichever site you are
+    # standing in (site-local resolution standing in for anycast), and each
+    # site serves a quick-links landing page at the bare apex. Both mean
+    # every site's Traefik has to present a cert for these two names, so
+    # every site issues its own.
+    #
+    # That makes _acme-challenge.internal.zerpzorp.com a record every site
+    # writes to. Accepted, not overlooked: multiple TXT records at one
+    # challenge name is ordinary DNS-01 (the bare name and the wildcard
+    # already need two), cert-manager's Cloudflare solver only removes the
+    # value it added, and renewals are ~60 days apart per site against a
+    # challenge window of minutes. Issuing once and syncing the Secret
+    # between sites is the only way to avoid it, and it costs cross-site
+    # secret distribution — a worse trade.
     - internal.zerpzorp.com
     - "*.internal.zerpzorp.com"

@@ -5,8 +5,23 @@ metadata:
   name: cert-manager
   namespace: cert-manager
 spec:
+  # Sized for a rolling chart upgrade, not for steady state. The chart's
+  # three Deployments leave `strategy` unset, so each surges one extra pod
+  # (maxSurge 25%, rounded up) while the startupapicheck Job runs its
+  # post-upgrade hook alongside them. Worst case is therefore double the
+  # steady-state Deployment totals plus the Job:
+  #
+  #            steady   surge+hook   hard
+  #   req cpu    90m        200m     250m
+  #   req mem   128Mi      288Mi    384Mi
+  #   lim cpu   400m        900m       1
+  #   lim mem   256Mi      576Mi    640Mi
+  #
+  # Sizing this to steady state instead is what makes the next Renovate
+  # cert-manager bump fail: the surge pod is rejected, the Helm upgrade
+  # fails, and the HelmRelease retries into a failed state.
   hard:
-    requests.cpu: 200m
-    requests.memory: 256Mi
-    limits.cpu: 500m
-    limits.memory: 512Mi
+    requests.cpu: 250m
+    requests.memory: 384Mi
+    limits.cpu: "1"
+    limits.memory: 640Mi
