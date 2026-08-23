@@ -15,7 +15,16 @@ spec:
   path: ./sites/akron/infrastructure-config
   prune: true
   wait: true
-  timeout: 2m
+  # 2m is shorter than a first DNS-01 issuance. base/cert-manager-config's
+  # Certificate has a real Ready condition, so wait: true blocks on it, and
+  # an ACME round trip plus a propagation check does not reliably finish
+  # inside two minutes even when everything works — the layer reports a
+  # health-check failure for a cert that is simply still issuing.
+  #
+  # Kept at wait: true deliberately: the two ClusterIssuers here also have
+  # Ready conditions, and that is the signal that the Cloudflare secret
+  # failed to decrypt or the ACME account cannot register. Worth gating on.
+  timeout: 10m
   dependsOn:
     - name: infrastructure
   decryption:
