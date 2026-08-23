@@ -73,16 +73,23 @@ spec:
               ephemeral-storage: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
+          # This probe recurses to the internet and validates DNSSEC, so it
+          # fails on a WAN blip as readily as on a broken Unbound. At the 1s
+          # default timeout and 3 failures, a 90-second upstream wobble killed
+          # the pod and took site DNS with it. Matches base/dns/pihole-deployment.yaml.
           livenessProbe:
             exec:
               command: ["drill-hc", "-p", "5335", "@127.0.0.1", "dnssec.works"]
             initialDelaySeconds: 30
             periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
           readinessProbe:
             exec:
               command: ["drill-hc", "-p", "5335", "@127.0.0.1", "dnssec.works"]
             initialDelaySeconds: 10
             periodSeconds: 15
+            timeoutSeconds: 5
       volumes:
         - name: config
           configMap:
