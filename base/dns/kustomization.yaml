@@ -11,3 +11,18 @@ resources:
   - pihole-deployment.yaml
   - pihole-service.yaml
   - pihole-dns-service.yaml
+configMapGenerator:
+  # Mounted at /etc/dnsmasq.d/. Each site merges its own site.conf into this
+  # same ConfigMap (behavior: merge), mirroring base/pihole-sync/.
+  #
+  # The name suffix hash is deliberately left on: kustomize rewrites the
+  # Deployment's volume reference to match, so editing a record rolls the pod
+  # and dnsmasq picks the change up. Do not disable it.
+  # namespace is required, not cosmetic: without it the ConfigMap generates
+  # into the default namespace, and kustomize's nameReference transformer then
+  # fails to match the Deployment in dns/ — leaving the volume pointed at the
+  # unhashed name of a ConfigMap that is in the wrong namespace anyway.
+  - name: pihole-dnsmasq
+    namespace: dns
+    files:
+      - dnsmasq-base.conf

@@ -50,6 +50,24 @@ spec:
               value: "true"
             - name: FTLCONF_DNS_BOGUSPRIV
               value: "true"
+            # The local domain used for reverse DNS lookups.
+            - name: FTLCONF_dns_domain_name
+              value: "${DNS_DOMAIN}"
+            # Conditional forwarding: reverse lookups for this LAN go to the
+            # gateway, so DHCP-assigned hostnames resolve.
+            # Format: <enabled>,<cidr-range>,<gateway-ip>,<local-domain>
+            - name: FTLCONF_dns_revServers
+              value: "true,${LAN_CIDR},${LAN_GATEWAY},${DNS_DOMAIN}"
+            # Read /etc/dnsmasq.d/. FTL ignores that directory unless this is
+            # set, and the DNS records mounted there are the whole point.
+            - name: FTLCONF_misc_etc_dnsmasq_d
+              value: "true"
+            # Explicitly blank for the same reason as the API password below:
+            # the records moved to /etc/dnsmasq.d/ (see the volume mount), and
+            # merely omitting this var would leave the old copy persisted in
+            # pihole.toml on the PVC still in effect, duplicating every record.
+            - name: FTLCONF_misc_dnsmasq_lines
+              value: ""
             # Unbound is the sole upstream DNS resolver. Using the pinned
             # ClusterIP directly avoids a circular dependency at startup:
             # dnsmasq would fail to resolve the hostname before the pod network
@@ -82,21 +100,20 @@ spec:
               value: "true"
             - name: FTLCONF_dns_specialDomains_designatedResolver
               value: "true"
-              # The secret contains FTLCONF_misc_dnsmasq_lines with a wildcard
-              # address=/${HOSTNAME}/... that routes all *.homelab.home.arpa subdomains
-              # to Traefik automatically — new apps get DNS without a manual entry.
             # Explicitly blank, not just omitted: FTLCONF_ vars are the source
             # of truth only while set. Omitting this var leaves whatever
             # password hash is already persisted in pihole.toml on the PVC
             # in effect; an empty string is required to actively clear it.
             - name: FTLCONF_webserver_api_password
               value: ""
-          envFrom:
-            - secretRef:
-                name: pihole-secret
           volumeMounts:
             - name: config
               mountPath: /etc/pihole
+            # DNS records, from base/dns/dnsmasq-base.conf plus this site's
+            # own site.conf. Read-only: FTL must never write here.
+            - name: dnsmasq-d
+              mountPath: /etc/dnsmasq.d
+              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -135,3 +152,6 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: pihole-config
+        - name: dnsmasq-d
+          configMap:
+            name: pihole-dnsmasq

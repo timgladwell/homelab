@@ -135,7 +135,8 @@ base/                            # Site-agnostic components. No secrets. No site
   metrics-collection/            # node-exporter + kube-state-metrics + Alloy, remote-writing to Akron
 
 sites/<site>/                    # Everything specific to one K3s cluster
-  infrastructure/                # kustomization.yaml picking base components + this site's pihole-secret
+  infrastructure/                # kustomization.yaml picking base components + this site's
+                                 # cloudflare-secret and dnsmasq records (site.conf)
   infrastructure-config/         # kustomization.yaml picking the CRD-dependent base components
   dns-config/                    # kustomization.yaml picking base/pihole-sync + this site's pihole-clients.yaml
   monitoring/                    # Every site: base/metrics-collection. Akron adds the storage

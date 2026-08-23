@@ -16,7 +16,9 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
 
 ## Process (per site — currently Eastbank only, and only after Akron is confirmed healthy)
 
-1. **Fill in real network values.** `clusters/<site>/cluster-vars.yaml` has `CHANGEME` placeholders for `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`, `NODE_IP`. Replace with that site's actual static IPs before merging.
+1. **Fill in real network values.** `clusters/<site>/cluster-vars.yaml` has `CHANGEME` placeholders for `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`, `NODE_IP`, `LAN_CIDR`, `LAN_GATEWAY`. Replace with that site's actual static IPs before merging.
+
+   Also add `sites/<site>/infrastructure/site.conf` with that site's dnsmasq records — copy Eastbank's, which is comments only. The file is not optional: `policy/pihole_dnsmasq_site.rego` fails the build without it, because a site with no file is indistinguishable from a site that wants no DNS records.
 
 2. **Generate that site's age keypair** (do this locally, keep the private key off any machine that doesn't need it):
    ```bash
@@ -28,8 +30,8 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
 
 4. **Create the new site's own secrets.** Every secret is scoped to one site's directory, so there is nothing shared to re-encrypt. Copy the nearest equivalent into `sites/<site>/infrastructure/` and edit it with that site's real values:
    ```bash
-   cp sites/eastbank/infrastructure/pihole-secret.sops.yaml sites/<site>/infrastructure/
-   ./scripts/secrets-helper.sh edit sites/<site>/infrastructure/pihole-secret.sops.yaml
+   cp sites/eastbank/infrastructure/cloudflare-secret.sops.yaml sites/<site>/infrastructure/
+   ./scripts/secrets-helper.sh edit sites/<site>/infrastructure/cloudflare-secret.sops.yaml
    ```
    `secrets-helper.sh edit` re-encrypts on save to whatever `.sops.yaml` says for that path, so the copy picks up the new site's key automatically. Requires the source site's private key locally to decrypt the copy once.
 
