@@ -8,3 +8,5 @@ resources:
   - ../../../base/metrics-collection
   - resourcequota.yaml
   - ./unpoller
+patches:
+  - path: alloy-metrics-hostaliases.yaml
