@@ -2,6 +2,14 @@
 # the bare one is the site-local name — it resolves to whichever site the client
 # is standing in (base/dns/dnsmasq-base.conf) and has to be matched here, or it
 # resolves perfectly, presents a valid certificate, and 404s.
+#
+# `Host(a) || Host(b)`, never `Host(a, b)`. Traefik v3 removed multi-value
+# matchers: "All matchers now take a single value (except Header, HeaderRegexp,
+# Query and QueryRegexp) and should be explicitly combined using logical
+# operators." A v2-style rule does not fail loudly — the router is silently not
+# created and every request to it gets Traefik's own 404, which looks exactly
+# like a backend problem. #303 shipped that; policy/traefik_rule_matchers.rego
+# now fails the build on it.
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -12,7 +20,7 @@ spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`network-optimizer.${SITE_DOMAIN}`, `network-optimizer.${BASE_DOMAIN}`)
+    - match: Host(`network-optimizer.${SITE_DOMAIN}`) || Host(`network-optimizer.${BASE_DOMAIN}`)
       kind: Rule
       services:
         - name: network-optimizer
