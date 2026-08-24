@@ -13,6 +13,11 @@ data:
   METALLB_TRAEFIK_IP: "10.6.1.80"
   METALLB_PIHOLE_IP: "10.6.1.53"
   NODE_IP: "10.6.1.3"
+  # PiHole's conditional forwarding: reverse lookups for this LAN go to the
+  # gateway, so DHCP-assigned hostnames resolve. Composed into
+  # FTLCONF_dns_revServers in base/dns/pihole-deployment.yaml.
+  LAN_CIDR: "10.6.0.0/16"
+  LAN_GATEWAY: "10.6.1.1"
   METALLB_SYSLOG_IP: "10.6.1.81"
   # Akron runs the same collector as every other site, but writes to the
   # Prometheus sitting next to it rather than across the VPN.
