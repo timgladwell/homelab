@@ -81,6 +81,10 @@ To create or edit a secret:
 
 Requires `SOPS_AGE_KEY_FILE` to point to an age private key that can decrypt the secret (defaults to `~/.config/sops/age/keys.txt`). Each secret is encrypted to the key of the site directory it lives under: `sites/akron/**` uses Akron's key, `sites/eastbank/**` uses Eastbank's. There are no shared secrets — if you find yourself wanting one in `base/`, it's a site value in the wrong layer.
 
+**A site's Secret is always a whole file, never a Kustomize patch over a shared one.** Kustomize merges `stringData` field by field, but a SOPS-encrypted file carries a single `sops:` metadata block describing the encryption of that whole document. Merging `stringData` from two separately-encrypted files leaves fields whose ciphertext the surviving block cannot decrypt, and Flux fails at decryption rather than at build time — so `kustomize build` renders it happily and the error only appears on the cluster. Each site's Secret must therefore contain every field it needs, including the ones identical to another site's.
+
+**Put only actual secrets in a Secret.** A Secret is write-only to review: it cannot be diffed in a PR, conftest cannot inspect it, and a missing key reads as "desired state is empty", which is a delete. Configuration that merely *feels* private — DNS records, hostnames, IP ranges — belongs in a ConfigMap or `cluster-vars`, where it stays reviewable and policy-checkable. #232 moved PiHole's DNS records out for exactly this reason and left the Secret holding nothing, so the Secret was deleted outright. Repo visibility is a separate decision, tracked in #299; it is not what SOPS is for.
+
 ## Architecture
 
 Three layers, composed many-to-many:
