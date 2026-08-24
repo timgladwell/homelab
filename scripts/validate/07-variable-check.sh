@@ -1,9 +1,10 @@
 #!/bin/bash
 # Check that no ${VAR} reference survived step 3's substitution.
 #
-# Step 3 hydrates each site's built manifest with that site's cluster-vars, the
-# way Flux does at reconcile time. So anything still looking like ${...} is a
-# variable that site does not define — a typo, a missing cluster-vars entry, or
+# Step 3 hydrates each site's built manifest with every ConfigMap that site's
+# Kustomizations name in postBuild.substituteFrom, the way Flux does at reconcile
+# time. So anything still looking like ${...} is a variable that site does not
+# define — a typo, a missing entry in one of those ConfigMaps, or
 # envsubst syntax the substitution pass does not implement (${VAR:=default}).
 # Any of the three fails the whole Kustomization on the cluster: Flux v2.9
 # substitutes in strict mode.
@@ -32,7 +33,8 @@ for site in $(sites); do
 
     if [[ -n "$leftover" ]]; then
         echo "[$site] ERROR: unsubstituted variables left in the built output —"
-        echo "        add them to clusters/${site}/cluster-vars.yaml:"
+        echo "        define them in clusters/${site}/cluster-vars.yaml (site-specific)"
+        echo "        or clusters/common/network-vars.yaml (estate-wide):"
         echo "$leftover" | sed 's/^/  - /'
         fail=1
     else

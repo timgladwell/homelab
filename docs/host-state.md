@@ -72,8 +72,8 @@ before Flux can do anything useful.
 | What | Where | Notes |
 |---|---|---|
 | DHCP DNS servers | UniFi, per network | All VLANs hand out the site PiHole only. The public fallback is per-node static config, deliberately — see below. |
-| DHCP search domain | UniFi, per network | Set to `<site>.internal.zerpzorp.com`. Until #233 makes that zone resolve, single-label lookups on those VLANs return NODATA and fail rather than falling through. |
-| Syslog targets | UniFi → Settings → System → Remote Logging | Points at Akron's `alloy-syslog` LoadBalancer. |
+| DHCP search domain | UniFi, per network | Set to `<site>.internal.zerpzorp.com`, which resolves for real since #233. Single-label lookups on those VLANs now land on the site's Traefik via the `${SITE_DOMAIN}` wildcard. |
+| Syslog targets | UniFi → Settings → System → Remote Logging | Points at Akron's `alloy-syslog` LoadBalancer. **Still set to the old `home.arpa` name**, which stopped resolving with #303 — retyping it on the device is tracked in #234. |
 | UniFi read-only user | Each controller | Consumed by Unpoller (via SOPS) and NetworkOptimizer (via its own UI). |
 | Cloudflare zone, CAA, API tokens | Cloudflare + 1Password | `acme-akron` / `acme-eastbank`. CAA restricting to Let's Encrypt sits on `internal`, not the apex — Cloudflare's own five-CA set at the apex must stay for Universal SSL. |
 | NetworkOptimizer UniFi credentials | Its web UI → SQLite on its PVC | **The only application state that no rebuild can restore.** Anything replacing that volume means re-entering them. |

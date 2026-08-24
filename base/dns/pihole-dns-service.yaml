@@ -1,12 +1,21 @@
 ---
-# Exposes PiHole on a MetalLB LoadBalancer with a stable IP: DNS on 53, and the
-# web UI on 80. The fixed IP survives pod restarts/updates, so it can be set as
-# the DNS server on your router and in /etc/resolv.conf on the node.
+# Exposes PiHole's DNS on a MetalLB LoadBalancer with a stable IP. The fixed IP
+# survives pod restarts/updates, so it can be set as the DNS server on your
+# router and in /etc/resolv.conf on the node.
 #
-# Port 80 here is deliberately a second path to the UI, alongside Traefik's
-# pihole.${HOSTNAME} route. It means the UI is reachable at the same address
-# you already have to know (the DNS server's), and it keeps working if Traefik
-# is down or absent.
+# DNS only. Port 80 used to be here too, publishing the admin UI on the DNS
+# server's own address as a path that survived Traefik being down. Removed in
+# #303: it was a duplicate of a route that now has a certificate, and it could
+# not be given one itself — no public CA will issue for an RFC1918 address.
+# Plaintext for no remaining benefit.
+#
+# Whether PiHole could serve its own certificate here was researched properly
+# and the answer is in #304, decision included. Read that before reopening it.
+#
+# Normal access is unaffected: clients use pihole.${SITE_DOMAIN} through
+# Traefik. Break-glass is `kubectl port-forward` — see
+# docs/runbooks/pihole-access.md, which works in one case a hostname pointing
+# here never could, namely a broken dnsmasq config where no name resolves.
 #
 # The Service is still named pihole-dns. Renaming it would delete and recreate
 # the LoadBalancer, which is a DNS outage on every site, and the name is not
@@ -32,8 +41,4 @@ spec:
     - name: dns-tcp
       port: 53
       targetPort: 53
-      protocol: TCP
-    - name: http
-      port: 80
-      targetPort: 8080
       protocol: TCP

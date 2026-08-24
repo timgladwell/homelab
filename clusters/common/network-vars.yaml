@@ -1,0 +1,63 @@
+---
+# Values that are the same at every site, or that describe one site to all the
+# others. Substituted into every layer alongside clusters/<site>/cluster-vars.yaml.
+#
+# The split is about *ownership*, not about which file is tidier:
+#
+#   cluster-vars.yaml   — what this site is. Nobody else needs to know it, and
+#                         every site holds a different value.
+#   network-vars.yaml   — what the estate is. Every site holds the identical
+#                         value, and a site that disagreed would be a bug.
+#
+# A cross-site IP belongs here for a reason that is not just deduplication: a
+# site cannot read another site's cluster-vars, so before this file existed the
+# only way for Eastbank to reach Akron was to hardcode 10.6.1.80 with a comment
+# telling the next reader to remember the other copy. Three call sites had that
+# comment. Now there is one definition and no reminder to forget.
+#
+# Adding a site means adding its Traefik IP here, once.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: network-vars
+  namespace: flux-system
+data:
+  # The whole internal tree. Identical everywhere by definition: each site's
+  # PiHole answers it locally, which is what makes pihole.internal.zerpzorp.com
+  # resolve to whichever site you are standing in.
+  BASE_DOMAIN: internal.zerpzorp.com
+  # Each site's Traefik LoadBalancer, addressable from any site over the Site
+  # Magic VPN. A site's *own* entry is duplicated by METALLB_TRAEFIK_IP in its
+  # cluster-vars; that is not redundancy to remove. METALLB_TRAEFIK_IP means
+  # "the Traefik here" and is what MetalLB assigns; these mean "Akron's Traefik"
+  # and are what a *different* site dials.
+  AKRON_TRAEFIK_IP: "10.6.1.80"
+  EASTBANK_TRAEFIK_IP: "10.4.1.80"
+  # Each site's own subtree, as named by the others. Same relationship to
+  # SITE_DOMAIN that the IPs above have to METALLB_TRAEFIK_IP: SITE_DOMAIN is
+  # "my subtree", this is "Akron's subtree" and is what another site writes.
+  AKRON_SITE_DOMAIN: akron.internal.zerpzorp.com
+  # Where telemetry goes, for every site that is not Akron.
+  #
+  # These live here rather than in each remote site's cluster-vars because
+  # they describe *Akron*, not the site holding them — the same test as the
+  # IPs above. Defining them once means a new site remote-writes correctly by
+  # existing, with nothing to copy and nothing to get subtly wrong.
+  #
+  # Akron overrides both in its own cluster-vars, deliberately: it writes to
+  # the Prometheus and Loki beside it rather than out through its own Traefik
+  # and back. network-vars is substituted first and cluster-vars second, so
+  # the override wins. That ordering is the mechanism, not an accident.
+  #
+  # Path-scoped IngressRoutes at the far end publish only these two paths, not
+  # the query APIs — sites/akron/monitoring/{prometheus-remotewrite,loki-push}
+  # -ingressroute.yaml. The /loki/ prefix is Loki's own API path, not a
+  # namespacing scheme of ours; Prometheus simply does not use one.
+  #
+  # HTTPS on a hostname, not a bare IP, because Traefik picks the certificate
+  # from SNI and an IP carries none. The no-resolver property is preserved by
+  # sites/<site>/monitoring/alloy-metrics-hostaliases.yaml pinning these names
+  # into the collector's own /etc/hosts — the host part of these URLs and the
+  # hostnames in that patch must agree, and nothing checks that they do.
+  PROMETHEUS_REMOTE_WRITE_URL: "https://prometheus.akron.internal.zerpzorp.com/api/v1/write"
+  LOKI_PUSH_URL: "https://loki.akron.internal.zerpzorp.com/loki/api/v1/push"

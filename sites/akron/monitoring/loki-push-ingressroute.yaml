@@ -1,8 +1,9 @@
 ---
 # The entry point for remote sites' logs, and the sibling of
 # prometheus-remotewrite-ingressroute.yaml — read that file for why this is
-# path-scoped, why the match is on the LoadBalancer IP rather than a hostname,
-# and why it is plain unauthenticated HTTP. Every word of it applies here.
+# path-scoped, why the match is on a hostname rather than this Traefik's
+# LoadBalancer IP, and why it is unauthenticated. Every word of it applies
+# here, including the hostAlias that keeps the resolver out of the path.
 #
 # Needed because Unpoller moved to Eastbank (#120) and its UniFi events, IDS
 # records and system-log entries go to Loki, which stays at Akron. Only
@@ -18,10 +19,11 @@ metadata:
   namespace: monitoring
 spec:
   entryPoints:
-    - web
+    - websecure
   routes:
-    - match: Host(`${METALLB_TRAEFIK_IP}`) && PathPrefix(`/loki/api/v1/push`)
+    - match: Host(`loki.${SITE_DOMAIN}`) && PathPrefix(`/loki/api/v1/push`)
       kind: Rule
       services:
         - name: loki
           port: 3100
+  tls: {}

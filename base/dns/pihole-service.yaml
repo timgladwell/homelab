@@ -1,6 +1,7 @@
-# Web UI service, routed via Traefik at pihole.${HOSTNAME}.
-# The UI is also reachable directly on the LoadBalancer IP — see
-# pihole-dns-service.yaml.
+# Web UI service, routed via Traefik at pihole.${SITE_DOMAIN}, and the target of
+# the `kubectl port-forward` break-glass path when Traefik is not routing — see
+# docs/runbooks/pihole-access.md. Deliberately ClusterIP: the LoadBalancer beside
+# it (pihole-dns-service.yaml) carries DNS only.
 ---
 apiVersion: v1
 kind: Service

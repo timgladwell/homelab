@@ -1,0 +1,42 @@
+# Pin Akron's telemetry names into this collector's /etc/hosts.
+#
+# Since iteration 4 of #228 both endpoints are HTTPS on a hostname rather than
+# plain HTTP on a bare IP, because Traefik selects the certificate from SNI and
+# an IP carries none. That would normally put PiHole into the path of the
+# metrics and logs — and PiHole is one of the things this collector monitors,
+# so a resolver outage would blind us precisely when we need to see it.
+#
+# These aliases restore the property the bare IP used to give for free: the
+# collector resolves Akron without asking anything. Same guarantee, and now
+# with a certificate to prove what it reached.
+#
+# Lives here rather than in base/metrics-collection/ because only a remote site
+# dials these names at all. Akron's own collector writes to in-cluster Services,
+# so an alias there would pin two names it never looks up. Neither the IP nor
+# the domain is the obstacle any more — both are estate-wide in
+# clusters/common/network-vars.yaml — but "every site except the one being
+# named" is not something base/ should try to express.
+#
+# The host parts must match PROMETHEUS_REMOTE_WRITE_URL and LOKI_PUSH_URL in
+# clusters/common/network-vars.yaml exactly. ${AKRON_SITE_DOMAIN} closes most
+# of that gap, but the `prometheus.` and `loki.` labels are still written out
+# in both places — Flux substitution is a flat string replace and cannot build
+# one variable from another, so a URL cannot be assembled from parts.
+#
+# A mismatch does not fail the build: it falls through to DNS and quietly
+# works until the day PiHole is the thing that is broken — which is the one
+# day this file exists for.
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy-metrics
+  namespace: monitoring
+spec:
+  values:
+    alloy:
+      hostAliases:
+        - ip: "${AKRON_TRAEFIK_IP}"
+          hostnames:
+            - prometheus.${AKRON_SITE_DOMAIN}
+            - loki.${AKRON_SITE_DOMAIN}
