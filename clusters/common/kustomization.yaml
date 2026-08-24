@@ -1,0 +1,11 @@
+---
+# Referenced by both clusters/akron/ and clusters/eastbank/, so the estate-wide
+# variables are defined once and applied into each site's flux-system namespace
+# by that site's own flux-system Kustomization.
+#
+# It needs its own kustomization.yaml to exist at all: kustomize's load
+# restrictions only allow a build to cross into a sibling directory through one.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - network-vars.yaml

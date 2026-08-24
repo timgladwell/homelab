@@ -32,5 +32,9 @@ spec:
       name: sops-age
   postBuild:
     substituteFrom:
+      # Estate-wide values first, this site's second — a later entry wins,
+      # so a site could override a shared default if it ever had to.
+      - kind: ConfigMap
+        name: network-vars
       - kind: ConfigMap
         name: cluster-vars

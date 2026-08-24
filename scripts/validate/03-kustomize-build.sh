@@ -7,11 +7,16 @@
 # replaces the old clusters/<site>-validation/ directories, which listed the
 # same layers a second time and silently lied whenever the two drifted.
 #
-# The output is then hydrated with that site's cluster-vars, the way Flux's
-# postBuild.substituteFrom does at reconcile time, so every downstream step sees
-# the values that actually get applied instead of ${METALLB_TRAEFIK_IP} where an
-# IP belongs. `flux build --dry-run` cannot do this for us: with no cluster to
-# read the ConfigMap from, it emits the placeholders untouched.
+# The output is then hydrated the way Flux's postBuild.substituteFrom does at
+# reconcile time, so every downstream step sees the values that actually get
+# applied instead of ${METALLB_TRAEFIK_IP} where an IP belongs. `flux build
+# --dry-run` cannot do this for us: with no cluster to read the ConfigMaps
+# from, it emits the placeholders untouched.
+#
+# Which ConfigMaps those are is not passed in — substitute.py reads the
+# substituteFrom lists out of this very output, so it uses whatever each site
+# actually declares (today clusters/common/network-vars.yaml plus that site's
+# cluster-vars.yaml).
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"
@@ -46,7 +51,7 @@ for site in $(sites); do
     # Plain string replacement, deliberately: Flux's envsubst also supports
     # ${VAR:=default}, nothing here uses it, and anything this pass leaves
     # behind is what step 7 fails on.
-    if ! python3 "$(dirname "$0")/substitute.py" "$out" "clusters/${site}/cluster-vars.yaml"; then
+    if ! python3 "$(dirname "$0")/substitute.py" "$out"; then
         echo "✗ [$site] variable substitution failed"
         fail=1
     fi
