@@ -1,13 +1,15 @@
 ---
-# Requested but not yet consumed by anything — no IngressRoute or TLSStore
-# references this Secret. Deliberate for this iteration (#231): a failure
-# here is invisible to users and can be debugged without an outage. Wiring
-# this into Traefik is iteration 4 of #228, alongside the staging ->
-# production issuer flip.
+# The certificate every route at this site serves. Consumed through the
+# default TLSStore (base/traefik-routes/tlsstore.yaml), which is why it
+# lives in the traefik namespace rather than cert-manager's: a TLSStore can
+# only name a Secret beside it.
 #
-# Lives in the traefik namespace (not cert-manager) because that's where
-# it will actually be consumed once wired up, avoiding a cross-namespace
-# secret move later.
+# Production issuer since iteration 4 of #228. Staging was used for #231 so
+# that a failure was invisible to users and debuggable without an outage;
+# now that routes depend on it, a staging cert is a browser warning on every
+# service. letsencrypt-staging still exists and is the right issuer to test
+# any future change to this Certificate against — production rate limits are
+# per-registered-domain and unforgiving.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -16,30 +18,34 @@ metadata:
 spec:
   secretName: internal-wildcard-tls
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-production
     kind: ClusterIssuer
   dnsNames:
-    # Three names, not four. ${SITE_NAME}.internal.zerpzorp.com is
-    # deliberately absent: a wildcard matches exactly one label, so
-    # *.internal.zerpzorp.com already covers akron.internal.zerpzorp.com,
-    # and Let's Encrypt rejects the whole order if one name in it is
-    # covered by another:
+    # Three names, not four. ${SITE_DOMAIN} itself is deliberately absent:
+    # a wildcard matches exactly one label, so *.${BASE_DOMAIN} already
+    # covers akron.internal.zerpzorp.com, and Let's Encrypt rejects the
+    # whole order if one name in it is covered by another:
     #
     #   400 urn:ietf:params:acme:error:malformed: Domain name
     #   "akron.internal.zerpzorp.com" is redundant with a wildcard domain
     #   in the same request.
     #
-    # *.${SITE_NAME}.internal… is still needed (two labels, not covered),
-    # and so is the bare apex (no wildcard covers a bare name).
-    - "*.${SITE_NAME}.internal.zerpzorp.com"
+    # *.${SITE_DOMAIN} is still needed (two labels, not covered), and so is
+    # the bare apex (no wildcard covers a bare name).
+    - "*.${SITE_DOMAIN}"
     # The apex pair below is deliberately identical at every site — it is
     # not a missing ${SITE_NAME}. Each site's PiHole answers
-    # *.internal.zerpzorp.com with its own local addresses, so
+    # *.${BASE_DOMAIN} with its own local addresses, so
     # pihole.internal.zerpzorp.com resolves to whichever site you are
     # standing in (site-local resolution standing in for anycast), and each
     # site serves a quick-links landing page at the bare apex. Both mean
     # every site's Traefik has to present a cert for these two names, so
     # every site issues its own.
+    #
+    # Resolving and being trusted is only two thirds of it: the route has to
+    # match the bare name too, or it 404s with a valid certificate. Every
+    # IngressRoute therefore lists both hosts — see
+    # base/traefik-routes/pihole-ingressroute.yaml.
     #
     # That makes _acme-challenge.internal.zerpzorp.com a record every site
     # writes to. Accepted, not overlooked: multiple TXT records at one
@@ -49,5 +55,5 @@ spec:
     # challenge window of minutes. Issuing once and syncing the Secret
     # between sites is the only way to avoid it, and it costs cross-site
     # secret distribution — a worse trade.
-    - internal.zerpzorp.com
-    - "*.internal.zerpzorp.com"
+    - ${BASE_DOMAIN}
+    - "*.${BASE_DOMAIN}"

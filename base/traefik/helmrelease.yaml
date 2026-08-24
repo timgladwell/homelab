@@ -1,11 +1,12 @@
 # infrastructure/traefik/helmrelease.yaml
 #
 # Routing strategy:
-# - Each app uses subdomain-based routing: http://<app>.${HOSTNAME}
+# - Each app uses subdomain-based routing: https://<app>.${SITE_DOMAIN}
 # - Standard ports only (80/443) - no custom ports to remember
+# - Plain HTTP is redirected to HTTPS at the entry point, so no route opts out
 #
 # Traefik dashboard route:
-# - http://traefik.${HOSTNAME}/dashboard/
+# - https://traefik.${SITE_DOMAIN}/dashboard/
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -68,6 +69,25 @@ spec:
         port: 8000
         exposedPort: 80
         protocol: TCP
+        # Global redirect to HTTPS. Deliberately at the entry point rather
+        # than per-route: a route that forgot the middleware would silently
+        # keep serving plaintext, and the whole point is that there is no
+        # plaintext left.
+        #
+        # This is what forced the telemetry cutover into the same PR (#228
+        # trap 3): a 308 mid-stream is not something to gamble remote-write
+        # on, so both alloy endpoints moved to https at the same moment.
+        #
+        # Not `redirectTo:`. That key does not exist in this chart and Helm
+        # would have accepted it silently — the pipeline does not render
+        # charts (#213), so it fails on the cluster, as plaintext that is
+        # never redirected. Verified against 41.2.0 with `helm template`.
+        http:
+          redirections:
+            entryPoint:
+              to: websecure
+              scheme: https
+              permanent: true
       websecure:
         port: 8443
         exposedPort: 443

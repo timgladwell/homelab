@@ -8,5 +8,6 @@ kind: Kustomization
 # `no matches for kind "IngressRoute"` — the CRD arrives with the Helm release
 # in the very same Kustomization.
 resources:
+  - tlsstore.yaml
   - pihole-ingressroute.yaml
   - traefik-dashboard-ingressroute.yaml

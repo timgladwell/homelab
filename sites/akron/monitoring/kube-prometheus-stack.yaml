@@ -41,8 +41,25 @@ spec:
         analytics:
           reporting_enabled: false
           check_for_updates: false
+        # Browsing has always worked and still would without these: Grafana
+        # emits *relative* URLs for its own navigation, so it never needs to
+        # know its external name to serve the UI. root_url only governs the
+        # places it has to write an absolute URL with no request to derive it
+        # from — alert notification links, share and snapshot URLs, and OAuth
+        # redirect URIs. Those were the default localhost:3000, which is why
+        # nothing looked broken.
+        #
+        # Set now because #303 gives it a stable external name to state, and
+        # because the alerting work in #214 will emit exactly those links.
+        server:
+          domain: grafana.${SITE_DOMAIN}
+          root_url: "https://grafana.${SITE_DOMAIN}/"
         security:
           disable_gravatar: true
+          # Only possible since #233 put every route on HTTPS — a secure
+          # cookie is simply never sent over plaintext, so setting this
+          # before the cutover would have locked everyone out.
+          cookie_secure: true
       sidecar:
         # Both sidecars write only into the emptyDirs they mount
         # (/tmp/dashboards and the datasource provisioning dir), so neither
