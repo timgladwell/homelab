@@ -103,7 +103,7 @@ The rule that makes this work: **`base/` never contains anything site-specific.*
   - **Lottage** (remote, 2GB RAM) — **out of scope**, scaffolding removed until the hardware is upgraded. Re-add by copying `sites/eastbank/` and `clusters/eastbank/`.
 - **Claude does not touch any site. This is a boundary, not a capability gap.** No `kubectl`, no `flux`, no SSH, no HTTP requests to site services — write the commands out for the user to run and ask for the output. The separation between local dev and production is deliberate, and it is also how the user learns the system.
 
-  Do not assume the network prevents it. The dev machine is on a separate VLAN but *is* routed to Akron: it resolves through Akron's PiHole (`10.6.1.53`) and reaches Akron's Traefik, so a `curl` at `grafana.homelab.home.arpa` will succeed. Restraint is the control here. Read-only probes still require asking first; anything that mutates state is out of scope regardless.
+  Do not assume the network prevents it. The dev machine is on a separate VLAN but *is* routed to Akron: it resolves through Akron's PiHole (`10.6.1.53`) and reaches Akron's Traefik, so a `curl` at `grafana.akron.internal.zerpzorp.com` will succeed. Restraint is the control here. Read-only probes still require asking first; anything that mutates state is out of scope regardless.
 - **Rollout gating (Akron first):** Akron's Flux `GitRepository` watches `main`. Eastbank's watches a `stable` branch. After merging to `main` and confirming Akron is healthy, promote by running the **Promote to stable** workflow (`.github/workflows/promote-to-stable.yml`) from the Actions tab. There is no automatic cross-cluster gate — this is a manual, explicit step, and the workflow refuses to run unless you assert Akron is healthy.
 
   **Promotion is a fast-forward, never a merge or rebase.** `stable` is only ever moved to a commit that already exists on `main`, so the two branches share SHAs and can never diverge. Promoting by PR is what caused the old divergence: `main` allows only merge commits, `stable` allowed only rebase, so every promotion replayed main's work under fresh SHAs and git lost track of the fact that both branches held identical content. Conflicts then accumulated until a large PR made them unresolvable.
@@ -116,11 +116,11 @@ The rule that makes this work: **`base/` never contains anything site-specific.*
 
 **`docs/naming-convention.md` is the reference for every hostname, site identifier and node name.** Read it before choosing a name for anything — a service, an ingress host, a node, a DNS label.
 
-It describes the **target** state (`<role>.<site>.internal.zerpzorp.com`), which is being rolled out by #228 and is not live yet. Everything currently deployed is still on `home.arpa` (`grafana.homelab.home.arpa`), so do not rename existing resources to match it opportunistically — the cutover is iteration 4 of #228 and lands with TLS and the remote-write change in one PR. Until then the convention governs *new* names and reviews, not migrations.
+It describes the **live** state (`<role>.<site>.internal.zerpzorp.com`). Iteration 4 of #228 cut every deployed name over from `home.arpa` in one PR, together with TLS and the telemetry move, so the convention now governs existing resources as well as new ones. `home.arpa` appears only in planning docs that record past work.
 
-It also covers **Kubernetes object names** (function in the name, identity in `app.kubernetes.io/*` labels, no site prefix, no kind suffix). Those rules are equally forward-looking — most existing object names predate them. Apply them to new objects and to anything an iteration of #228 is already touching; do not open a mass-rename PR.
+It also covers **Kubernetes object names** (function in the name, identity in `app.kubernetes.io/*` labels, no site prefix, no kind suffix). Those rules are *not* yet applied everywhere — most existing object names predate them, and the DNS cutover did not touch them. Apply them to new objects and to anything you are already editing; do not open a mass-rename PR.
 
-The part that already applies: the **site identifier** (`akron`, `eastbank`, `lottage`) is used verbatim for the UniFi site, `sites/<site>/`, `clusters/<site>/`, `SITE_NAME` and the future DNS label. That is why those all match today, and a new site must keep them matching.
+The **site identifier** (`akron`, `eastbank`, `lottage`) is used verbatim for the UniFi site, `sites/<site>/`, `clusters/<site>/`, `SITE_NAME` and the future DNS label. That is why those all match today, and a new site must keep them matching.
 
 ### Directory layout
 
@@ -148,10 +148,13 @@ sites/<site>/                    # Everything specific to one K3s cluster
                                  # Eastbank adds Unpoller, which polls every site's UniFi
   apps/                          # Eastbank only: NetworkOptimizer
 
+clusters/common/                 # Estate-wide variables, referenced by every clusters/<site>/
+  network-vars.yaml              # BASE_DOMAIN + each site's Traefik IP, as seen from other sites
+
 clusters/<site>/                 # Flux entry point — managed by the flux-system Kustomization
   flux-system/                   # Flux's own manifests (managed by flux bootstrap, do not edit)
   flux-system-local/             # Patches applied over flux-system/ (kube-score ignores, etc.)
-  cluster-vars.yaml              # Per-site ConfigMap (DNS_DOMAIN, HOSTNAME, METALLB_*, NODE_IP) injected via postBuild.substituteFrom
+  cluster-vars.yaml              # Per-site ConfigMap (SITE_DOMAIN, METALLB_*, NODE_IP) injected via postBuild.substituteFrom
   infrastructure.yaml            # Flux Kustomization -> sites/<site>/infrastructure
   monitoring.yaml                # -> sites/<site>/monitoring
   infrastructure-config.yaml     # -> sites/<site>/infrastructure-config
@@ -192,6 +195,8 @@ So the pipeline validates the paths Flux will actually reconcile. A `spec.path` 
 
 Step 3 assembles each site's complete manifest set the same way Flux does — `kustomize build clusters/<site>` for the bootstrap manifests and Kustomization objects, plus one build per layer — into `$K3S_BUILD_DIR/k3s-built-<site>.yaml` for steps 4, 5, 7 and 8 to consume.
 
+**The variables it hydrates with are derived too.** `scripts/validate/substitute.py` reads the `postBuild.substituteFrom` lists out of that built output and takes the ConfigMaps by name from the same file — both are already in it, because `clusters/<site>/` builds the Kustomization objects and the ConfigMaps together. So a site that adds a third ConfigMap is picked up with no change to the pipeline, and a `substituteFrom` naming a ConfigMap the site does not build fails there rather than on the cluster.
+
 ### Reconciliation flow
 
 **Akron** (watches `main`) — `clusters/akron/` via the `flux-system` Kustomization, then:
@@ -210,7 +215,7 @@ Akron is the only site with storage that tolerates a Prometheus TSDB (USB3 NVMe)
 - **Storage is Akron-only** — `sites/akron/monitoring/` adds Prometheus, Grafana, Loki, Alertmanager and the log-collecting `alloy` DaemonSet.
 - **Unpoller is the exception that proves the rule** — it runs at Eastbank (`sites/eastbank/monitoring/unpoller/`), reaching every site's UniFi controller over the VPN and writing metrics and logs back to Akron. Nothing about polling needs to sit next to the storage, and Akron's headroom is the scarce resource.
 
-`${PROMETHEUS_REMOTE_WRITE_URL}` and `${LOKI_PUSH_URL}` are the only things that differ: Akron writes to the Prometheus and Loki beside it, Eastbank writes to `http://10.6.1.80/...` over the Site Magic VPN. Both endpoints are path-scoped Traefik `IngressRoute`s (`sites/akron/monitoring/prometheus-remotewrite-ingressroute.yaml`, `loki-push-ingressroute.yaml`), so only `/api/v1/write` and `/loki/api/v1/push` are published — not the query UIs. Deliberately IPs, not hostnames: nothing in the telemetry path should depend on cross-site DNS.
+`${PROMETHEUS_REMOTE_WRITE_URL}` and `${LOKI_PUSH_URL}` are the only things that differ, and they are **defaults in `clusters/common/network-vars.yaml` pointing at Akron** — a new remote site remote-writes correctly by existing. Akron overrides both in its own `cluster-vars` to the in-cluster Services beside it, which works because `network-vars` is substituted first and `cluster-vars` second. Deleting Akron's override would not fail any build; it would silently route Akron's own telemetry out through its Traefik and back. Both endpoints are path-scoped Traefik `IngressRoute`s (`sites/akron/monitoring/prometheus-remotewrite-ingressroute.yaml`, `loki-push-ingressroute.yaml`), so only `/api/v1/write` and `/loki/api/v1/push` are published — not the query UIs. Both are hostnames on `websecure`, not bare IPs: Traefik selects the certificate from SNI, which an IP does not carry. The no-resolver property is unchanged — nothing in the telemetry path depends on cross-site DNS — but it is now provided by `sites/eastbank/monitoring/alloy-metrics-hostaliases.yaml`, which pins both names to `10.6.1.80` in the collector's own `/etc/hosts`, rather than by using an IP in the URL. PiHole is both the resolver and one of the monitored things, so it must stay out of the path of the telemetry that would show it failing. **Do not "simplify" this back to an IP** — that removes SNI and breaks TLS.
 
 **Pod logs are collected at Akron only.** Other sites run `alloy-metrics`, which ships metrics and accepts application pushes but does not read pod logs. So at a remote site a pod's logs die with the pod: `kubectl logs --previous` reaches one generation back, and a crashlooping pod destroys its own evidence. Capture with `kubectl logs -f` while it is happening.
 
@@ -253,13 +258,26 @@ That output is the only place workloads like Prometheus, Grafana, Loki and the A
 
 ### Variable substitution
 
-Each site's `cluster-vars.yaml` defines its own `${DNS_DOMAIN}`, `${HOSTNAME}`, `${METALLB_ADDRESS_RANGE}`, `${METALLB_TRAEFIK_IP}`, `${METALLB_PIHOLE_IP}`, `${NODE_IP}`, `${SITE_NAME}`, `${PROMETHEUS_REMOTE_WRITE_URL}`. Use these placeholders directly in `base/` manifests — Flux substitutes them at reconcile time via `postBuild.substituteFrom`, from that site's own ConfigMap only (there is no cross-site fallback).
+**Two ConfigMaps, substituted together into every layer.** Every Flux `Kustomization` lists both in `postBuild.substituteFrom`, `network-vars` first so a site could override an estate-wide default if it ever had to.
+
+| ConfigMap | File | Holds |
+|---|---|---|
+| `cluster-vars` | `clusters/<site>/cluster-vars.yaml` | What **this site is**: `${SITE_DOMAIN}`, `${SITE_NAME}`, `${METALLB_ADDRESS_RANGE}`, `${METALLB_TRAEFIK_IP}`, `${METALLB_PIHOLE_IP}`, `${NODE_IP}`, `${LAN_CIDR}`, `${LAN_GATEWAY}`, `${PROMETHEUS_REMOTE_WRITE_URL}`, `${LOKI_PUSH_URL}`. Every site holds a different value. |
+| `network-vars` | `clusters/common/network-vars.yaml` | What **the estate is**: `${BASE_DOMAIN}`, `${AKRON_TRAEFIK_IP}`, `${EASTBANK_TRAEFIK_IP}`. Every site holds the identical value, and a site that disagreed would be a bug. |
+
+The split is ownership, not tidiness. **A cross-site value has to live in `common/`**, because a site cannot read another site's `cluster-vars` — before it existed, Eastbank reaching Akron meant hardcoding `10.6.1.80` with a comment reminding the next reader about the other copies. `${SITE_DOMAIN}` is that site's own subtree (`akron.internal.zerpzorp.com`); it is **not** the node's FQDN, which is a real host and deliberately has no variable.
+
+A site's own Traefik IP appears twice on purpose — `${METALLB_TRAEFIK_IP}` means "the Traefik here" and is what MetalLB assigns; `${AKRON_TRAEFIK_IP}` means "Akron's Traefik" and is what a *different* site dials. Do not collapse them.
+
+Use these placeholders directly in `base/` manifests — Flux substitutes them at reconcile time, and there is no cross-site fallback.
 
 Plain `kustomize build` does not perform this substitution, and neither does `flux build --dry-run` (with no cluster, it cannot read the `substituteFrom` ConfigMap). Validation step 3 therefore does it itself, so every downstream step sees the values that actually get applied instead of a `${METALLB_TRAEFIK_IP}` string where an IP belongs. Step 7 then fails on anything still looking like `${...}` — an undefined variable, a typo, or envsubst syntax the substitution pass does not implement (`${VAR:=default}`, unused here).
 
 Resources annotated `kustomize.toolkit.fluxcd.io/substitute: disabled` are left alone by both steps: their `${...}` tokens belong to the target application (a Grafana dashboard's `${DS_PROMETHEUS}`), and Flux never touches them either.
 
-**When adding a new variable:** add it to every site's `cluster-vars.yaml` that reconciles the manifest using it, before (or in the same PR as) that manifest.
+**When adding a new variable:** decide which ConfigMap owns it first — identical at every site means `clusters/common/network-vars.yaml` and one edit; different per site means every site's `cluster-vars.yaml` that reconciles the manifest using it. Either way, before (or in the same PR as) the manifest that consumes it; see #300 for the one failed reconcile that costs.
+
+**Nothing tells you a variable is unused.** Step 7 fails on `${VAR}` tokens that survive substitution, so it checks *used ⊆ defined* and is structurally blind to the reverse. `DNS_DOMAIN` was recorded as dead for months while being PiHole's reverse-lookup domain; the same blindness would hide a genuinely dead key. Grep before adding, and grep before believing a key is unreferenced.
 
 ### Adding a component
 
@@ -322,7 +340,11 @@ Before moving a resource across a Kustomization boundary, check whether it's a `
 
 ### Ingress pattern
 
-Apps are exposed via Traefik `IngressRoute` CRs using subdomain routing (`<app>.${HOSTNAME}`). Traefik is a MetalLB `LoadBalancer` at `${METALLB_TRAEFIK_IP}`. See `base/traefik-routes/pihole-ingressroute.yaml` for the canonical pattern.
+Apps are exposed via Traefik `IngressRoute` CRs using subdomain routing (`<app>.${SITE_DOMAIN}`). Traefik is a MetalLB `LoadBalancer` at `${METALLB_TRAEFIK_IP}`. See `base/traefik-routes/pihole-ingressroute.yaml` for the canonical pattern.
+
+**Every route is HTTPS on `websecure`, with `tls: {}` and no `secretName`.** The certificate comes from the default `TLSStore` (`base/traefik-routes/tlsstore.yaml`), which names the wildcard Secret cert-manager writes into the `traefik` namespace — so a new app needs a route and nothing else. `web` exists only to 308 to `websecure`, configured once at the entry point in `base/traefik/helmrelease.yaml`; a route that set `entryPoints: [web]` would serve plaintext and never be redirected. A route needs its own `secretName` only for a name the wildcard does not cover, which today is none.
+
+DNS is free too: `base/dns/dnsmasq-base.conf` points `*.${SITE_DOMAIN}` at Traefik, so an `IngressRoute` is the whole of adding a service. The exceptions are hosts that are *not* behind Traefik — the node, the UDR, the syslog LoadBalancer — which need an explicit `address=` override in `sites/<site>/infrastructure/site.conf` or the wildcard swallows them.
 
 **Every Traefik CR goes in `base/traefik-routes/`, never next to the HelmRelease in `base/traefik/`.** `traefik-routes` is reconciled by `infrastructure-config`, which `dependsOn: infrastructure`, so the `IngressRoute` CRD is installed by the time these apply. A Traefik CR in `base/traefik/` ships in the same Kustomization as the Helm release that provides its CRD — which works on a cluster that already has Traefik, and fails on a fresh one with `no matches for kind "IngressRoute"`. This shipped twice before validation step 11 started catching it.
 
@@ -356,7 +378,7 @@ $ dig +short pi.hole @10.6.1.53
 10.42.0.33          # pod IP, not the LoadBalancer IP
 ```
 
-Use `pihole.${HOSTNAME}` or the LoadBalancer IP directly. Re-run that `dig` before spending time on it again — a `10.42.x.x` answer means nothing has changed. The only untried avenue is making the pod CIDR routable from the LAN with a static route, which trades a LAN-wide route into the pod network for a convenience hostname, and lands the UI on `:8080`.
+Use `pihole.${SITE_DOMAIN}`, or `kubectl port-forward` when Traefik is not routing (`docs/runbooks/pihole-access.md`). **There is no IP path to the UI any more** — #303 removed port 80 from the DNS `LoadBalancer`, so `http://${METALLB_PIHOLE_IP}/` is gone along with it. Re-run that `dig` before spending time on this again — a `10.42.x.x` answer means nothing has changed. The only untried avenue is making the pod CIDR routable from the LAN with a static route, which trades a LAN-wide route into the pod network for a convenience hostname, and lands the UI on `:8080`.
 
 ### Hardware constraints
 

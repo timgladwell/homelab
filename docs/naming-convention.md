@@ -5,8 +5,13 @@ the network, and **Kubernetes object names** for everything inside a cluster.
 Written down because `akron` used to mean four different things — UniFi site,
 physical server, K3s node, and DNS label — with nothing to keep them apart.
 
-Both sets describe the target state. Names predating them are being migrated by
-#228 and are not evidence of the convention; do not mass-rename to match.
+**DNS names are live.** Iteration 4 of #228 cut every deployed name over from
+`home.arpa` in one PR, together with TLS. Anything still on `home.arpa` is a
+planning document recording past work, not a name in service.
+
+**Kubernetes object names are still the target state.** Most existing object
+names predate them and the DNS cutover did not touch them. Apply them to new
+objects and to anything you are already editing; do not mass-rename to match.
 
 ## DNS names
 
@@ -29,9 +34,20 @@ carries its own label.
 | Server / K3s node | `k3s01.akron.internal.zerpzorp.com` | Linux hostname *and* K3s node name |
 | Apps | `pihole.akron.internal.zerpzorp.com` | via Traefik `IngressRoute` |
 | | `grafana.akron.internal.zerpzorp.com` | |
+| Telemetry ingress | `prometheus.akron.internal.zerpzorp.com` | remote-write only; path-scoped |
+| | `loki.akron.internal.zerpzorp.com` | push only; path-scoped |
+| Non-Traefik Services | `syslog.akron.internal.zerpzorp.com` | its own MetalLB IP — see below |
 | Site index | `akron.internal.zerpzorp.com` | zone apex → that site's Traefik |
 | Global index | `internal.zerpzorp.com` → local Traefik | |
 | Site-local | `pihole.internal.zerpzorp.com` | resolves to whichever site you are in |
+
+### Names that are not behind Traefik
+
+`*.<site>.internal.zerpzorp.com` resolves to that site's Traefik by wildcard,
+so an app needs an `IngressRoute` and no DNS record at all. Anything *not*
+behind Traefik — the node, the UDR, a Service with its own MetalLB IP — needs
+an explicit `address=` override in `sites/<site>/infrastructure/site.conf`, or
+the wildcard swallows it and SSH lands on the ingress controller.
 
 ### Site-local names
 

@@ -82,10 +82,10 @@ Two separate UniFi settings feed logs into Loki via Alloy. Configure both after 
 
 **General syslog** (`{job="unifi-siem"}`) — low-level system and controller events in RFC 3164 format:
 
-In the UniFi controller UI: **Settings → System → Integrations** → set target to `syslog.${HOSTNAME}:1514`, protocol `UDP`, format `syslog`.
+In the UniFi controller UI: **Settings → System → Integrations** → set target to `syslog.${SITE_DOMAIN}:1514`, protocol `UDP`, format `syslog`.
 
 **CEF traffic/audit logs** (`{job="unifi-cef"}`) — network access, config changes, and cybersecure events in CEF format (no syslog PRI header):
 
-In the UniFi controller UI: **Settings → Cybersecure → Traffic Logging** → set target to `syslog.${HOSTNAME}:1515`, protocol `UDP`.
+In the UniFi controller UI: **Settings → Cybersecure → Traffic Logging** → set target to `syslog.${SITE_DOMAIN}:1515`, protocol `UDP`.
 
 Port 1515 uses an OTel syslog receiver with `allow_skip_pri_header = true` because UniFi's CEF export omits the `<PRI>` field required by RFC 3164.
