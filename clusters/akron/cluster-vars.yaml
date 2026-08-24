@@ -5,8 +5,10 @@ metadata:
   name: cluster-vars
   namespace: flux-system
 data:
-  DNS_DOMAIN: home.arpa
-  HOSTNAME: homelab.home.arpa
+  # This site's own subtree. Named SITE_DOMAIN, not HOSTNAME, because since
+  # #230 the node has a real host FQDN (k3s01.akron.internal.zerpzorp.com)
+  # and the two are easy to confuse.
+  SITE_DOMAIN: akron.internal.zerpzorp.com
   # MetalLB IP allocations - must be static IPs outside your router's DHCP range,
   # within your home network subnet (e.g. 192.168.1.x).
   METALLB_ADDRESS_RANGE: "10.6.1.10-10.6.1.99"
@@ -15,12 +17,22 @@ data:
   NODE_IP: "10.6.1.3"
   # PiHole's conditional forwarding: reverse lookups for this LAN go to the
   # gateway, so DHCP-assigned hostnames resolve. Composed into
-  # FTLCONF_dns_revServers in base/dns/pihole-deployment.yaml.
+  # FTLCONF_dns_revServers in base/dns/pihole-deployment.yaml, together with
+  # SITE_DOMAIN — which must match the UniFi per-network "Domain Name" for
+  # this site, or the gateway answers for a domain PiHole never asks about.
   LAN_CIDR: "10.6.0.0/16"
   LAN_GATEWAY: "10.6.1.1"
   METALLB_SYSLOG_IP: "10.6.1.81"
-  # Akron runs the same collector as every other site, but writes to the
-  # Prometheus sitting next to it rather than across the VPN.
   SITE_NAME: akron
+  # Overrides the estate defaults in clusters/common/network-vars.yaml, which
+  # point every other site at Akron's Traefik. Akron runs the same collector
+  # as everywhere else but writes to the Prometheus and Loki sitting next to
+  # it, rather than leaving the cluster to come back in through its own
+  # ingress — fewer moving parts in the path, and it keeps working while
+  # Traefik or the certificate is broken.
+  #
+  # This works because network-vars is substituted first and cluster-vars
+  # second. Deleting these two lines would not break the build; it would
+  # silently route Akron's own telemetry out through Traefik.
   PROMETHEUS_REMOTE_WRITE_URL: "http://kube-prometheus-stack-prometheus.monitoring:9090/api/v1/write"
   LOKI_PUSH_URL: "http://loki.monitoring:3100/loki/api/v1/push"

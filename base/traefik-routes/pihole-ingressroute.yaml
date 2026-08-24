@@ -8,7 +8,7 @@ spec:
   entryPoints:
     - web
   routes:
-    - match: Host(`pihole.${HOSTNAME}`)
+    - match: Host(`pihole.${SITE_DOMAIN}`)
       kind: Rule
       services:
         - name: pihole-web

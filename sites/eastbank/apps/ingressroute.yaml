@@ -8,7 +8,7 @@ spec:
   entryPoints:
     - web
   routes:
-    - match: Host(`network-optimizer.${HOSTNAME}`)
+    - match: Host(`network-optimizer.${SITE_DOMAIN}`)
       kind: Rule
       services:
         - name: network-optimizer
