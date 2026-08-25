@@ -76,6 +76,7 @@ before Flux can do anything useful.
 | Syslog targets | UniFi → Settings → System → Remote Logging | Points at Akron's `alloy-syslog` LoadBalancer. **Still set to the old `home.arpa` name**, which stopped resolving with #303 — retyping it on the device is tracked in #234. |
 | UniFi read-only user | Each controller | Consumed by Unpoller (via SOPS) and NetworkOptimizer (via its own UI). |
 | Cloudflare zone, CAA, API tokens | Cloudflare + 1Password | `acme-akron` / `acme-eastbank`. CAA restricting to Let's Encrypt sits on `internal`, not the apex — Cloudflare's own five-CA set at the apex must stay for Universal SSL. |
+| Grafana `claude-code` service account | Grafana UI → its PVC | Viewer-scoped, read-only query access for Claude Code. Lost with the Grafana PVC; symptom is queries failing 401. Reissue: [runbook](runbooks/grafana-query-access.md). |
 | NetworkOptimizer UniFi credentials | Its web UI → SQLite on its PVC | **The only application state that no rebuild can restore.** Anything replacing that volume means re-entering them. |
 
 ### Why the resolver fallback is not in DHCP
