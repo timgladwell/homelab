@@ -364,10 +364,27 @@ verified healthy.
    flux resume kustomization monitoring
    flux reconcile kustomization monitoring --with-source
 
-   kubectl -n monitoring get statefulset,deployment    # if still 0/0:
    flux get helmreleases -n monitoring
-   flux reconcile helmrelease <name> -n monitoring --force
+
+   # Anything still at zero desired replicas. Expect no output.
+   kubectl get deploy,sts -A \
+     -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,WANT:.spec.replicas \
+     | awk '$3 == 0'
+
+   flux reconcile helmrelease <name> -n monitoring --force   # per release listed
    ```
+
+   **`--force` is required and a plain reconcile will not do.** Helm's
+   three-way merge patches only fields that differ between chart revisions, so
+   a replica count changed by `kubectl scale` is preserved indefinitely — the
+   rendered manifest still says `1`, the live object still says `0`, and there
+   is no diff to apply. This is the same mechanism that lets HPA-managed
+   replica counts survive `helm upgrade`.
+
+   Flux will not report this. helm-controller compares the Helm release, not
+   the objects it created, so the HelmRelease stays `Ready`. Every release now
+   sets `driftDetection.mode: warn`, which surfaces it as an event and a log
+   line, but that is a signal someone has to read.
 
    Prometheus' and Alertmanager's StatefulSets are created by
    prometheus-operator rather than by Helm, so they return on their own once
@@ -392,6 +409,16 @@ verified healthy.
 kubectl get nodes -o wide          # only the new FQDN, Ready, no old entry
 kubectl get pv,pvc -A              # all Bound; nothing Released or Pending
 kubectl get pods -A                # everything Running
+
+# `get pods` cannot see a workload this procedure scaled to zero: no replicas
+# means no pods, so "everything Running" passes while the workload is absent.
+# Akron's kube-state-metrics was missed exactly this way on 2026-08-22 and went
+# unnoticed until 2026-08-25 — the site storing all the observability data had
+# no kube_* metrics for three days, and nothing alerted. Check desired replicas
+# directly; expect no output:
+kubectl get deploy,sts -A \
+  -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,WANT:.spec.replicas \
+  | awk '$3 == 0'
 kubectl -n metallb-system get ipaddresspool,l2advertisement
 ```
 
