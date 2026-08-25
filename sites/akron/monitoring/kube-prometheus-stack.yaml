@@ -41,6 +41,20 @@ spec:
         analytics:
           reporting_enabled: false
           check_for_updates: false
+        dataproxy:
+          # Seconds, and must be >= the prometheusSpec.query.timeout set
+          # further down this file, or Grafana reports a failure for a query
+          # Prometheus is still legitimately running.
+          timeout: 60
+        dashboards:
+          # A dashboard left open in a browser tab costs ~280Mi and ~24m CPU
+          # here, because Grafana keeps re-running its panel queries on the
+          # auto-refresh interval whether or not anyone is looking (#287).
+          # Nothing is scraped faster than the 60s scrapeInterval, so a
+          # shorter refresh re-runs the query to redraw identical data. This is
+          # a floor no dashboard can go below, which is why it is set here
+          # rather than per-dashboard.
+          min_refresh_interval: 1m
         # Browsing has always worked and still would without these: Grafana
         # emits *relative* URLs for its own navigation, so it never needs to
         # know its external name to serve the UI. root_url only governs the
@@ -114,6 +128,17 @@ spec:
         evaluationInterval: 60s
         retention: 7d
         retentionSize: 6GB
+        # A single Metrics Drilldown query walked the full label space for 98s
+        # (#287) and only stopped because the browser gave up. Nothing bounded
+        # it: the defaults are a 2m timeout, 50M samples and 20 concurrent
+        # queries, all sized for a server rather than a 4-core Pi.
+        #
+        # maxSamples is the one that matters — it caps what a single query can
+        # pull into memory, and it fails that query instead of the process.
+        query:
+          timeout: 60s
+          maxSamples: 10000000
+          maxConcurrency: 4
         # Every site — including this one — pushes through remote write rather
         # than being scraped. See base/metrics-collection/.
         enableRemoteWriteReceiver: true

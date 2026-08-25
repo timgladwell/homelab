@@ -50,6 +50,29 @@ spec:
       #   flate build hr -p clusters/akron
       limits_config:
         retention_period: 168h
+        # Query cost is bounded separately, and deliberately so — the point is
+        # to keep 90d of logs *and* never let a single query hurt a 4-core Pi.
+        #
+        # max_query_length hard-fails a range longer than a week. Reaching
+        # further back is still fine: pick a narrow window 60 days ago and it
+        # costs what a narrow window always costs.
+        #
+        # max_querier_bytes_read is the real guard, and the analogue of
+        # Prometheus's maxSamples — it bounds a query by how much data it would
+        # actually pull rather than by how much wall-clock it spans, so a 7d
+        # query over a quiet stream stays cheap while an hour over everything
+        # fails. The default is 150GB, which on this node is no limit at all.
+        # It is not enforced on log queries with no filter expression; those
+        # are capped by max_entries_limit_per_query (5000) instead.
+        #
+        # Deliberately NOT setting max_query_lookback. It clamps the requested
+        # range instead of rejecting it, and it applies to metadata as well as
+        # data — so bounding it below retention_period would silently truncate
+        # results and leave 90d of logs on disk that nothing can reach.
+        query_timeout: 60s
+        max_query_length: 168h
+        max_querier_bytes_read: 2GB
+        max_query_parallelism: 4
       schemaConfig:
         configs:
           - from: "2024-01-01"
