@@ -39,7 +39,16 @@ spec:
         retention_enabled: true
         retention_delete_delay: 2h
         delete_request_store: filesystem
-      limitsConfig:
+      # snake_case, and it matters. `{{- with .Values.loki.limits_config }}`
+      # is the only thing that renders this block, so a `limitsConfig:` key is
+      # not rejected — it is silently dropped, and the whole section falls back
+      # to chart defaults. It was spelled that way here from the v6 upgrade
+      # until #287, so every limit here — `retention_period` included — was a
+      # value nothing read. Loki came up healthy throughout; the failure mode
+      # is silence, not a CrashLoop. Verify any change to this block by
+      # grepping the rendered ConfigMap, not by reading the values:
+      #   flate build hr -p clusters/akron
+      limits_config:
         retention_period: 168h
       schemaConfig:
         configs:
