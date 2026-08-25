@@ -49,7 +49,18 @@ spec:
       # grepping the rendered ConfigMap, not by reading the values:
       #   flate build hr -p clusters/akron
       limits_config:
-        retention_period: 168h
+        # How long logs are *kept*, which is a disk question and nothing else —
+        # it does not affect what a query costs. Kept aligned with Prometheus's
+        # `retention` in kube-prometheus-stack.yaml: metrics are usually what
+        # tells you where in the logs to dig, so a window where one has data
+        # and the other does not is the window where that stops working.
+        #
+        # This is also the *only* thing bounding Loki's disk growth. Prometheus
+        # has `retentionSize` as a second, size-based backstop; Loki has no
+        # equivalent here, and the 8Gi PVC below is not one either — local-path
+        # allocates on use and does not enforce the claim. If this number is
+        # wrong, the failure is a full NVMe, not a rejected write.
+        retention_period: 2160h
         # Query cost is bounded separately, and deliberately so — the point is
         # to keep 90d of logs *and* never let a single query hurt a 4-core Pi.
         #
