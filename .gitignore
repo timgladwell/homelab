@@ -9,6 +9,13 @@ Thumbs.db
 
 # Claude
 .claude/worktrees/**
+# `claude mcp add --scope project` writes this file, and it holds the MCP
+# server's env inline — including the Grafana service account token
+# (docs/runbooks/grafana-query-access.md). Nothing else would catch it: the
+# pre-commit hook and validation step 10 both only look at *secret*.yaml, so a
+# token in JSON commits silently. Use the default local scope instead; this
+# line is the backstop for when someone does not.
+.mcp.json
 # trivy-operator audit dumps (docs/runbooks/trivy-operator-audit.md). A snapshot
 # of one cluster at one moment; a committed one would later read as current.
 *-reports.json

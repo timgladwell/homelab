@@ -41,6 +41,20 @@ spec:
         analytics:
           reporting_enabled: false
           check_for_updates: false
+        dataproxy:
+          # Seconds, and must be >= the prometheusSpec.query.timeout set
+          # further down this file, or Grafana reports a failure for a query
+          # Prometheus is still legitimately running.
+          timeout: 60
+        dashboards:
+          # A dashboard left open in a browser tab costs ~280Mi and ~24m CPU
+          # here, because Grafana keeps re-running its panel queries on the
+          # auto-refresh interval whether or not anyone is looking (#287).
+          # Nothing is scraped faster than the 60s scrapeInterval, so a
+          # shorter refresh re-runs the query to redraw identical data. This is
+          # a floor no dashboard can go below, which is why it is set here
+          # rather than per-dashboard.
+          min_refresh_interval: 1m
         # Browsing has always worked and still would without these: Grafana
         # emits *relative* URLs for its own navigation, so it never needs to
         # know its external name to serve the UI. root_url only governs the
@@ -112,8 +126,45 @@ spec:
       prometheusSpec:
         scrapeInterval: 60s
         evaluationInterval: 60s
-        retention: 7d
-        retentionSize: 6GB
+        # Kept aligned with Loki's `retention_period` in loki.yaml. Metrics are
+        # usually what tells you where in the logs to dig, so a window where
+        # one has data and the other does not is the window where that stops
+        # working. Change these two together or not at all.
+        #
+        # Retention is a disk decision and nothing else. The TSDB index is
+        # per-block, so a query opens only the blocks overlapping its range —
+        # a 1h query costs the same whether 7d or 90d sits on disk — and
+        # memory tracks active series, of which the head holds ~2h. Task 2.6
+        # in docs/monitoring-tasks.md reads as though cutting retention helped
+        # the thermal throttling; #52 found the cause was the 1Gi memory cap,
+        # and retention was merely in the same batch.
+        #
+        # Sized from the measured rate rather than a guess: ~1260 samples/sec
+        # steady x 86400 x 90d x ~1.7 bytes/sample is ~16.6GB. retentionSize
+        # sits above that so 90d is what binds, while still capping disk if the
+        # ingest rate rises later — whichever is hit first wins. Loki has no
+        # size-based equivalent, which is why its retention is load-bearing in
+        # a way this one is not.
+        #
+        # The 14Gi claim below is not the budget: local-path allocates on use
+        # and never enforces a claim, so the real ceiling is NVMe free space —
+        # 176G of it on 2026-08-25, against ~20GB here and ~3GB for Loki. That
+        # makes 90d a policy choice rather than anything the disk forces.
+        # Raising the claim would change nothing — volumeClaimTemplates are
+        # immutable and local-path cannot expand, so the volume stays 14Gi.
+        retention: 90d
+        retentionSize: 20GB
+        # A single Metrics Drilldown query walked the full label space for 98s
+        # (#287) and only stopped because the browser gave up. Nothing bounded
+        # it: the defaults are a 2m timeout, 50M samples and 20 concurrent
+        # queries, all sized for a server rather than a 4-core Pi.
+        #
+        # maxSamples is the one that matters — it caps what a single query can
+        # pull into memory, and it fails that query instead of the process.
+        query:
+          timeout: 60s
+          maxSamples: 10000000
+          maxConcurrency: 4
         # Every site — including this one — pushes through remote write rather
         # than being scraped. See base/metrics-collection/.
         enableRemoteWriteReceiver: true

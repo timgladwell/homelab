@@ -13,6 +13,7 @@ Operational procedures for tasks that fall outside the normal GitOps flow.
 - [Periodic Cluster Security Audit with trivy-operator](runbooks/trivy-operator-audit.md)
 - [Renaming the K3s Node](runbooks/node-rename.md)
 - [Reaching PiHole When Traefik Is Not Routing](runbooks/pihole-access.md)
+- [Read-Only Grafana Access for Claude Code](runbooks/grafana-query-access.md)
 
 See also [State That Is Not In Git](host-state.md) — the inventory of everything a reconcile will not restore.
 

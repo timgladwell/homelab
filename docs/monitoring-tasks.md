@@ -444,6 +444,20 @@ write:
 > - The chart deploys `memcached` StatefulSets for `chunksCache` and `resultsCache` by default.
 >   On the RPi these fail to schedule (Insufficient memory). Disable both explicitly.
 
+> **Correction, chart v7.3.0 (found in #287):** the first bullet above is now half
+> wrong, and the half that changed is the dangerous one. The chart is inconsistent:
+> `schemaConfig` is still camelCase, but `limits_config` is **snake_case**. Only
+> `{{- with .Values.loki.limits_config }}` renders that section, so a `limitsConfig:`
+> key is dropped without an error and every limit falls back to a chart default.
+> This is not a startup failure — Loki comes up healthy and simply ignores you. The
+> repo carried `limitsConfig:` from the v6 upgrade until #287, which means
+> `retention_period: 168h` never applied and Loki ran on the 744h default against an
+> 8Gi PVC the whole time. Confirm the rendered ConfigMap, never the values:
+>
+> ```bash
+> flate build hr -p clusters/akron | grep -A 12 'limits_config:'
+> ```
+
 Loki images are multi-arch (ARM64 ✓).
 
 ---

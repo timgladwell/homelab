@@ -39,8 +39,51 @@ spec:
         retention_enabled: true
         retention_delete_delay: 2h
         delete_request_store: filesystem
-      limitsConfig:
-        retention_period: 168h
+      # snake_case, and it matters. `{{- with .Values.loki.limits_config }}`
+      # is the only thing that renders this block, so a `limitsConfig:` key is
+      # not rejected — it is silently dropped, and the whole section falls back
+      # to chart defaults. It was spelled that way here from the v6 upgrade
+      # until #287, so every limit here — `retention_period` included — was a
+      # value nothing read. Loki came up healthy throughout; the failure mode
+      # is silence, not a CrashLoop. Verify any change to this block by
+      # grepping the rendered ConfigMap, not by reading the values:
+      #   flate build hr -p clusters/akron
+      limits_config:
+        # How long logs are *kept*, which is a disk question and nothing else —
+        # it does not affect what a query costs. Kept aligned with Prometheus's
+        # `retention` in kube-prometheus-stack.yaml: metrics are usually what
+        # tells you where in the logs to dig, so a window where one has data
+        # and the other does not is the window where that stops working.
+        #
+        # This is also the *only* thing bounding Loki's disk growth. Prometheus
+        # has `retentionSize` as a second, size-based backstop; Loki has no
+        # equivalent here, and the 8Gi PVC below is not one either — local-path
+        # allocates on use and does not enforce the claim. If this number is
+        # wrong, the failure is a full NVMe, not a rejected write.
+        retention_period: 2160h
+        # Query cost is bounded separately, and deliberately so — the point is
+        # to keep 90d of logs *and* never let a single query hurt a 4-core Pi.
+        #
+        # max_query_length hard-fails a range longer than a week. Reaching
+        # further back is still fine: pick a narrow window 60 days ago and it
+        # costs what a narrow window always costs.
+        #
+        # max_querier_bytes_read is the real guard, and the analogue of
+        # Prometheus's maxSamples — it bounds a query by how much data it would
+        # actually pull rather than by how much wall-clock it spans, so a 7d
+        # query over a quiet stream stays cheap while an hour over everything
+        # fails. The default is 150GB, which on this node is no limit at all.
+        # It is not enforced on log queries with no filter expression; those
+        # are capped by max_entries_limit_per_query (5000) instead.
+        #
+        # Deliberately NOT setting max_query_lookback. It clamps the requested
+        # range instead of rejecting it, and it applies to metadata as well as
+        # data — so bounding it below retention_period would silently truncate
+        # results and leave 90d of logs on disk that nothing can reach.
+        query_timeout: 60s
+        max_query_length: 168h
+        max_querier_bytes_read: 2GB
+        max_query_parallelism: 4
       schemaConfig:
         configs:
           - from: "2024-01-01"
