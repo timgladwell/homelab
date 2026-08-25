@@ -17,6 +17,19 @@ spec:
   upgrade:
     remediation:
       retries: 3
+  # helm-controller compares the Helm *release*, not the objects it created, so
+  # an out-of-band change to a rendered resource is invisible to Flux — it keeps
+  # reporting Ready. Akron's kube-state-metrics sat at replicas: 0 for 15 days
+  # that way, and Helm's three-way merge preserved it on every upgrade because
+  # the field never changed between chart revisions.
+  #
+  # warn, not enabled, and that is the intended end state rather than a first
+  # step: the drift is what we want to see, and correcting it automatically
+  # would both hide that someone is making manual changes and risk reverting a
+  # legitimate one — kube-prometheus-stack's webhook caBundle is injected by a
+  # Job after Helm renders it empty.
+  driftDetection:
+    mode: warn
   chart:
     spec:
       chart: kube-state-metrics

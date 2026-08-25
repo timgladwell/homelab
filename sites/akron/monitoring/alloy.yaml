@@ -16,6 +16,10 @@ spec:
   upgrade:
     remediation:
       retries: 3
+  # Report drift, never correct it — see the reasoning in
+  # base/metrics-collection/kube-state-metrics.yaml.
+  driftDetection:
+    mode: warn
   chart:
     spec:
       chart: alloy
