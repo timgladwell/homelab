@@ -54,6 +54,21 @@ The two every site has — the node and the gateway — are in
 Anything else, such as a Service with its own MetalLB IP, is site-specific and
 goes in `sites/<site>/infrastructure/site.conf`.
 
+**The UDR cannot be renamed on the device.** UniFi OS answers its own reverse
+lookup with the built-in short name `unifi`, and PiHole conditionally forwards
+this LAN's reverse zone to the gateway, so `dig -x ${LAN_GATEWAY}` returned
+`unifi.<site>.internal.zerpzorp.com` regardless of the name typed into the
+console. Settings → Console → Name is a label for the UI and Site Manager and
+never reaches the gateway's DNS; `ubios-udapi-server` owns `/etc/hostname`,
+`/etc/hosts` and `/etc/resolv.conf` and regenerates all three, so an SSH
+`hostname` change does not survive either.
+
+So the UDR's record is `host-record=` rather than `address=`, which answers
+both the A and the PTR locally. dnsmasq answers from local records before
+forwarding, so it overrides that one address and every other DHCP client in
+the range still resolves by its lease name from the gateway. The name is repo
+state, not UniFi state — nothing to re-enter after a UniFi rebuild.
+
 ### Site-local names
 
 Each site's PiHole is authoritative for the whole `internal.zerpzorp.com`
