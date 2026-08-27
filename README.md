@@ -80,12 +80,16 @@ Keep the private key off any machine that doesn't need it — it only needs to e
 
 Two separate UniFi settings feed logs into Loki via Alloy. Configure both after the monitoring stack is deployed.
 
-**General syslog** (`{job="unifi-siem"}`) — low-level system and controller events in RFC 3164 format:
+**The target is an IP address, not a name.** The UDR resolves through its own dnsmasq on `127.0.0.1`, which forwards to public DNS — it is not a PiHole client, so no `internal.zerpzorp.com` name resolves for it. Use Akron's syslog LoadBalancer directly; the address is pinned by `metallb.universe.tf/loadBalancerIPs` in `sites/akron/monitoring/alloy-syslog-service.yaml`, so it is as stable as a name would be. Nothing here needs TLS or SNI, which is the only reason the rest of this estate prefers names.
 
-In the UniFi controller UI: **Settings → System → Integrations** → set target to `syslog.${SITE_DOMAIN}:1514`, protocol `UDP`, format `syslog`.
+**Plain syslog** (`{job="unifi-siem"}`) — device system logs: `systemd`, `dbus-daemon`, `ubios-udapi-server`, `earlyoom`, in RFC 3164 format with a `<PRI>` header:
 
-**CEF traffic/audit logs** (`{job="unifi-cef"}`) — network access, config changes, and cybersecure events in CEF format (no syslog PRI header):
+In the UniFi controller UI: **Settings → Cybersecure → Traffic Logging** → set target to `10.6.1.81:1514`, protocol `UDP`.
 
-In the UniFi controller UI: **Settings → Cybersecure → Traffic Logging** → set target to `syslog.${SITE_DOMAIN}:1515`, protocol `UDP`.
+**CEF** (`{job="unifi-cef"}`) — admin activity, config changes and detections, as `CEF:0|Ubiquiti|UniFi OS|…` with no `<PRI>` header:
 
-Port 1515 uses an OTel syslog receiver with `allow_skip_pri_header = true` because UniFi's CEF export omits the `<PRI>` field required by RFC 3164.
+In the UniFi controller UI: **Settings → System Logging** (`/network/default/integrations`) → set target to `10.6.1.81:1515`, protocol `UDP`.
+
+Port 1515 uses an OTel syslog receiver with `allow_skip_pri_header = true` because UniFi's CEF export omits the `<PRI>` field required by RFC 3164. Port 1514's receiver is strict, so sending CEF there drops every line silently — UDP has no handshake to fail and no retry.
+
+**Which UI setting emits which format is the reverse of what it sounds like**, and was documented backwards here until it was measured on 2026-08-27: the *Cybersecure* exporter sends plain system syslog, and the *System Logging* integration sends CEF. Both offer overlapping category lists (Devices, Critical, Admin Activity, Updates, VPN, Firewall Default Policy appear in both), so the same event can be delivered twice in two formats on two ports. Enable categories deliberately rather than everything in both.
