@@ -30,7 +30,7 @@ carries its own label.
 
 | Thing | FQDN | Notes |
 |---|---|---|
-| UDR | `udr.akron.internal.zerpzorp.com` | UniFi device name is `akron-udr` |
+| UDR | `udr.akron.internal.zerpzorp.com` | forward *and* reverse asserted in dnsmasq; see below |
 | Server / K3s node | `k3s01.akron.internal.zerpzorp.com` | Linux hostname *and* K3s node name |
 | Apps | `pihole.akron.internal.zerpzorp.com` | via Traefik `IngressRoute` |
 | | `grafana.akron.internal.zerpzorp.com` | |
@@ -45,9 +45,35 @@ carries its own label.
 
 `*.<site>.internal.zerpzorp.com` resolves to that site's Traefik by wildcard,
 so an app needs an `IngressRoute` and no DNS record at all. Anything *not*
-behind Traefik — the node, the UDR, a Service with its own MetalLB IP — needs
-an explicit `address=` override in `sites/<site>/infrastructure/site.conf`, or
-the wildcard swallows it and SSH lands on the ingress controller.
+behind Traefik needs an explicit override, or the wildcard swallows it and SSH
+lands on the ingress controller.
+
+The two every site has — the node and the gateway — are in
+`base/dns/dnsmasq-base.conf`, because both records are entirely variables
+(`${NODE_IP}`, `${LAN_GATEWAY}`) and a new site gets them by defining those.
+Anything else, such as a Service with its own MetalLB IP, is site-specific and
+goes in `sites/<site>/infrastructure/site.conf`.
+
+**The UDR cannot be renamed on the device.** UniFi OS answers its own reverse
+lookup with the built-in short name `unifi`, and PiHole conditionally forwards
+this LAN's reverse zone to the gateway, so `dig -x ${LAN_GATEWAY}` returned
+`unifi.<site>.internal.zerpzorp.com` regardless of the name typed into the
+console. Settings → Console → Name is a label for the UI and Site Manager and
+never reaches the gateway's DNS; `ubios-udapi-server` owns `/etc/hostname`,
+`/etc/hosts` and `/etc/resolv.conf` and regenerates all three, so an SSH
+`hostname` change does not survive either.
+
+So the UDR's record is `host-record=` rather than `address=`, which answers
+both the A and the PTR locally. dnsmasq answers from local records before
+forwarding, so it overrides that one address and every other DHCP client in
+the range still resolves by its lease name from the gateway. The name is repo
+state, not UniFi state — nothing to re-enter after a UniFi rebuild.
+
+**One internal name is enough for the UDR's certificate.** UniFi OS validates
+its Let's Encrypt order over DNS-01 with a Cloudflare API token, so no name
+here needs to resolve publicly and no device needs a second, public label —
+every name in this document stays internal. See
+[Let's Encrypt Certificates on a UniFi Console](runbooks/unifi-tls.md).
 
 ### Site-local names
 
@@ -136,7 +162,8 @@ and future auth policy on.
 <!-- ponytail: today `internal.` is records inside the zerpzorp.com Cloudflare
 zone with a zone-wide token, not a separately delegated zone. The names above
 are unaffected either way — splitting the zone later is a record move plus a
-token swap. Tracked in #228 iteration 0. -->
+token swap. #314 inventories every credential and doc that assumes the current
+shape. -->
 
 ## Reserved: workload identity (not built yet)
 
