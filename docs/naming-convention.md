@@ -45,9 +45,14 @@ carries its own label.
 
 `*.<site>.internal.zerpzorp.com` resolves to that site's Traefik by wildcard,
 so an app needs an `IngressRoute` and no DNS record at all. Anything *not*
-behind Traefik — the node, the UDR, a Service with its own MetalLB IP — needs
-an explicit `address=` override in `sites/<site>/infrastructure/site.conf`, or
-the wildcard swallows it and SSH lands on the ingress controller.
+behind Traefik needs an explicit override, or the wildcard swallows it and SSH
+lands on the ingress controller.
+
+The two every site has — the node and the gateway — are in
+`base/dns/dnsmasq-base.conf`, because both records are entirely variables
+(`${NODE_IP}`, `${LAN_GATEWAY}`) and a new site gets them by defining those.
+Anything else, such as a Service with its own MetalLB IP, is site-specific and
+goes in `sites/<site>/infrastructure/site.conf`.
 
 ### Site-local names
 
