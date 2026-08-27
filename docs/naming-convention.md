@@ -30,7 +30,7 @@ carries its own label.
 
 | Thing | FQDN | Notes |
 |---|---|---|
-| UDR | `udr.akron.internal.zerpzorp.com` | UniFi device name is `akron-udr` |
+| UDR | `udr.akron.internal.zerpzorp.com` | forward *and* reverse asserted in dnsmasq; see below |
 | Server / K3s node | `k3s01.akron.internal.zerpzorp.com` | Linux hostname *and* K3s node name |
 | Apps | `pihole.akron.internal.zerpzorp.com` | via Traefik `IngressRoute` |
 | | `grafana.akron.internal.zerpzorp.com` | |
@@ -68,6 +68,12 @@ both the A and the PTR locally. dnsmasq answers from local records before
 forwarding, so it overrides that one address and every other DHCP client in
 the range still resolves by its lease name from the gateway. The name is repo
 state, not UniFi state — nothing to re-enter after a UniFi rebuild.
+
+**One internal name is enough for the UDR's certificate.** UniFi OS validates
+its Let's Encrypt order over DNS-01 with a Cloudflare API token, so no name
+here needs to resolve publicly and no device needs a second, public label —
+every name in this document stays internal. See
+[Let's Encrypt Certificates on a UniFi Console](runbooks/unifi-tls.md).
 
 ### Site-local names
 
@@ -156,7 +162,8 @@ and future auth policy on.
 <!-- ponytail: today `internal.` is records inside the zerpzorp.com Cloudflare
 zone with a zone-wide token, not a separately delegated zone. The names above
 are unaffected either way — splitting the zone later is a record move plus a
-token swap. Tracked in #228 iteration 0. -->
+token swap. #314 inventories every credential and doc that assumes the current
+shape. -->
 
 ## Reserved: workload identity (not built yet)
 
