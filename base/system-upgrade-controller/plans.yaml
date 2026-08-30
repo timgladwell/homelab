@@ -25,7 +25,7 @@ spec:
   # Renovate opens a PR per k3s release (see renovate.json); Akron takes it on
   # merge to main, Eastbank only on promotion to stable, so the canary holds.
   # renovate: datasource=github-releases depName=k3s-io/k3s
-  version: v1.36.3+k3s1
+  version: v1.36.4+k3s1
 ---
 apiVersion: upgrade.cattle.io/v1
 kind: Plan
@@ -49,4 +49,4 @@ spec:
     image: rancher/k3s-upgrade
   # Keep in lockstep with server-plan above — see the rationale there.
   # renovate: datasource=github-releases depName=k3s-io/k3s
-  version: v1.36.3+k3s1
+  version: v1.36.4+k3s1
