@@ -46,7 +46,7 @@ jobs:
       # clusters run — the alloy chart decides that. It only has to be new
       # enough to know every component the configs use.
       # renovate: datasource=github-releases depName=grafana/alloy extractVersion=^v(?<version>.+)$
-      ALLOY_VERSION: 1.18.1
+      ALLOY_VERSION: 1.19.2
 
     steps:
       - uses: actions/checkout@v7
