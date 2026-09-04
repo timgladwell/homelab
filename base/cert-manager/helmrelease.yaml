@@ -56,13 +56,48 @@ spec:
         cpu: 200m
         memory: 128Mi
 
+    # The webhook and cainjector both cache Secrets cluster-wide, so their cost
+    # is a burst at startup (list+watch, then generate a serving certificate)
+    # and near-idle afterwards — 1-2m steady state. A 100m limit was enough for
+    # the idle half and not the burst: after the 2026-09-04 reboot emptied its
+    # caches the webhook throttled 82% of CFS periods (2684s throttled against
+    # 138s used), took 17s to stream a single Secret, and so could not answer
+    # its 1s-timeout /healthz. Liveness killed it before it ever warmed up, and
+    # a crash loop that restarts into the same cold-cache burst does not
+    # recover. It survived 11 days only because it was already warm.
+    #
+    # Every admission of a cert-manager CR goes through the webhook, so this
+    # takes infrastructure-config down with it: ClusterIssuer and Certificate
+    # dry-runs fail with "failed calling webhook ... context deadline exceeded".
+    #
+    # Raise the ceiling rather than relaxing the probes. The apiserver's own
+    # admission call carries timeout=30s and blew through that too, so a wider
+    # probe window buys a webhook that stays alive while still being too slow
+    # to admit anything — the worse failure, because then nothing restarts and
+    # nothing alerts. A webhook that needs 17s to read one Secret is faulty;
+    # the 1s probe is the detector, not the disease.
+    #
+    # 250m is a deliberate small step, not a measured figure. Requests are
+    # unchanged at 20m and limits reserve nothing, so a higher ceiling would
+    # have cost the node nothing — but on a box this size the number worth
+    # having is the real one, and stepping up finds it. Note the catch that
+    # makes the step a judgement call rather than free: a throttled container
+    # hides its own demand (`kubectl top` reported 1m here, which was the
+    # quota being enforced, not what it wanted), so a step that is still too
+    # small does not reveal the ceiling, it just throttles higher up. So read
+    # nr_throttled before picking the next number, never `kubectl top`:
+    #   U=$(kubectl -n cert-manager get pod \
+    #        -l app.kubernetes.io/component=webhook \
+    #        -o jsonpath='{.items[0].metadata.uid}')
+    #   sudo find /sys/fs/cgroup -name cpu.stat | grep "${U//-/_}" | \
+    #     xargs -I{} sh -c 'echo "== {}"; cat {}'
     webhook:
       resources:
         requests:
           cpu: 20m
           memory: 32Mi
         limits:
-          cpu: 100m
+          cpu: 250m
           memory: 64Mi
 
     cainjector:
@@ -71,7 +106,7 @@ spec:
           cpu: 20m
           memory: 32Mi
         limits:
-          cpu: 100m
+          cpu: 250m
           memory: 64Mi
 
     # startupapicheck is a Helm-hook Job (webhook readiness probe on install/
