@@ -108,6 +108,26 @@ handed to clients.
 
 ---
 
+## Lottage (no cluster at all)
+
+Lottage runs PiHole, nginx and a collector under docker compose
+(`bare-metal/lottage/`), pushed from a workstation by `deploy.sh`. There is no
+Flux, so *everything* about the box is host state in the sense this page means
+— but only these need recreating by hand, because the rest is re-rendered from
+git on every deploy. See [the runbook](runbooks/lottage-bare-metal.md).
+
+| What | Where | Why |
+|---|---|---|
+| Docker | `get.docker.com`, user in the `docker` group | Nothing else installs it. |
+| Deploy directory | `/opt/lottage`, owned by the login user | `rsync` writes there as that user, not as root. |
+| Cloudflare API token | `/etc/lottage/cloudflare.ini`, mode 600 | The one secret on the box. Deliberately not SOPS: nothing on the Pi could decrypt it. |
+| Let's Encrypt state | the `letsencrypt` docker volume | Account key, certificate, and the renewal config carrying the `--deploy-hook`. Losing it means re-issuing, which is rate-limited. |
+| PiHole gravity DB | the `pihole-config` docker volume | Rebuilt by `deploy.sh`'s sync run, ~10 minutes on this hardware. |
+| DHCP DNS server | UniFi → Lottage network → DNS | Points clients at the Pi. Nothing in git reaches a UniFi controller. |
+| Per-network Domain Name | UniFi → Lottage network | Must equal `SITE_DOMAIN`, or PiHole's conditional forwarding asks the gateway about a domain it does not serve. |
+
+---
+
 ## What survives what
 
 | Event | Lost |

@@ -2,7 +2,8 @@
 version: 2
 updates:
   # Container images pinned directly in manifests: pihole, unbound,
-  # unbound-exporter, python (pihole-sync Job), system-upgrade-controller.
+  # unbound-exporter, python (pihole-sync Job), system-upgrade-controller,
+  # and Lottage's compose stack.
   # Dependabot's docker ecosystem reads `image:` fields out of Kubernetes YAML,
   # so these are genuinely covered here and nowhere else — Renovate is scoped to
   # the flux manager (see renovate.json), which handles Helm chart versions but
@@ -22,6 +23,12 @@ updates:
       - "/base/pihole-sync"
       - "/base/system-upgrade-controller"
       - "/sites/eastbank/apps"
+      # Lottage is not a cluster: bare-metal/lottage/compose.yaml pins the same
+      # images under docker compose, which Dependabot's docker ecosystem reads
+      # as readily as a Deployment. Not covered by
+      # scripts/validate/09-dependabot-coverage.sh, whose scan is scoped to
+      # base/ and sites/ — so this entry has to be remembered by hand.
+      - "/bare-metal/lottage"
     schedule:
       interval: weekly
     cooldown:
