@@ -30,7 +30,37 @@ discovery.relabel "pod_logs" {
 
 loki.source.kubernetes "pods" {
   targets    = discovery.relabel.pod_logs.output
+  forward_to = [loki.process.pod_logs.receiver]
+}
+
+// Kubelet probe traffic, dropped on the way to Loki and nowhere else.
+//
+// The landing page serves an access log line per request, and almost every
+// request is a probe: readiness every 10s plus liveness every 30s is ~8 lines
+// a minute, ~11.5k a day, for a page opened about weekly. In the two hours
+// after it first deployed, 26 of 30 sampled lines were `GET /healthz`.
+//
+// Dropped here rather than silenced in base/landing/app.py deliberately. The
+// container log is the diagnostic surface — `kubectl logs` during an incident
+// wants to see that the probes were arriving and being answered, which is
+// often the thing that distinguishes "the pod is wedged" from "nothing is
+// reaching it". This is a storage decision about what Loki keeps, not a
+// decision about what the program says.
+//
+// Scoped to app="landing" rather than written as a general health-check rule:
+// this is the one workload measured to have the problem, and a repo-wide drop
+// would silently swallow probe logs from a future app where they matter.
+loki.process "pod_logs" {
   forward_to = [loki.write.default.receiver]
+
+  stage.match {
+    selector = "{app=\"landing\"}"
+
+    stage.drop {
+      expression          = "\"GET /healthz HTTP/[0-9.]+\" 200"
+      drop_counter_reason = "landing_probe_noise"
+    }
+  }
 }
 
 discovery.relabel "journal" {
