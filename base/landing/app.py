@@ -15,9 +15,7 @@ already pins. The page is expected to be opened about weekly; a framework and
 an ASGI server would be two more things to keep patched for a workload that is
 idle almost all of the time.
 
-Self-check (no cluster, no Pi-hole needed):
-
-    python3 base/landing/app.py selftest
+Tested by tests/test_landing.py, which validation step 13 runs.
 """
 import json
 import os
@@ -239,37 +237,7 @@ class Handler(BaseHTTPRequestHandler):
         log(f"{self.address_string()} {fmt % args}")
 
 
-def selftest():
-    ok = [
-        ({"blocking": True}, (True, None)),
-        ({"blocking": True, "minutes": 5}, (True, None)),
-        ({"blocking": False, "minutes": 1}, (False, 60)),
-        ({"blocking": False, "minutes": 359}, (False, 359 * 60)),
-    ]
-    for payload, expected in ok:
-        assert validate(payload) == expected, payload
-
-    bad = [
-        {}, {"blocking": "false"}, {"blocking": 0}, {"blocking": None},
-        {"blocking": False}, {"blocking": False, "minutes": 0},
-        {"blocking": False, "minutes": -5}, {"blocking": False, "minutes": 360},
-        {"blocking": False, "minutes": 1000}, {"blocking": False, "minutes": 1.5},
-        {"blocking": False, "minutes": "5"}, {"blocking": False, "minutes": True},
-        {"blocking": False, "minutes": None}, ["blocking"], "blocking", None,
-    ]
-    for payload in bad:
-        try:
-            validate(payload)
-        except ValueError:
-            continue
-        raise AssertionError(f"accepted {payload!r}")
-
-    print(f"selftest ok: {len(ok)} accepted, {len(bad)} rejected")
-
-
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] == "selftest":
-        return selftest()
     for name in ("PIHOLE_URL", "PIHOLE_PASSWORD"):
         if not os.environ.get(name):
             sys.exit(f"{name} is required")

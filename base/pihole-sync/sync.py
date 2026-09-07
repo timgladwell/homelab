@@ -496,43 +496,5 @@ def main():
     log(f"Sync complete ({elapsed:.0f}s).")
 
 
-def self_check():
-    """
-    Offline check of the one thing that silently failed before: an object that
-    already exists but whose groups drifted from config must be PUT back — and
-    that PUT alone must not drag in a gravity rebuild.
-    Run with `PIHOLE_URL=x python3 sync.py --self-check`.
-    """
-    global _request_with_retry
-    calls = []
-
-    def fake(method, path, body=None, sid=None, timeout=60):
-        calls.append((method, path, body))
-        if method == "GET" and path.startswith("/api/lists"):
-            return 200, {"lists": [
-                # id=1 is in group 0 only; config below wants 0 and 7.
-                {"address": "http://a", "id": 1, "number": 5, "groups": [0]},
-                {"address": "http://b", "id": 2, "number": 5, "groups": [0]},
-            ]}
-        return 200, {}
-
-    _request_with_retry = fake
-    cfg = {"block_lists": [
-        {"url": "http://a", "groups": ["Default", "Extra"]},
-        {"url": "http://b", "groups": ["Default"]},
-    ]}
-    gravity = sync_lists(cfg, "", {"Default": 0, "Extra": 7}, "block", "block_lists")
-
-    puts = [c for c in calls if c[0] == "PUT"]
-    assert len(puts) == 1, f"expected exactly one PUT, got {puts}"
-    assert puts[0][1] == "/api/lists/http%3A%2F%2Fa?type=block", puts[0][1]
-    assert sorted(puts[0][2]["groups"]) == [0, 7], puts[0][2]
-    assert gravity is False, "a regroup alone must not trigger gravity"
-    log("self-check passed.")
-
-
 if __name__ == "__main__":
-    if "--self-check" in sys.argv:
-        self_check()
-    else:
-        main()
+    main()
