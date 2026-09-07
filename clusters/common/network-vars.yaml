@@ -37,6 +37,17 @@ data:
   # SITE_DOMAIN that the IPs above have to METALLB_TRAEFIK_IP: SITE_DOMAIN is
   # "my subtree", this is "Akron's subtree" and is what another site writes.
   AKRON_SITE_DOMAIN: akron.internal.zerpzorp.com
+  # Lottage is not a cluster. Its 2GB Pi runs PiHole, nginx and a collector
+  # under docker compose instead (bare-metal/lottage/), so what the other
+  # sites dial is the box itself rather than a Traefik LoadBalancer — hence
+  # _HOST_IP, not _TRAEFIK_IP. It is still a site by every other measure: same
+  # subtree, same certificate shape, same blocklists.
+  #
+  # TODO: fill this in before merge. A placeholder reaches both sites'
+  # dnsmasq as `address=/lottage.internal.zerpzorp.com/CHANGEME`, which is a
+  # parse error, and a dnsmasq that will not start takes site DNS with it.
+  LOTTAGE_SITE_DOMAIN: lottage.internal.zerpzorp.com
+  LOTTAGE_HOST_IP: "CHANGEME"
   # Where telemetry goes, for every site that is not Akron.
   #
   # These live here rather than in each remote site's cluster-vars because

@@ -1,0 +1,159 @@
+---
+# Lottage's whole stack. Standup and update flow:
+# docs/runbooks/lottage-bare-metal.md
+#
+# Every path below is relative to /opt/lottage/ on the Pi, which is what
+# deploy.sh renders and rsyncs. The files mounted here are hydrated copies of
+# the same manifests Akron and Eastbank reconcile — see the table in the
+# runbook for which file comes from where.
+#
+# ${VAR} here is docker compose's own interpolation, reading the .env file
+# deploy.sh writes beside this one. It is not Flux substitution, and compose
+# does not interpolate the contents of mounted files — deploy.sh does that.
+services:
+  # DNS. No Unbound here, unlike base/dns/: Lottage is on DSL and recursion
+  # costs 2-4 upstream queries plus the DNSSEC chain for every cold name,
+  # where forwarding costs one into a hot cache. FTLCONF_dns_upstreams is
+  # overridden by deploy.sh for the same reason; everything else in
+  # pihole.env is lifted verbatim from base/dns/pihole-deployment.yaml.
+  pihole:
+    image: pihole/pihole:2026.07.2
+    restart: unless-stopped
+    env_file:
+      - pihole.env
+    # Bound to the LAN address specifically, not 0.0.0.0: systemd-resolved's
+    # stub holds 127.0.0.53:53 and this leaves it alone.
+    ports:
+      - "${LOTTAGE_HOST_IP}:53:53/udp"
+      - "${LOTTAGE_HOST_IP}:53:53/tcp"
+    volumes:
+      - pihole-config:/etc/pihole
+      - ./dnsmasq.d:/etc/dnsmasq.d:ro
+    # Same probe as the cluster's readinessProbe. There is no kubelet here, so
+    # the healthcheck plus restart: unless-stopped is the whole self-healing
+    # story.
+    healthcheck:
+      test: ["CMD", "dig", "+norecurse", "+time=3", "@127.0.0.1", "pi.hole"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    mem_limit: 512m
+    cpus: 1.0
+
+  # Traefik's job at the other two sites: TLS termination, the pihole route,
+  # and the landing page at both apexes.
+  nginx:
+    image: nginxinc/nginx-unprivileged:1.30.4-alpine
+    restart: unless-stopped
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./html:/usr/share/nginx/html:ro
+      - letsencrypt:/etc/letsencrypt:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    mem_limit: 64m
+    cpus: 0.5
+
+  # The estate's collector, in compose form. Docker's own metrics endpoint is
+  # engine-level and says nothing about health; cAdvisor costs more RAM than
+  # the workloads it would watch. One Alloy with two built-in exporters is the
+  # same answer base/metrics-collection/ gives, minus the Kubernetes half.
+  alloy:
+    image: grafana/alloy:v1.19.2
+    restart: unless-stopped
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    # Host namespaces and mounts: prometheus.exporter.unix reads the host's
+    # /proc and /sys, not the container's, or every metric describes the
+    # collector instead of the machine.
+    pid: host
+    volumes:
+      - ./alloy.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    # compose's spelling of sites/eastbank/monitoring/alloy-metrics-hostaliases.yaml,
+    # and the same guarantee: the collector reaches Akron without asking the
+    # resolver it is monitoring.
+    extra_hosts:
+      - "prometheus.${AKRON_SITE_DOMAIN}:${AKRON_TRAEFIK_IP}"
+      - "loki.${AKRON_SITE_DOMAIN}:${AKRON_TRAEFIK_IP}"
+    mem_limit: 256m
+    cpus: 0.5
+
+  # Run on demand, not continuously: `docker compose run --rm certbot renew`
+  # from the systemd timer, and `... run --rm certbot` with the command below
+  # for the first issuance. cert-manager's job, done by hand.
+  certbot:
+    image: certbot/dns-cloudflare:v5.8.0
+    profiles:
+      - certs
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      # Host file, mode 600, not in git. docs/host-state.md records it.
+      - /etc/lottage/cloudflare.ini:/cloudflare.ini:ro
+    # The same three names, in the same shape and for the same reasons, as
+    # base/cert-manager-config/certificate.yaml. The bare apex is listed
+    # because no wildcard covers a bare name; ${SITE_DOMAIN} itself is absent
+    # because *.${BASE_DOMAIN} already covers it and Let's Encrypt rejects the
+    # order if it appears too.
+    command:
+      - certonly
+      - --non-interactive
+      - --agree-tos
+      - --email=letsencrypt@zerpzorp.com
+      - --dns-cloudflare
+      - --dns-cloudflare-credentials=/cloudflare.ini
+      - --cert-name=lottage
+      - -d
+      - "*.${SITE_DOMAIN}"
+      - -d
+      - "${BASE_DOMAIN}"
+      - -d
+      - "*.${BASE_DOMAIN}"
+      # certbot runs as root and writes the key 0600; nginx-unprivileged is
+      # uid 101 and could not read it. Handing the tree to that uid is the
+      # narrow fix — the alternative is a world-readable private key or a
+      # root nginx.
+      - --deploy-hook=chown -R 101:101 /etc/letsencrypt/live /etc/letsencrypt/archive
+
+  # base/pihole-sync/sync.py, unmodified, in a container. Same lists, same
+  # groups, same clients-are-deleted-if-unlisted behaviour as the other sites.
+  # `docker compose run --rm pihole-sync`; deploy.sh invokes it.
+  pihole-sync:
+    image: python:3.14.7-alpine3.23
+    profiles:
+      - sync
+    environment:
+      PIHOLE_URL: "http://pihole:8080"
+      CONFIG_PATH: /sync/pihole-config.yaml
+      CLIENTS_PATH: /sync/pihole-clients.yaml
+      STATE_DIR: /tmp/state
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ./sync:/sync:ro
+    command:
+      - /bin/sh
+      - -c
+      - >
+        pip install --quiet --no-cache-dir --retries 5 --timeout 60
+        --target=/tmp/pydeps pyyaml &&
+        PYTHONPATH=/tmp/pydeps python /sync/sync.py
+    mem_limit: 256m
+
+volumes:
+  pihole-config:
+  letsencrypt:
+  alloy-data:

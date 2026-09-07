@@ -1,0 +1,94 @@
+// Lottage's collector. The compose equivalent of
+// base/metrics-collection/alloy-metrics.alloy, minus everything Kubernetes:
+// no kubelet, no cAdvisor, no kube-state-metrics, no service discovery.
+//
+// Two exporters, both built into Alloy, so the whole of Lottage's telemetry is
+// this file and one container. Docker's own metrics endpoint is engine-level
+// and would not have answered the question this exists to answer.
+//
+// ${VAR} is substituted by deploy.sh before this reaches the Pi, the same way
+// Flux substitutes the cluster's copy. `alloy validate` runs there too —
+// validation step 12 only sees configs built into a site's k8s output, and
+// Lottage has none.
+
+// ---------------------------------------------------------------
+// The machine. Reads the host's /proc and /sys through the mounts in
+// compose.yaml, or every metric would describe the collector instead
+// of the Pi.
+// ---------------------------------------------------------------
+prometheus.exporter.unix "host" {
+  procfs_path = "/host/proc"
+  sysfs_path  = "/host/sys"
+  rootfs_path = "/rootfs"
+}
+
+// job and instance are set here rather than left to default, so Lottage lands
+// in the same dashboards as the other two sites with nothing added at Akron.
+discovery.relabel "host" {
+  targets = prometheus.exporter.unix.host.targets
+
+  rule {
+    target_label = "instance"
+    replacement  = "pi01.${SITE_DOMAIN}"
+  }
+}
+
+prometheus.scrape "host" {
+  targets         = discovery.relabel.host.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "node-exporter"
+  scrape_interval = "60s"
+}
+
+// ---------------------------------------------------------------
+// Is this site still resolving? The one question `docker ps` cannot
+// answer: the container is up, healthy and answering nothing useful
+// whenever gravity or an upstream is broken.
+// ---------------------------------------------------------------
+prometheus.exporter.blackbox "dns" {
+  config = `
+modules:
+  dns_udp:
+    prober: dns
+    timeout: 5s
+    dns:
+      query_name: internal.zerpzorp.com
+      query_type: A
+      transport_protocol: udp
+`
+
+  target {
+    name    = "pihole"
+    address = "${LOTTAGE_HOST_IP}:53"
+    module  = "dns_udp"
+  }
+}
+
+prometheus.scrape "dns" {
+  targets         = prometheus.exporter.blackbox.dns.targets
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "blackbox-dns"
+  scrape_interval = "60s"
+}
+
+// ---------------------------------------------------------------
+// Ship it to Akron. Same endpoint, same external label and the same
+// 24h WAL as every other site — the value is load-bearing against
+// tsdb.outOfOrderTimeWindow in
+// sites/akron/monitoring/kube-prometheus-stack.yaml, and a DSL line
+// makes a long outage likelier here than anywhere else.
+// ---------------------------------------------------------------
+prometheus.remote_write "default" {
+  endpoint {
+    url = "${PROMETHEUS_REMOTE_WRITE_URL}"
+  }
+
+  external_labels = {
+    site = "${SITE_NAME}",
+  }
+
+  wal {
+    truncate_frequency = "2h"
+    max_keepalive_time = "24h"
+  }
+}

@@ -1,0 +1,8 @@
+---
+# Lottage's PiHole clients and their group membership. Same schema and same
+# consumer as sites/<site>/dns-config/pihole-clients.yaml — sync.py reads this
+# file through CLIENTS_PATH.
+#
+# sync.py removes clients that aren't listed here, so adding a device to a
+# non-Default group means adding it to this file, not to the PiHole UI.
+clients: []

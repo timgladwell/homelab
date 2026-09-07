@@ -12,7 +12,7 @@ Eastbank is a new, previously-bare-metal site being brought under GitOps for the
 
 If this is a brand-new device (not just a Flux re-bootstrap on existing hardware), the OS itself needs standing up first — see [Standing Up a New Headless Box](new-box-standup.md).
 
-**Lottage is out of scope** until its 2GB Pi is upgraded — it may not have enough headroom to run k3s stably at all. Its cluster scaffolding has been removed from this repo; when the hardware is upgraded, re-add it by copying `sites/eastbank/` and `clusters/eastbank/`. This runbook is Eastbank-only for now.
+**Lottage does not use this runbook.** Its 2GB Pi has no headroom to run k3s stably, so it runs PiHole, nginx and a collector under docker compose instead — see [Lottage: Bare-Metal PiHole](lottage-bare-metal.md). If the hardware is ever upgraded, re-add it as a real site by copying `sites/eastbank/` and `clusters/eastbank/` and following this runbook then.
 
 ## Process (per site — currently Eastbank only, and only after Akron is confirmed healthy)
 
