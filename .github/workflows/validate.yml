@@ -42,6 +42,13 @@ jobs:
       CONFTEST_VERSION: 0.69.0
       # renovate: datasource=pypi depName=yamllint
       YAMLLINT_VERSION: 1.38.0
+      # scripts/validate/substitute.py imports yaml. This was an undeclared
+      # dependency that worked only because the runner image happened to ship
+      # PyYAML — yamllint is installed with pipx, so its own copy is in an
+      # isolated venv and is not what substitute.py imports. A runner image
+      # change would have broken step 3 with an ImportError.
+      # renovate: datasource=pypi depName=PyYAML
+      PYYAML_VERSION: 6.0.3
       # Pinned like the rest, but note this one is *not* the version the
       # clusters run — the alloy chart decides that. It only has to be new
       # enough to know every component the configs use.
@@ -50,6 +57,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+
+      # Pinned to the minor the clusters run — base/landing/deployment.yaml and
+      # base/pihole-sync/sync-job.yaml both pin python:3.14.x, and step 13's
+      # tests should run on the interpreter the pods will. Also gives pip a
+      # writable environment: the runner's system python is PEP 668
+      # externally-managed, so installing into it needs --break-system-packages.
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
 
       # Pinned to the version the clusters run (clusters/*/flux-system/), not
       # the newest release: CI should build the way the clusters will. Bump
@@ -97,6 +114,10 @@ jobs:
 
           pipx install "yamllint==${YAMLLINT_VERSION}"
 
+          # A library, not an application, so it goes into the environment
+          # substitute.py actually runs in rather than a pipx venv.
+          pip install "PyYAML==${PYYAML_VERSION}"
+
       - name: Tool versions
         run: |
           flux version --client
@@ -107,6 +128,8 @@ jobs:
           conftest --version | head -1
           yamllint --version
           alloy --version | head -1
+          python3 --version
+          python3 -c 'import yaml; print("PyYAML", yaml.__version__)'
 
       # No age key and no cluster: `flux build --dry-run` does not decrypt, and
       # every step reads the repo rather than a live cluster. If a step ever
