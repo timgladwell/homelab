@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Inline, so the browser never issues the /favicon.ico request at all.
+     Preventing the request beats serving a 404 and then dropping the log
+     line for it, which is why this is not in the Alloy drop rule. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%232f6f4f'/%3E%3C/svg%3E">
 <title>${SITE_NAME} — internal services</title>
 <style>
 :root {
