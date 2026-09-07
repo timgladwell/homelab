@@ -31,7 +31,7 @@ After any change to manifests, run the full validation pipeline from the repo ro
 
 **When Claude Code runs this pipeline, delegate to the `manifest-validator` subagent** (`.claude/agents/manifest-validator.md`) rather than running `./scripts/validate-k3s.sh` inline. It keeps the full step-by-step tool output (yamllint, trivy, kubeconform, etc.) out of the main conversation and reports back using the fixed pass/fail format defined in the preloaded `flux-validation-conventions` skill (`.claude/skills/flux-validation-conventions/`).
 
-This runs thirteen steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
+This runs fourteen steps in order, **per site** (Akron, Eastbank — each reconciles a different subset of the repo, see Directory layout below). Sites and their layers are discovered automatically, see *How validation discovers what to build*:
 1. **YAML lint** — `yamllint` against all files (ignores each site's `flux-system/` and `*.sops.yaml`)
 2. **Flux build** — `flux build kustomization --dry-run` for each Flux Kustomization, for each site
 3. **Kustomize build** — `kustomize build` of the site's entry point and each of its layers, concatenated into `$K3S_BUILD_DIR/k3s-built-<site>.yaml`, then hydrated with that site's `cluster-vars` the way Flux's `postBuild` does
@@ -45,8 +45,9 @@ This runs thirteen steps in order, **per site** (Akron, Eastbank — each reconc
 8. **Policy** — `conftest test` against each site's built output using policies in `policy/`
 12. **Alloy configs** — `alloy validate` against every Alloy river config in each site's built output, with that release's own `--stability.level` from its `extraArgs`
 13. **Python tests** — `python3 -m unittest discover -s tests` over `base/landing/app.py` and `base/pihole-sync/sync.py` (whole repo, not per-site)
+14. **Pi-hole secret pairs** — every site has `pihole-secret.sops.yaml` in both `infrastructure/` and `apps/`, each listed by its layer's `kustomization.yaml` (whole repo, not per-site)
 
-Step 2 gates steps 3–5, 7–8 and 12. Step 3 additionally gates steps 4, 5, 7, 8 and 12. Steps 1, 6, 9, 10 and 13 always run independently.
+Step 2 gates steps 3–5, 7–8 and 12. Step 3 additionally gates steps 4, 5, 7, 8 and 12. Steps 1, 6, 9, 10, 13 and 14 always run independently.
 
 **Warnings are errors.** Every step fails on any finding at any severity — trivy runs unfiltered, kube-score uses `--exit-one-on-warning`, conftest uses `--fail-on-warn`. A check that genuinely doesn't apply here gets an explicit exception (`.trivyignore.yaml`, a kube-score `--ignore-test`, a conftest policy change), never a severity floor. The exception carries a reason; a threshold silently hides the next finding too.
 
