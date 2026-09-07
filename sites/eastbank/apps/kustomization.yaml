@@ -1,7 +1,13 @@
 ---
+# Eastbank's apps layer: the shared landing page from base/, plus
+# NetworkOptimizer, which runs only here. The two live in separate namespaces
+# (landing, apps) rather than sharing one — base/landing/ brings its own
+# namespace and quota, so a site opts in by listing it and nothing else.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  - ../../../base/landing
+  - pihole-secret.sops.yaml
   - namespace.yaml
   - resourcequota.yaml
   - pvc.yaml

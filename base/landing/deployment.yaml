@@ -1,0 +1,130 @@
+---
+# The quick-links page, and the user-scope Pi-hole blocking control.
+#
+# A Python process rather than a static web server, because Pi-hole has an
+# admin password again and has no user role — the only account it has is full
+# admin. app.py holds that credential and exposes exactly two operations to the
+# browser (read blocking state, set it); everything else stays behind the admin
+# login at pihole.${SITE_DOMAIN}. A static nginx could serve the links but not
+# the control, and a browser calling Pi-hole directly would need the admin
+# password in the page.
+#
+# python:*-alpine is the same official image base/pihole-sync already pins, and
+# unlike nginxinc/nginx-unprivileged it is an official library image — so it
+# lands inside trivy's default trusted-registry list and this component needs
+# no .trivyignore entry at all.
+#
+# No pip install, unlike pihole-sync: this uses only the standard library, so
+# pod start does not depend on PyPI being reachable.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing
+  namespace: landing
+  annotations:
+    # Single-node cluster, so a second replica has nowhere to go — same
+    # reasoning as base/dns/unbound-deployment.yaml.
+    # imagePullPolicy is IfNotPresent repo-wide: the tag is pinned and
+    # Dependabot moves it, so re-pulling on every restart only adds a
+    # registry dependency to pod start.
+    # NetworkPolicy is absent repo-wide, not specifically here.
+    # Probes are one GET of a constant; there is no useful way to make
+    # liveness and readiness differ. Making them differ for the check's sake
+    # would mean giving liveness a Pi-hole-dependent endpoint, which is
+    # exactly the restart loop /healthz exists to avoid.
+    kube-score/ignore: >-
+      deployment-replicas,pod-probes-identical,container-image-pull-policy,pod-networkpolicy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: landing
+  template:
+    metadata:
+      labels:
+        app: landing
+        app.kubernetes.io/name: landing
+        app.kubernetes.io/component: landing-page
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # Above 10000 to satisfy KSV-0020/KSV-0021 and kube-score's
+        # container-security-context-user-group-id, which both treat a low ID
+        # as colliding with host users. Nothing in the image needs a specific
+        # UID: the interpreter and the mounted ConfigMap are world-readable,
+        # and the process writes nothing.
+        runAsUser: 10101
+        runAsGroup: 10101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: landing
+          image: python:3.14.7-alpine3.23
+          imagePullPolicy: IfNotPresent
+          command: ["python3", "/app/app.py"]
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PIHOLE_URL
+              value: "http://pihole-web.dns.svc.cluster.local"
+            - name: PIHOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  # Same admin password the dns namespace holds, in a second
+                  # whole-file Secret because Secrets do not cross namespaces.
+                  # Rotating it means editing both files at this site —
+                  # sites/<site>/infrastructure/pihole-secret.sops.yaml and
+                  # sites/<site>/apps/pihole-secret.sops.yaml. Nothing checks
+                  # that they agree; a mismatch shows up as this page failing
+                  # every call while Pi-hole itself is fine.
+                  name: pihole-secret
+                  key: admin-password
+            - name: CONTENT_PATH
+              value: "/app/index.html"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            # readOnlyRootFilesystem with no writable mount at all: the
+            # interpreter must not try to write .pyc files beside the source.
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          volumeMounts:
+            - name: app
+              mountPath: /app
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+              ephemeral-storage: 16Mi
+            limits:
+              cpu: 200m
+              memory: 96Mi
+              ephemeral-storage: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          # /healthz deliberately does not touch Pi-hole. A Pi-hole outage
+          # should render as an error on the page, not restart this pod in a
+          # loop while it is the only thing still able to report the outage.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+      volumes:
+        - name: app
+          configMap:
+            name: landing

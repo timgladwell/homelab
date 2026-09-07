@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${SITE_NAME} — internal services</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfbfa; --fg: #1a1a19; --muted: #6b6b68;
+  --card: #ffffff; --line: #e4e4e1; --accent: #2f6f4f; --warn: #8a5a12;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181a; --fg: #e8e8e6; --muted: #9a9a96;
+    --card: #1e2124; --line: #2f3336; --accent: #7fc0a0; --warn: #d9a441;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 2.5rem 1.25rem 4rem;
+  background: var(--bg); color: var(--fg);
+  font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 46rem; margin: 0 auto; }
+h1 { font-size: 1.5rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+.here { color: var(--muted); font-size: .9rem; margin: 0 0 2.5rem; }
+.here code { color: var(--accent); font-weight: 600; }
+h2 {
+  font-size: .78rem; text-transform: uppercase; letter-spacing: .08em;
+  color: var(--muted); font-weight: 600;
+  margin: 2rem 0 .75rem; padding-bottom: .4rem; border-bottom: 1px solid var(--line);
+}
+ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+a.svc {
+  display: block; padding: .7rem .9rem; text-decoration: none; color: inherit;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+}
+a.svc:hover { border-color: var(--accent); }
+a.svc:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.name { font-weight: 600; }
+.host { color: var(--muted); font-size: .85rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.panel {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; padding: 1rem;
+}
+#status { margin: 0 0 .85rem; font-weight: 600; }
+#status.off { color: var(--warn); }
+#status.err { color: var(--warn); font-weight: 400; }
+.row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+button, input[type=number] {
+  font: inherit; padding: .45rem .8rem; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--bg); color: inherit;
+}
+button { cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: progress; }
+button.primary { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+input[type=number] { width: 6rem; }
+.hint { color: var(--muted); font-size: .8rem; margin: .75rem 0 0; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .8rem; }
+footer a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Internal services</h1>
+  <p class="here">Served by <code>${SITE_NAME}</code>. Bare names such as
+    <code>pihole.${BASE_DOMAIN}</code> always resolve to the site you are
+    standing in; the links below are site-qualified, so they work from anywhere.</p>
+
+  <h2>Ad blocking — ${SITE_NAME}</h2>
+  <div class="panel">
+    <p id="status">Checking…</p>
+    <div class="row">
+      <button class="disable" data-minutes="1">1 min</button>
+      <button class="disable" data-minutes="5">5 min</button>
+      <button class="disable" data-minutes="30">30 min</button>
+      <input type="number" id="custom" min="1" max="359" step="1" placeholder="mins"
+             aria-label="Custom number of minutes">
+      <button class="disable" id="custom-go">Disable</button>
+      <button class="primary" id="enable">Re-enable now</button>
+    </div>
+    <p class="hint">Pauses blocking for this whole site, then turns it back on
+      automatically. Maximum 359 minutes — anything longer is an administrator
+      decision and belongs in the Pi-hole admin UI.</p>
+  </div>
+
+  <h2>This site — ${SITE_NAME}</h2>
+  <ul>
+    <li><a class="svc" href="https://pihole.${SITE_DOMAIN}/admin/">
+      <span class="name">Pi-hole admin</span><br>
+      <span class="host">pihole.${SITE_DOMAIN}</span></a></li>
+    <li><a class="svc" href="https://traefik.${SITE_DOMAIN}/dashboard/">
+      <span class="name">Traefik dashboard</span><br>
+      <span class="host">traefik.${SITE_DOMAIN}</span></a></li>
+  </ul>
+
+  <h2>Akron</h2>
+  <ul>
+    <li><a class="svc" href="https://grafana.akron.${BASE_DOMAIN}/">
+      <span class="name">Grafana</span><br>
+      <span class="host">grafana.akron.${BASE_DOMAIN}</span></a></li>
+  </ul>
+
+  <h2>Eastbank</h2>
+  <ul>
+    <li><a class="svc" href="https://network-optimizer.eastbank.${BASE_DOMAIN}/">
+      <span class="name">NetworkOptimizer</span><br>
+      <span class="host">network-optimizer.eastbank.${BASE_DOMAIN}</span></a></li>
+  </ul>
+
+  <footer>
+    Declared in <a href="https://github.com/timgladwell/homelab">timgladwell/homelab</a>,
+    <code>base/landing/</code>. Telemetry ingress
+    (<code>prometheus.</code>, <code>loki.</code>) is deliberately absent — those
+    endpoints are path-scoped to writes and serve no UI.
+  </footer>
+</main>
+
+<script>
+// The two calls in app.py, and nothing else. The Pi-hole credential lives in
+// that process; this page never sees it and cannot reach any other endpoint.
+//
+// No JavaScript template literals in this file, deliberately. Flux performs
+// dollar-brace substitution over this ConfigMap — that is what fills in
+// SITE_NAME and SITE_DOMAIN in the markup above — and it cannot tell a
+// backtick placeholder apart from one of its own. The token gets consumed and
+// validation step 7 fails on whatever is left. Annotating this ConfigMap
+// substitute:disabled would silence that and break the page, since the links
+// need substitution. So: string concatenation below, and none in this comment
+// either.
+const status = document.getElementById("status");
+const buttons = [...document.querySelectorAll("button")];
+const custom = document.getElementById("custom");
+let tick;
+
+function render(state) {
+  clearInterval(tick);
+  if (state.blocking === "enabled") {
+    status.className = "";
+    status.textContent = "Blocking is on.";
+    return;
+  }
+  if (state.blocking !== "disabled") {
+    // "failed", "unknown", or anything a future Pi-hole adds.
+    status.className = "err";
+    status.textContent = "Blocking state: " + (state.blocking ?? "unknown") + ".";
+    return;
+  }
+  status.className = "off";
+  if (typeof state.timer !== "number") {
+    status.textContent = "Blocking is off, with no timer set.";
+    return;
+  }
+  // Pi-hole reports seconds remaining as a float (59.7, then
+  // 56.599999999999952 — verified on pihole:2026.07.2), so count down locally
+  // rather than polling it once a second for a number we can already work out.
+  // Math.round below is what turns that back into whole seconds.
+  const until = Date.now() + state.timer * 1000;
+  const paint = () => {
+    const left = Math.round((until - Date.now()) / 1000);
+    if (left <= 0) {
+      // Stop first: refresh() is async, and an interval left running would
+      // fire another fetch every second until the response lands.
+      clearInterval(tick);
+      return refresh();
+    }
+    const m = Math.floor(left / 60), s = String(left % 60).padStart(2, "0");
+    status.textContent = "Blocking is off — back on in " + m + ":" + s + ".";
+  };
+  paint();
+  tick = setInterval(paint, 1000);
+}
+
+async function send(method, body) {
+  buttons.forEach(b => b.disabled = true);
+  try {
+    const res = await fetch("/api/blocking", {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    render(data);
+  } catch (err) {
+    clearInterval(tick);
+    status.className = "err";
+    status.textContent = err.message;
+  } finally {
+    buttons.forEach(b => b.disabled = false);
+  }
+}
+
+const refresh = () => send("GET");
+
+document.querySelectorAll("button.disable").forEach(btn => btn.onclick = () => {
+  const minutes = Number(btn.dataset.minutes ?? custom.value);
+  // app.py enforces this too — it is the boundary that matters. Checking here
+  // as well just turns a 400 into an inline message.
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 359) {
+    clearInterval(tick);
+    status.className = "err";
+    status.textContent = "Enter a whole number of minutes between 1 and 359.";
+    return;
+  }
+  send("POST", { blocking: false, minutes });
+});
+
+document.getElementById("enable").onclick = () => send("POST", { blocking: true });
+custom.addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("custom-go").click();
+});
+
+refresh();
+</script>
+</body>
+</html>
