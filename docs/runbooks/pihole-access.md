@@ -52,8 +52,17 @@ own network path is not involved.
 Leave it running and open <http://localhost:8080/admin> — the admin UI is
 under `/admin`, not at the root. Ctrl-C when finished.
 
-**There is no password** — the UI is deliberately unauthenticated, so this
-runbook needs no credential. See `base/dns/pihole-deployment.yaml` for why.
+**The UI needs the admin password**, which is in this site's
+`sites/<site>/infrastructure/pihole-secret.sops.yaml`:
+
+```bash
+./scripts/secrets-helper.sh view sites/<site>/infrastructure/pihole-secret.sops.yaml
+```
+
+Nobody else in the household should have it. The everyday reason for reaching
+Pi-hole — pausing blocking because a site broke — is served without a login by
+the landing page at `https://<site>.internal.zerpzorp.com/`, which holds the
+credential itself and offers only that one action (`base/landing/`).
 
 If port 8080 is already taken locally, pick another: `port-forward svc/pihole-web
 9090:80` and browse to `localhost:9090`. The second number is the Service port

@@ -41,6 +41,15 @@ spec:
           env:
             - name: PIHOLE_URL
               value: "http://pihole-web.dns.svc.cluster.local"
+            # Pi-hole has an admin password again, so the sync needs it too.
+            # Same Secret the pihole Deployment reads — both are in the dns
+            # namespace, and the infrastructure layer this dns-config layer
+            # dependsOn is what creates it.
+            - name: PIHOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pihole-secret
+                  key: admin-password
             - name: CONFIG_PATH
               value: "/sync/pihole-config.yaml"
             - name: STATE_DIR

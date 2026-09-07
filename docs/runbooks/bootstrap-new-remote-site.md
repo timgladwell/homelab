@@ -32,8 +32,14 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    ```bash
    cp sites/eastbank/infrastructure/cloudflare-secret.sops.yaml sites/<site>/infrastructure/
    ./scripts/secrets-helper.sh edit sites/<site>/infrastructure/cloudflare-secret.sops.yaml
+   cp sites/eastbank/infrastructure/pihole-secret.sops.yaml sites/<site>/infrastructure/
+   ./scripts/secrets-helper.sh edit sites/<site>/infrastructure/pihole-secret.sops.yaml
+   cp sites/eastbank/apps/pihole-secret.sops.yaml sites/<site>/apps/
+   ./scripts/secrets-helper.sh edit sites/<site>/apps/pihole-secret.sops.yaml
    ```
    `secrets-helper.sh edit` re-encrypts on save to whatever `.sops.yaml` says for that path, so the copy picks up the new site's key automatically. Requires the source site's private key locally to decrypt the copy once.
+
+   **The two `pihole-secret` files must hold the same password.** They are separate files only because Secrets do not cross namespaces — Pi-hole and `pihole-sync` read the one in `dns`, the landing page reads the one in `landing`. Nothing validates that they agree; a mismatch shows up as the landing page failing every call while Pi-hole itself is healthy.
 
 5. **Merge the PR containing steps 1, 3, 4.**
 
