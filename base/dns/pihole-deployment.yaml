@@ -103,28 +103,26 @@ spec:
               value: "true"
             - name: FTLCONF_dns_specialDomains_designatedResolver
               value: "true"
-            # No password, deliberately — this is a product decision, not a
-            # gap to close. Blocking has to be temporarily disableable by
-            # anyone in the household, and PiHole has no user role: the only
-            # account it has is full admin. A password here would mean either
-            # sharing the admin credential or having people ask an
-            # administrator every time something breaks, and a blocker that
-            # is annoying to switch off is a blocker that gets ripped out.
+            # Password required, and read by base/landing's server as well
+            # as by humans. Pi-hole has no user role — the only account it has
+            # is full admin — so this credential cannot be shared with the
+            # household. It is not meant to be: base/landing/ holds it in a
+            # process that offers exactly two operations to an unauthenticated
+            # LAN client (read blocking state, pause blocking for up to 359
+            # minutes), which is the user-scope this deployment's previous
+            # comment said a future PR would provide. Everything else the API
+            # can do now needs this password.
             #
-            # The exposure is bounded by reachability, not by a login: the UI
-            # is only on the LAN, only over HTTPS, and only via Traefik at
-            # pihole.${SITE_DOMAIN}. #303 removed the plaintext path that
-            # bypassed it. A future PR gives non-admin clients their own page
-            # for the disable action, at which point this can be revisited —
-            # until then, changing it breaks people rather than protecting
-            # them.
-            #
-            # Explicitly blank, not just omitted: FTLCONF_ vars are the source
-            # of truth only while set. Omitting this var leaves whatever
-            # password hash is already persisted in pihole.toml on the PVC
-            # in effect; an empty string is required to actively clear it.
+            # Set from a Secret rather than left blank: FTLCONF_ vars are the
+            # source of truth only while set, so omitting this var would leave
+            # whatever hash is already persisted in pihole.toml on the PVC in
+            # effect. FTL hashes the value on startup; the plaintext is only
+            # ever in the pod env and in SOPS.
             - name: FTLCONF_webserver_api_password
-              value: ""
+              valueFrom:
+                secretKeyRef:
+                  name: pihole-secret
+                  key: admin-password
           volumeMounts:
             - name: config
               mountPath: /etc/pihole

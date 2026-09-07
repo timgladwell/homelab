@@ -1,0 +1,41 @@
+---
+# Quick-links landing page and user-scope Pi-hole control, served at the site
+# apex and the tree apex.
+#
+# Reconciled by each site's `apps` layer. It is an app, not infrastructure:
+# if it fails to deploy, DNS, ingress, certificates and telemetry are all
+# unaffected — nothing else in the cluster depends on it.
+#
+# One page serves both apexes rather than a distinct per-site index and global
+# index. At two sites and a handful of services the split would be two
+# ConfigMaps and two routers to say almost the same thing; ${SITE_NAME} in the
+# header carries the "which site am I on" part for free. Revisit if a site ever
+# has enough services that a combined list stops being readable.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - resourcequota.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingressroute.yaml
+
+configMapGenerator:
+  # The server and the page it serves, mounted together at /app. One ConfigMap
+  # rather than two because they version together — a change to either should
+  # roll the pod, and splitting them would mean two hashes to reason about.
+  #
+  # namespace is required, not cosmetic: without it the ConfigMap generates
+  # into the default namespace, and kustomize's nameReference transformer then
+  # fails to match the Deployment in landing/ — leaving the volume pointed at
+  # the unhashed name of a ConfigMap that is in the wrong namespace anyway.
+  #
+  # The name suffix hash is deliberately left on, unlike base/metrics-collection's
+  # Alloy ConfigMaps: kustomize does rewrite a Deployment's volume reference, so
+  # the name stays correct, and the hash change is what makes an edit to
+  # index.html or app.py actually reach a running pod.
+  - name: landing
+    namespace: landing
+    files:
+      - app.py
+      - index.html

@@ -129,6 +129,12 @@ run_step "Dependency Coverage" "$VALIDATE_DIR/09-dependabot-coverage.sh"
 # Step 10: Secrets encrypted — independent
 run_step "Secrets Encrypted" "$VALIDATE_DIR/10-secrets-encrypted.sh"
 
+# Step 13: Python tests — independent (the two programs, not the manifests)
+run_step "Python Tests" "$VALIDATE_DIR/13-python-tests.sh"
+
+# Step 14: Pi-hole secret pairs — independent
+run_step "Pi-hole Secret Pairs" "$VALIDATE_DIR/14-pihole-secret-pairs.sh"
+
 # Summary
 echo ""
 echo "================================================================"

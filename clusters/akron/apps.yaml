@@ -1,8 +1,8 @@
 ---
-# The landing page and NetworkOptimizer. Its own Kustomization rather than a
-# directory inside infrastructure because both need the Traefik IngressRoute
-# CRD, which the infrastructure layer installs — the same ordering reason
-# infrastructure-config exists.
+# The landing page. Its own Kustomization rather than a directory inside
+# infrastructure because it needs the Traefik IngressRoute CRD, which the
+# infrastructure layer installs — the same ordering reason infrastructure-config
+# exists.
 #
 # Also the right blast radius: nothing in the cluster depends on this layer, so
 # a failure here leaves DNS, ingress, certificates and telemetry alone.
@@ -16,7 +16,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./sites/eastbank/apps
+  path: ./sites/akron/apps
   prune: true
   wait: true
   timeout: 5m

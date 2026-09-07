@@ -9,3 +9,4 @@ resources:
   - ./monitoring.yaml
   - ./infrastructure-config.yaml
   - ./dns-config.yaml
+  - ./apps.yaml

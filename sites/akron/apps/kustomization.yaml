@@ -1,0 +1,10 @@
+---
+# Akron's apps layer: the landing page, and this site's copy of the Pi-hole
+# admin password for it. Akron has no NetworkOptimizer — the layer exists at
+# both sites now because base/landing/ does, not because the two sites run the
+# same apps.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../base/landing
+  - pihole-secret.sops.yaml
