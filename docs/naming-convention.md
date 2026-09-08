@@ -84,9 +84,53 @@ anywhere, site-local answer, one config line — no anycast, no BGP.
 
 ### Typing burden
 
-Solved by the DHCP search domain (UniFi per-network "Domain Name" set to
-`<site>.internal.zerpzorp.com`) plus the landing pages. Not by shortening
-the domain.
+Solved by the landing pages, and **not** by the DHCP search domain. Not by
+shortening the domain either.
+
+The search domain (UniFi per-network "Domain Name", set to
+`<site>.internal.zerpzorp.com`) does work, and does what it claims — it expands
+a single label to the site FQDN before the query goes out:
+
+```
+$ ping pihole
+PING pihole.akron.internal.zerpzorp.com (10.6.1.80)
+```
+
+**But a browser validates the certificate against the name you typed, not the
+name it resolved to.** So `https://pihole/` fails, permanently:
+
+```
+$ curl -sSI https://pihole/
+curl: (60) SSL: no alternative certificate subject name matches target host name 'pihole'
+```
+
+`*.akron.internal.zerpzorp.com` matches one label *under that domain* and
+cannot match a bare `pihole`, and no public CA will ever close the gap — a
+single-label name is not a public DNS name, so Let's Encrypt cannot issue for
+it however the certificate is requested.
+
+Nor can a redirect rescue it. Traefik's `web` → `websecure` redirect preserves
+the Host header, so `http://pihole/` becomes `https://pihole/` and lands on the
+same error. A host-*rewriting* redirect would work only for clients that try
+plaintext first, which browsers increasingly do not.
+
+So the search domain is for `ssh`, `ping`, `dig` and anything else without TLS,
+where it is genuinely useful. For a browser, use either full name — both are on
+the wildcard:
+
+| | |
+|---|---|
+| `pihole.akron.internal.zerpzorp.com` | this site explicitly |
+| `pihole.internal.zerpzorp.com` | [site-local](#site-local-names) — shorter, and resolves to whichever site you are standing in |
+
+The second is the short name worth learning. It is not a special case; it is the
+site-local scheme above, and it is why the wildcard certificate carries
+`*.internal.zerpzorp.com` as well as the per-site one.
+
+**MetalLB LoadBalancer IPs do not answer ICMP.** `ping pihole` resolves and then
+times out, which looks like an outage and is not one — the VIP is not bound to
+an interface on the node, so TCP is delivered and ICMP is not. Reach for `curl`,
+never `ping`, when checking whether a service is up.
 
 ## Kubernetes object names
 
