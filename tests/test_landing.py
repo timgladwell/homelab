@@ -120,6 +120,11 @@ class ServedByRealHandler(unittest.TestCase):
         status, raw, _ = self.request(method, path, body)
         return status, json.loads(raw)
 
+    def head_content_length(self, path):
+        req = urllib.request.Request(f"http://127.0.0.1:{self.port}{path}", method="HEAD")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return int(resp.headers["Content-Length"])
+
 
 class OutgoingRequestShape(ServedByRealHandler):
     def test_each_button_produces_the_right_pihole_call(self):
@@ -217,6 +222,21 @@ class OtherRoutes(ServedByRealHandler):
         self.assertEqual(status, 200)
         self.assertEqual(payload, {"ok": True})
         self.assertEqual(self.calls, [])
+
+    def test_head_matches_get_without_a_body(self):
+        # `curl -I` is how a person checks a URL, and 501 there reads as an
+        # outage. The Content-Length must still be the GET's, not zero.
+        get_status, get_raw, get_ctype = self.request("GET", "/")
+        status, raw, ctype = self.request("HEAD", "/")
+        self.assertEqual((status, ctype), (get_status, get_ctype))
+        self.assertEqual(raw, b"")
+        self.assertEqual(self.head_content_length("/"), len(get_raw))
+
+    def test_head_on_the_api_does_not_reach_pihole_twice(self):
+        # A HEAD is still a real GET upstream; it just returns no body here.
+        status, raw, _ = self.request("HEAD", "/api/blocking")
+        self.assertEqual((status, raw), (200, b""))
+        self.assertEqual(self.calls, [("GET", "/api/dns/blocking", None)])
 
     def test_root_serves_the_page(self):
         status, raw, ctype = self.request("GET", "/")

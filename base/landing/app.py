@@ -147,7 +147,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
-        self.wfile.write(data)
+        # HEAD gets the headers a GET would produce, and no body — including
+        # the Content-Length the body would have had, which is the whole point
+        # of the method.
+        if self.command != "HEAD":
+            self.wfile.write(data)
 
     def _proxy(self, method, path, body=None):
         """Forward one call and return only the two fields the page uses.
@@ -190,6 +194,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/blocking":
             return self._proxy("GET", "/api/dns/blocking")
         self._send(404, {"error": "not found"})
+
+    # BaseHTTPRequestHandler answers an unimplemented method with 501 and logs
+    # two lines doing it, so `curl -I https://internal.zerpzorp.com/` reported
+    # the page as broken when it was serving fine. Routing is identical to GET;
+    # _send is what drops the body.
+    do_HEAD = do_GET
 
     def _read_body(self):
         """Return the request body, or answer the request and return None.
