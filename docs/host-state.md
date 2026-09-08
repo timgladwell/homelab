@@ -72,7 +72,7 @@ before Flux can do anything useful.
 | What | Where | Notes |
 |---|---|---|
 | DHCP DNS servers | UniFi, per network | All VLANs hand out the site PiHole only. The public fallback is per-node static config, deliberately — see below. |
-| DHCP search domain | UniFi, per network | Set to `<site>.internal.zerpzorp.com`, which resolves for real since #233. Single-label lookups on those VLANs now land on the site's Traefik via the `${SITE_DOMAIN}` wildcard. |
+| DHCP search domain | UniFi, per network | Set to `<site>.internal.zerpzorp.com`, which resolves for real since #233. Single-label lookups on those VLANs land on the site's Traefik via the `${SITE_DOMAIN}` wildcard — but **only usefully for `ssh` / `ping` / `dig`**, never a browser: TLS validates the single label as typed, and no certificate can cover it. See [naming convention](naming-convention.md). VPN clients are handed the resolver but not the search domain unless the WireGuard config sets it. |
 | Syslog targets | UniFi → Settings → Cybersecure → Traffic Logging (`:1514`), and Settings → System Logging (`:1515`) | Both point at `10.6.1.81`, Akron's `alloy-syslog` LoadBalancer, **by IP** — the UDR resolves through its own dnsmasq and is not a PiHole client, so no internal name works. Akron is done; Eastbank and Lottage are #246. |
 | UDR DNS records | UniFi → Policy Table → DNS Records | Per-console A records and Forward Domain rules. A `Forward Domain` row shadows the A records beneath the same zone, which is why `syslog.homelab.home.arpa` resolved through PiHole rather than from the UDR's own table — and died silently with #303. Nothing in the repo reconciles this table. |
 | UniFi read-only user | Each controller | Consumed by Unpoller (via SOPS) and NetworkOptimizer (via its own UI). |
