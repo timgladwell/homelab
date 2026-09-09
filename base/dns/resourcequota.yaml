@@ -1,4 +1,32 @@
 ---
+# Sized for a rollout, not for steady state. Both Deployments take the default
+# maxSurge: 25%, which for replicas: 1 rounds UP to 1, while maxUnavailable: 25%
+# rounds DOWN to 0 — that pairing is what keeps the old pod serving DNS until
+# the new one passes its readiness probe, and it is load-bearing (see
+# pihole-deployment.yaml). It also means two of each pod exist at once whenever
+# either Deployment rolls.
+#
+# A quota that only covers steady state therefore wedges the rollout rather than
+# slowing it: the surge pod is refused admission, maxUnavailable: 0 means the
+# old pod is never allowed to terminate, and the Deployment stops there. Flux
+# reports the apply as successful; the only evidence is a FailedCreate event on
+# the ReplicaSet, which nothing here alerts on. Hence every figure below is
+# doubled.
+#
+# pihole-sync is in this budget whether or not it is named — a ResourceQuota
+# covers every pod in the namespace, there is nothing to opt in. It is counted
+# once (Jobs do not surge) and treated as the expendable tenant: if it is ever
+# the thing refused admission, the blocklists go stale, which is not DNS going
+# down. Note a PriorityClass would not rescue anything here. Quota admission is
+# first-come-first-served and ignores priority entirely, which is the reason
+# this has to be sized rather than ranked.
+#
+# Keeping limits.* in the quota is deliberate beyond the arithmetic: a quota
+# that names a resource makes declaring it mandatory for every pod in the
+# namespace, so these two lines are what enforce CLAUDE.md's requests-and-limits
+# rule here. limits.cpu exceeding the node's 4 cores is expected — a quota
+# bounds what may be declared, not what may be reserved, and PiHole and Unbound
+# each carry a 1-core limit specifically so they can never reach it.
 apiVersion: v1
 kind: ResourceQuota
 metadata:
@@ -6,7 +34,11 @@ metadata:
   namespace: dns
 spec:
   hard:
-    requests.cpu: 500m
-    requests.memory: 512Mi
-    limits.cpu: "2"
-    limits.memory: 1536Mi
+    # 2 x (pihole 200m + unbound 100m + exporter 20m) + sync 50m = 690m
+    requests.cpu: "1"
+    # 2 x (pihole 384Mi + unbound 128Mi + exporter 64Mi) + sync 64Mi = 1216Mi
+    requests.memory: 1536Mi
+    # 2 x (pihole 1 + unbound 1 + exporter 100m) + sync 200m = 4400m
+    limits.cpu: "5"
+    # 2 x (pihole 384Mi + unbound 128Mi + exporter 64Mi) + sync 128Mi = 1280Mi
+    limits.memory: 2Gi
