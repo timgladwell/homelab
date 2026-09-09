@@ -131,6 +131,26 @@ spec:
             - name: dnsmasq-d
               mountPath: /etc/dnsmasq.d
               readOnly: true
+          # Memory request equals the limit deliberately. The kubelet ranks
+          # memory-pressure eviction victims by how far usage exceeds the
+          # request, so a pod that never exceeds its request is evicted last —
+          # which is the protection this needs. Equal numbers mean it can only
+          # be a victim by exceeding the ceiling that would have killed it
+          # anyway.
+          #
+          # 384Mi, down from a 512Mi limit, because 512Mi was never justified
+          # by anything: peak working set over 30 days is 211Mi at Akron and
+          # 148Mi at Eastbank, across a window containing several pihole-sync
+          # gravity rebuilds. FTL has never been OOMKilled here.
+          #
+          # Total cgroup usage does hit 513Mi at both sites, which looks like a
+          # near miss and is not one — 496Mi of that is page cache for FTL's
+          # SQLite databases, which the kernel fills opportunistically because
+          # the headroom exists and reclaims under pressure. Lowering the
+          # ceiling shrinks that cache rather than risking a kill. Read
+          # container_memory_working_set_bytes, not
+          # container_memory_max_usage_bytes, before revisiting this number.
+          #
           # The CPU limit is NOT set equal to the request. Doing that is what
           # Guaranteed QoS requires, and it is actively harmful here: the CFS
           # quota equals the limit, so a 500m limit is 50ms of CPU per 100ms
@@ -141,11 +161,11 @@ spec:
           resources:
             requests:
               cpu: 200m
-              memory: 128Mi
+              memory: 384Mi
               ephemeral-storage: 100Mi
             limits:
               cpu: "1"
-              memory: 512Mi
+              memory: 384Mi
               ephemeral-storage: 1Gi
           securityContext:
             allowPrivilegeEscalation: false

@@ -42,7 +42,7 @@ spec:
           resources:
             requests:
               cpu: 20m
-              memory: 32Mi
+              memory: 64Mi
               ephemeral-storage: 50Mi
             limits:
               cpu: 100m
@@ -70,11 +70,13 @@ spec:
           # sites — 20ms of CPU per 100ms period against recursions that want
           # to burst for longer than that. The cost of a limit here is paid on
           # every uncached lookup; the benefit is nil, because a single-threaded
-          # resolver cannot run away with the node. See #115.
+          # resolver cannot run away with the node. Memory request equals the
+          # limit for the eviction-ranking reason in pihole-deployment.yaml
+          # (peak working set 48Mi). See #115.
           resources:
             requests:
               cpu: 100m
-              memory: 32Mi
+              memory: 128Mi
               ephemeral-storage: 50Mi
             limits:
               cpu: "1"
