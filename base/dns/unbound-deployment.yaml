@@ -9,8 +9,10 @@ metadata:
     # requires mapping those paths which is outside what the upstream image guarantees.
     # Both probes intentionally query dnssec.works to confirm DNSSEC is active.
     # This is a single node deployment; single replica is sufficient for now.
-    # NetworkPolicy is pending re-addition with podSelector (namespaceSelector
-    # blocked pihole→unbound traffic under Flannel).
+    # No NetworkPolicy, deliberately: #79 closed. One was tried in #73 and
+    # reverted in #77 after it broke DNS at every site, and what it bought was
+    # ingress rules on a single-node cluster whose threat model does not
+    # include a hostile pod already inside it. Read #79 before reopening.
     kube-score/ignore: >-
       container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,pod-probes-identical,deployment-replicas,container-image-pull-policy,pod-networkpolicy
 spec:
