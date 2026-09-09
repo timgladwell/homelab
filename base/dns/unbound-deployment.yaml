@@ -23,6 +23,8 @@ spec:
       labels:
         app: unbound
     spec:
+      # See base/dns/priorityclass.yaml.
+      priorityClassName: dns-critical
       securityContext:
         seccompProfile:
           type: RuntimeDefault
