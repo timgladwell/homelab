@@ -9,8 +9,10 @@ metadata:
     # filesystem for FTL runtime state; these checks cannot be satisfied.
     # Both probes intentionally verify DNS resolution via dig.
     # This is a single node deployment; single replica is sufficient for now.
-    # NetworkPolicy is pending re-addition with podSelector (namespaceSelector
-    # blocked pihole→unbound traffic under Flannel).
+    # No NetworkPolicy, deliberately: #79 closed. One was tried in #73 and
+    # reverted in #77 after it broke DNS at every site, and what it bought was
+    # ingress rules on a single-node cluster whose threat model does not
+    # include a hostile pod already inside it. Read #79 before reopening.
     kube-score/ignore: >-
       container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,deployment-replicas,container-image-pull-policy,pod-probes-identical,pod-networkpolicy
 spec:
@@ -29,6 +31,8 @@ spec:
       # LoadBalancer service. RollingUpdate is now safe because the old pod stays
       # alive (serving DNS) until the new pod passes its readiness probe.
       dnsPolicy: ClusterFirst
+      # See base/dns/priorityclass.yaml.
+      priorityClassName: dns-critical
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -131,14 +135,41 @@ spec:
             - name: dnsmasq-d
               mountPath: /etc/dnsmasq.d
               readOnly: true
+          # Memory request equals the limit deliberately. The kubelet ranks
+          # memory-pressure eviction victims by how far usage exceeds the
+          # request, so a pod that never exceeds its request is evicted last —
+          # which is the protection this needs. Equal numbers mean it can only
+          # be a victim by exceeding the ceiling that would have killed it
+          # anyway.
+          #
+          # 384Mi, down from a 512Mi limit, because 512Mi was never justified
+          # by anything: peak working set over 30 days is 211Mi at Akron and
+          # 148Mi at Eastbank, across a window containing several pihole-sync
+          # gravity rebuilds. FTL has never been OOMKilled here.
+          #
+          # Total cgroup usage does hit 513Mi at both sites, which looks like a
+          # near miss and is not one — 496Mi of that is page cache for FTL's
+          # SQLite databases, which the kernel fills opportunistically because
+          # the headroom exists and reclaims under pressure. Lowering the
+          # ceiling shrinks that cache rather than risking a kill. Read
+          # container_memory_working_set_bytes, not
+          # container_memory_max_usage_bytes, before revisiting this number.
+          #
+          # The CPU limit is NOT set equal to the request. Doing that is what
+          # Guaranteed QoS requires, and it is actively harmful here: the CFS
+          # quota equals the limit, so a 500m limit is 50ms of CPU per 100ms
+          # period, and FTL's bursty per-query work was being throttled in ~4%
+          # of periods (~70% at peak) against a 5m-average draw of 19-299m.
+          # A high limit with a modest request keeps the shares that matter
+          # under contention without capping the bursts. See #115.
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 200m
+              memory: 384Mi
               ephemeral-storage: 100Mi
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: "1"
+              memory: 384Mi
               ephemeral-storage: 1Gi
           securityContext:
             allowPrivilegeEscalation: false

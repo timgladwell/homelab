@@ -22,6 +22,10 @@ spec:
         app: pihole-sync
     spec:
       restartPolicy: OnFailure
+      # No priorityClassName, deliberately. It shares the dns namespace with
+      # PiHole and Unbound, which carry dns-critical, and leaving this at the
+      # default 0 is what lets the scheduler preempt a blocklist refresh to
+      # place a resolver. A stale gravity list is not a DNS outage.
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534

@@ -9,8 +9,10 @@ metadata:
     # requires mapping those paths which is outside what the upstream image guarantees.
     # Both probes intentionally query dnssec.works to confirm DNSSEC is active.
     # This is a single node deployment; single replica is sufficient for now.
-    # NetworkPolicy is pending re-addition with podSelector (namespaceSelector
-    # blocked pihole→unbound traffic under Flannel).
+    # No NetworkPolicy, deliberately: #79 closed. One was tried in #73 and
+    # reverted in #77 after it broke DNS at every site, and what it bought was
+    # ingress rules on a single-node cluster whose threat model does not
+    # include a hostile pod already inside it. Read #79 before reopening.
     kube-score/ignore: >-
       container-security-context-readonlyrootfilesystem,container-security-context-user-group-id,pod-probes-identical,deployment-replicas,container-image-pull-policy,pod-networkpolicy
 spec:
@@ -23,6 +25,8 @@ spec:
       labels:
         app: unbound
     spec:
+      # See base/dns/priorityclass.yaml.
+      priorityClassName: dns-critical
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -42,10 +46,10 @@ spec:
           resources:
             requests:
               cpu: 20m
-              memory: 32Mi
+              memory: 64Mi
               ephemeral-storage: 50Mi
             limits:
-              cpu: 50m
+              cpu: 100m
               memory: 64Mi
               ephemeral-storage: 64Mi
           securityContext:
@@ -62,13 +66,24 @@ spec:
             - name: config
               mountPath: /etc/unbound/custom.conf.d/unbound.conf
               subPath: unbound.conf
+          # A full core, against a 14m average draw, is not a typo. Unbound
+          # runs num-threads: 1 (unbound-configmap.yaml), so a 1000m CFS quota
+          # is one it physically cannot exceed and throttling goes to zero
+          # rather than merely down. At the previous 200m limit it was being
+          # throttled in ~50% of every CFS period, continuously, at both
+          # sites — 20ms of CPU per 100ms period against recursions that want
+          # to burst for longer than that. The cost of a limit here is paid on
+          # every uncached lookup; the benefit is nil, because a single-threaded
+          # resolver cannot run away with the node. Memory request equals the
+          # limit for the eviction-ranking reason in pihole-deployment.yaml
+          # (peak working set 48Mi). See #115.
           resources:
             requests:
-              cpu: 50m
-              memory: 32Mi
+              cpu: 100m
+              memory: 128Mi
               ephemeral-storage: 50Mi
             limits:
-              cpu: 200m
+              cpu: "1"
               memory: 128Mi
               ephemeral-storage: 256Mi
           securityContext:

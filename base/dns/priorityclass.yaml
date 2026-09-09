@@ -1,0 +1,18 @@
+---
+# DNS is the one workload here whose failure takes the cluster with it: CoreDNS
+# forwards to PiHole, so Flux loses its Git source and Helm loses its chart
+# repos the moment these pods go. Everything else on the node is unset, which
+# is priority 0, so this single class is enough to rank DNS above all of it —
+# a second "apps-default" class at some low value would change nothing. Flux's
+# own controllers are already system-cluster-critical and outrank this.
+#
+# Two effects, and the second is the useful one on a single node: the kubelet
+# breaks eviction ties by priority, and the scheduler will preempt a lower
+# priority pod to make room for one of these.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: dns-critical
+value: 1000
+globalDefault: false
+description: "Site DNS (PiHole + Unbound). Preempts app-tier workloads."
