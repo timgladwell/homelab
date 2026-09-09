@@ -35,6 +35,9 @@ STATE_DIR = os.environ.get("STATE_DIR", "/tmp/state")
 _GRAVITY_FLAG = os.path.join(STATE_DIR, "gravity.flag")
 
 _PROTECTED_GROUPS = {"Default"}
+# Named so Pi-hole's own logs attribute these calls to this syncer rather than
+# to "Python-urllib", which every other script would also claim.
+_USER_AGENT = "pihole-sync"
 _MAX_RETRIES = 5
 _RETRY_BASE_DELAY = 2.0  # seconds; doubles on each attempt
 
@@ -78,13 +81,17 @@ def _gravity_flag_set():
 # HTTP helpers
 # ---------------------------------------------------------------------------
 
-def _request(method, path, body=None, sid=None, timeout=60):
-    url = f"{PIHOLE_URL}{path}"
-    headers = {"Content-Type": "application/json"}
+def _headers(sid=None):
+    headers = {"Content-Type": "application/json", "User-Agent": _USER_AGENT}
     if sid:
         headers["X-FTL-SID"] = sid
+    return headers
+
+
+def _request(method, path, body=None, sid=None, timeout=60):
+    url = f"{PIHOLE_URL}{path}"
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    req = urllib.request.Request(url, data=data, headers=_headers(sid), method=method)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             raw = resp.read()
@@ -419,10 +426,7 @@ def run_gravity(sid):
     log("--- Running gravity update (may take several minutes) ---")
     t0 = time.monotonic()
     url = f"{PIHOLE_URL}/api/action/gravity"
-    headers = {"Content-Type": "application/json"}
-    if sid:
-        headers["X-FTL-SID"] = sid
-    req = urllib.request.Request(url, data=b"", headers=headers, method="POST")
+    req = urllib.request.Request(url, data=b"", headers=_headers(sid), method="POST")
     try:
         # timeout=300: allow up to 5 minutes of silence between streamed lines.
         # Individual list fetches from external sources can be slow.

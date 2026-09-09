@@ -38,6 +38,9 @@ MAX_MINUTES = 360
 UPSTREAM_TIMEOUT = 10
 # Nothing this server accepts is larger than a two-field JSON object.
 MAX_BODY = 1024
+# Named so Pi-hole's own logs attribute these calls to this server rather
+# than to "Python-urllib", which every other script would also claim.
+_USER_AGENT = "landing"
 
 _sid = None
 _sid_lock = threading.Lock()
@@ -53,7 +56,7 @@ def log(msg, *, err=False):
 # ---------------------------------------------------------------------------
 
 def _pihole(method, path, body=None, sid=None):
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "User-Agent": _USER_AGENT}
     if sid:
         headers["X-FTL-SID"] = sid
     req = urllib.request.Request(
