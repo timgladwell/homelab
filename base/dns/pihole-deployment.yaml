@@ -131,13 +131,20 @@ spec:
             - name: dnsmasq-d
               mountPath: /etc/dnsmasq.d
               readOnly: true
+          # The CPU limit is NOT set equal to the request. Doing that is what
+          # Guaranteed QoS requires, and it is actively harmful here: the CFS
+          # quota equals the limit, so a 500m limit is 50ms of CPU per 100ms
+          # period, and FTL's bursty per-query work was being throttled in ~4%
+          # of periods (~70% at peak) against a 5m-average draw of 19-299m.
+          # A high limit with a modest request keeps the shares that matter
+          # under contention without capping the bursts. See #115.
           resources:
             requests:
-              cpu: 100m
+              cpu: 200m
               memory: 128Mi
               ephemeral-storage: 100Mi
             limits:
-              cpu: 500m
+              cpu: "1"
               memory: 512Mi
               ephemeral-storage: 1Gi
           securityContext:

@@ -45,7 +45,7 @@ spec:
               memory: 32Mi
               ephemeral-storage: 50Mi
             limits:
-              cpu: 50m
+              cpu: 100m
               memory: 64Mi
               ephemeral-storage: 64Mi
           securityContext:
@@ -62,13 +62,22 @@ spec:
             - name: config
               mountPath: /etc/unbound/custom.conf.d/unbound.conf
               subPath: unbound.conf
+          # A full core, against a 14m average draw, is not a typo. Unbound
+          # runs num-threads: 1 (unbound-configmap.yaml), so a 1000m CFS quota
+          # is one it physically cannot exceed and throttling goes to zero
+          # rather than merely down. At the previous 200m limit it was being
+          # throttled in ~50% of every CFS period, continuously, at both
+          # sites — 20ms of CPU per 100ms period against recursions that want
+          # to burst for longer than that. The cost of a limit here is paid on
+          # every uncached lookup; the benefit is nil, because a single-threaded
+          # resolver cannot run away with the node. See #115.
           resources:
             requests:
-              cpu: 50m
+              cpu: 100m
               memory: 32Mi
               ephemeral-storage: 50Mi
             limits:
-              cpu: 200m
+              cpu: "1"
               memory: 128Mi
               ephemeral-storage: 256Mi
           securityContext:
