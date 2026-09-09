@@ -128,6 +128,17 @@ class ResolveGroupIds(unittest.TestCase):
         self.assertEqual(sync._resolve_group_ids([], {"Default": 0}), [])
 
 
+class Headers(unittest.TestCase):
+    """Pi-hole attributes calls by User-Agent; the default is "Python-urllib"."""
+
+    def test_names_the_application(self):
+        self.assertIn("pihole-sync", sync._headers()["User-Agent"])
+
+    def test_sid_is_only_sent_when_present(self):
+        self.assertNotIn("X-FTL-SID", sync._headers())
+        self.assertEqual(sync._headers("abc")["X-FTL-SID"], "abc")
+
+
 class ProtectedGroups(unittest.TestCase):
     def test_default_group_is_never_removed(self):
         # Deleting Default detaches every list and client from their group.
