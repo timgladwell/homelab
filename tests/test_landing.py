@@ -265,6 +265,52 @@ class UpstreamFailures(ServedByRealHandler):
         self.assertNotIn("hint", json.dumps(payload))
 
 
+class UpstreamRequest(unittest.TestCase):
+    """The Request _pihole hands to urllib, below the seam the tests above fake."""
+
+    def setUp(self):
+        # Loaded with no environment, so PIHOLE_URL is "" and Request() would
+        # reject the scheme-less URL before urlopen is reached.
+        self._real_url = app.PIHOLE_URL
+        app.PIHOLE_URL = "http://pihole.invalid"
+
+    def tearDown(self):
+        app.PIHOLE_URL = self._real_url
+
+    def _capture(self, **kwargs):
+        sent = []
+
+        class FakeResponse:
+            status = 200
+
+            def read(self):
+                return b"{}"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        real = app.urllib.request.urlopen
+        app.urllib.request.urlopen = lambda req, timeout=None: (
+            sent.append(req), FakeResponse())[1]
+        try:
+            app._pihole("POST", "/api/dns/blocking", **kwargs)
+        finally:
+            app.urllib.request.urlopen = real
+        return sent[0]
+
+    def test_names_the_application(self):
+        # Pi-hole attributes calls by User-Agent; urllib's default is
+        # "Python-urllib", which every other script would also send.
+        self.assertEqual(self._capture().get_header("User-agent"), "landing")
+
+    def test_sid_is_only_sent_when_present(self):
+        self.assertIsNone(self._capture().get_header("X-ftl-sid"))
+        self.assertEqual(self._capture(sid="abc").get_header("X-ftl-sid"), "abc")
+
+
 class ValidateUnit(unittest.TestCase):
     """validate() on its own, for the cases that are awkward to send as JSON."""
 
