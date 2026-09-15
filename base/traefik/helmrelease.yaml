@@ -52,6 +52,18 @@ spec:
     service:
       annotations:
         metallb.universe.tf/loadBalancerIPs: "${METALLB_TRAEFIK_IP}"
+      # Preserve the client's source address. The default, Cluster, has
+      # kube-proxy SNAT every inbound packet before Traefik sees it, so every
+      # access log line ever written here recorded 10.42.1.1 — the CNI gateway
+      # — including requests from LAN browsers. X-Forwarded-For carried the
+      # same useless address, which is why base/landing/ could not tell one
+      # device from another.
+      #
+      # Local costs nothing on a single node behind MetalLB L2: there is no
+      # second node for traffic to be dropped on. base/dns/pihole-dns-service.yaml
+      # already does this, for the same reason.
+      spec:
+        externalTrafficPolicy: Local
 
     # Single replica (homelab constraints).
     # RollingUpdate is now safe: old pod keeps accepting traffic until the new
