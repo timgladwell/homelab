@@ -160,7 +160,7 @@ sites/<site>/                    # Everything specific to one K3s cluster
   monitoring/                    # Every site: base/metrics-collection. Akron adds the storage
                                  # side — Prometheus + Grafana + Loki + Alloy (logs).
                                  # Eastbank adds Unpoller, which polls every site's UniFi
-  apps/                          # Eastbank only: NetworkOptimizer
+  apps/                          # Every site: base/landing. Eastbank adds NetworkOptimizer.
 
 clusters/common/                 # Estate-wide variables, referenced by every clusters/<site>/
   network-vars.yaml              # BASE_DOMAIN + each site's Traefik IP, as seen from other sites
@@ -173,7 +173,7 @@ clusters/<site>/                 # Flux entry point — managed by the flux-syst
   monitoring.yaml                # -> sites/<site>/monitoring
   infrastructure-config.yaml     # -> sites/<site>/infrastructure-config
   dns-config.yaml                # -> sites/<site>/dns-config
-  apps.yaml                      # -> sites/<site>/apps  (Eastbank only)
+  apps.yaml                      # -> sites/<site>/apps
 
 ```
 
@@ -218,6 +218,7 @@ Step 3 assembles each site's complete manifest set the same way Flux does — `k
 2. `monitoring` → `sites/akron/monitoring` — depends on `infrastructure`
 3. `infrastructure-config` → `sites/akron/infrastructure-config` — depends on `infrastructure`
 4. `dns-config` → `sites/akron/dns-config` — depends on `infrastructure`
+5. `apps` → `sites/akron/apps` — depends on `infrastructure`
 
 **Eastbank** (watches `stable`) — `clusters/eastbank/` → `infrastructure` (`sites/eastbank/infrastructure`) → `monitoring`, `infrastructure-config`, `dns-config` and `apps`, all depending on `infrastructure`.
 
@@ -306,7 +307,7 @@ Opting a site out is just *not adding the line* — there is no delete-patch pat
 
 **Specific to one site** (e.g. Akron's monitoring stack): create it under `sites/<site>/<layer>/` and add it to that layer's `kustomization.yaml`. Nothing else changes.
 
-**The `apps` layer exists at Eastbank only** (`sites/eastbank/apps/`, `clusters/eastbank/apps.yaml`), holding NetworkOptimizer. Akron has none. Add one to another site with the steps in *Adding a new top-level Flux Kustomization* below.
+**The `apps` layer exists at both sites**, because `base/landing/` does. Eastbank's also holds NetworkOptimizer, which runs only there. A site opts into a component by listing it, so the shared layer name does not mean the two sites run the same apps. Add the layer to another site with the steps in *Adding a new top-level Flux Kustomization* below.
 
 **`dns-config` depends on `infrastructure`, not `apps`.** It used to depend on `apps`, but that was incidental ordering — `pihole-sync` talks to `pihole-web`, which the infrastructure layer owns. There is no dependency in either direction; do not reintroduce one.
 
