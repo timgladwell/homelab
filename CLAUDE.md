@@ -375,7 +375,9 @@ Dependabot lists explicit directories, so **a component that moves or gains an i
 
 Renovate's `customManagers` fail the same silent way: a `# renovate:` comment whose regex doesn't match, or that sits in a file outside the manager's `managerFilePatterns`, produces no error — Renovate simply never proposes a bump. Step 9 checks both halves together, which is why it covers Renovate as well as Dependabot despite the script's filename.
 
-Flux's own controller images (`clusters/*/flux-system/`) are excluded from both: they are upgraded with the Flux CLI, see `docs/runbooks/flux-upgrades.md`.
+`clusters/*/flux-system/gotk-components.yaml` is Renovate's, not Dependabot's. Renovate's `flux` manager covers `clusters/`, and it regenerates the whole file — CRD schemas, RBAC, NetworkPolicies — rather than bumping the `image:` tags inside it, so a Flux bump is normally review-and-merge.
+
+Two halves of that upgrade are outside both tools and are hand work every time: the Flux CLI pin in `.github/workflows/validate.yml`, which must be bumped **in the same PR** or CI validates with a different renderer than the clusters run, and the `flux` binary on each box, which nothing in the cluster owns. See `docs/runbooks/flux-upgrades.md`.
 
 ### Known dead ends
 

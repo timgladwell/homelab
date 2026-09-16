@@ -6,7 +6,15 @@ Renovate's `flux` manager regenerates the **entire** `gotk-components.yaml` for 
 
 **That covers the cluster, not the hosts.** A Flux upgrade is two halves. The controllers upgrade themselves by reconciling `gotk-components.yaml`, so no one logs into a box for *them*. The `flux` binary on each box cannot upgrade itself and never will — that is manual, per-host work, and it is [step 4](#rollout-order). It is easy to skip precisely because both clusters report healthy without it, which is how it gets missed.
 
-Confirm the diff really is a regeneration before trusting it: it must move the `# Flux Version:` header **and** carry CRD or schema hunks. If the only changes are `app.kubernetes.io/version` labels and `image:` tags, Renovate did not regenerate — see [Regenerating by hand](#regenerating-by-hand).
+Confirm the diff really is a regeneration before trusting it — but not by reading it. A diff of nothing but `app.kubernetes.io/version` labels and `image:` tags *looks* like a failed regeneration and is not evidence of one: a patch release that changes no schema produces exactly that diff legitimately. v2.9.5 (#325) did.
+
+The reliable test is one command, and it contacts no cluster. It needs the target CLI, so do [check 4](#4-your-local-cli) first:
+
+```bash
+flux install --export | diff clusters/akron/flux-system/gotk-components.yaml -
+```
+
+No output means Renovate regenerated correctly, whatever the diff looked like. Any output means it did not — see [Regenerating by hand](#regenerating-by-hand).
 
 The five checks below are what "review" means. They are all answerable from git and the release notes; none require cluster access.
 
@@ -47,12 +55,15 @@ Renovate will never do this for you: its `flux` manager reads Flux manifests and
 Validation step 2 shells out to `flux build`. Running it with an older CLI than the manifests you are validating is a false green.
 
 ```bash
+brew update                    # without this, `brew info` answers from a stale tap
 brew info fluxcd/tap/flux      # check what stable is before upgrading
 brew upgrade fluxcd/tap/flux
 flux version --client          # must match the target
 ```
 
-If brew's stable has already moved past the version you are shipping, install that exact one instead:
+`brew update` is not optional here. The tap is usually current within hours of a release, so a `brew info` that reports the version you are upgrading *away from* almost always means a stale cache rather than a tap that has not caught up — and it sends you to the install.sh fallback below for no reason.
+
+If brew's stable really has moved past the version you are shipping, install that exact one instead:
 
 ```bash
 FLUX_VERSION=<x.y.z> curl -s https://fluxcd.io/install.sh | bash
@@ -159,7 +170,7 @@ Any output means a botched regeneration — most likely one site written with a 
 
 ## Regenerating by hand
 
-Only needed when the bump is a **major** release, when Renovate produced a label-only diff, or when the installed component list itself must change (the `# Components:` header at the top of `gotk-components.yaml`).
+Only needed when the bump is a **major** release, when the `flux install --export` check above came back non-empty, or when the installed component list itself must change (the `# Components:` header at the top of `gotk-components.yaml`).
 
 **Do not use `flux bootstrap` for upgrades.** Bootstrap diffs and re-applies the component manifests and pushes any drift straight to `main`, which the branch ruleset blocks. Bootstrap is for initial setup and sync config changes; `flux install --export` is the tool for upgrades, and it generates manifests locally without contacting a cluster.
 
