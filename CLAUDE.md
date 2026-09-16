@@ -9,6 +9,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
   **The exceptions are inventoried in `docs/host-state.md`** — node-level configuration, the two bootstrap secrets, and everything in UniFi and Cloudflare. Read it before assuming a rebuild restores something. Every item there fails silently: nothing alerts when the kubelet resolver config is missing, you find out when pods cannot resolve anything. **Adding host-level configuration means adding it to that page in the same PR.**
 - **Security by default.** No secrets in the repo (use SOPS/Age encryption). Pre-commit hooks enforce this. All manifests should follow least-privilege principles.
+
+  **Data originating outside the system is untrusted, and reaches the DOM through `textContent`.** Never `innerHTML`, and never "sanitise" it on the way in by encoding it at the source.
+
+  Escaping is contextual and belongs at the sink, in the sink's own language — URL-encoding a value that will be rendered as text corrupts legitimate data to solve a problem the sink already solved. `textContent` is stronger than escaping rather than a weaker form of it: it creates a text node directly, so the HTML parser never runs on the string and there is no markup context to escape out of. Encoding at the source also mangles the stored value, so the next renderer — an export, a log line, an alert body — either inherits double-encoded garbage or decodes it and reopens the hole.
+
+  **Read "outside the system" broadly.** It is not only form input. Pi-hole's query log is external data: a domain is chosen by whoever resolved it and a client's reverse-DNS name is chosen by the device it names, so anything that can send a DNS packet can make `base/landing/`'s page render a string of its choosing without ever touching the page. Keep the reason in a comment beside each such value, and treat one landing in an attribute, a URL or `innerHTML` as the thing review exists to catch.
 - **Keep it simple.** Avoid over-engineering. The RPi has limited resources (300m CPU / 150Mi memory is a typical ceiling for a single workload). Don't add abstractions, features, or tooling that aren't needed yet.
 
 ## Development Principles
