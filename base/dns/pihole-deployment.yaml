@@ -100,6 +100,20 @@ spec:
             # Listen on all interfaces (required in Kubernetes pod networking)
             - name: FTLCONF_dns_listeningMode
               value: "all"
+            # Stop writing the plaintext query log. /var/log/pihole is mounted
+            # nowhere, so pihole.log lands in the container's writable overlay
+            # layer — NVMe writes for a file that is discarded on every restart
+            # and that nothing reads. See #350.
+            #
+            # The durable copy is pihole-FTL.db on the PVC, which the UI, the
+            # API and base/landing/ all read and which this does not touch: in
+            # v6 FTL *is* dnsmasq, so it records queries to the database
+            # directly rather than by parsing its own log file. That was not
+            # true in v5, where the equivalent setting also emptied the UI query
+            # log — so confirm the Query Log still populates after this
+            # deploys, and revert this one value if it does not.
+            - name: FTLCONF_dns_queryLogging
+              value: "false"
             # Block DNS bypass mechanisms
             - name: FTLCONF_dns_specialDomains_mozillaCanary
               value: "true"
