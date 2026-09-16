@@ -55,12 +55,15 @@ Renovate will never do this for you: its `flux` manager reads Flux manifests and
 Validation step 2 shells out to `flux build`. Running it with an older CLI than the manifests you are validating is a false green.
 
 ```bash
+brew update                    # without this, `brew info` answers from a stale tap
 brew info fluxcd/tap/flux      # check what stable is before upgrading
 brew upgrade fluxcd/tap/flux
 flux version --client          # must match the target
 ```
 
-If brew's stable has already moved past the version you are shipping, install that exact one instead:
+`brew update` is not optional here. The tap is usually current within hours of a release, so a `brew info` that reports the version you are upgrading *away from* almost always means a stale cache rather than a tap that has not caught up — and it sends you to the install.sh fallback below for no reason.
+
+If brew's stable really has moved past the version you are shipping, install that exact one instead:
 
 ```bash
 FLUX_VERSION=<x.y.z> curl -s https://fluxcd.io/install.sh | bash
