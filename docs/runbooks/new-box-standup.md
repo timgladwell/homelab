@@ -107,14 +107,16 @@ Raspberry Pi OS (bookworm+, including trixie) provisions the first boot via **cl
 
    This config lives on the box, not in git, and no GitOps reconcile restores it. Renaming the host or reinstalling k3s leaves it alone — NM profiles bind to the interface, not the hostname — but a reflash loses it, which is why it is a step here.
 
-7. **Revoke the temporary passwordless sudo** granted in step 2:
+7. **If the box boots from a USB-attached SSD rather than an SD card, enable TRIM** — follow [TRIM on a USB-Attached SSD](usb-trim.md). It is a separate page because the answer is per-enclosure: the kernel does not issue `UNMAP` over a USB bridge by default, so `fstrim` silently reclaims nothing, and forcing it on a bridge that does not genuinely support it can corrupt the filesystem. Diagnose first. Skip this step entirely on an SD-card box — there is nothing to enable.
+
+8. **Revoke the temporary passwordless sudo** granted in step 2:
    ```bash
    sudo visudo -f /etc/sudoers.d/90-cloud-init-users
    # change: tim ALL=(ALL) NOPASSWD:ALL
    # to:     tim ALL=(ALL) ALL
    ```
 
-8. **Clone dotfiles** — follow the [servers section of the dotfiles README](https://github.com/timgladwell/dotfiles#servers).
+9. **Clone dotfiles** — follow the [servers section of the dotfiles README](https://github.com/timgladwell/dotfiles#servers).
 
 ## Appendix: why step 6 persists differently per box
 

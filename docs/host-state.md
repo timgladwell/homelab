@@ -34,6 +34,7 @@ Set by hand, per [Standing Up a New Headless Box](runbooks/new-box-standup.md):
 | DHCP override | `nmcli … ipv4.ignore-auto-dns yes` | Stops DHCP appending its own list on top. |
 | Revoked sudo | `/etc/sudoers.d/90-cloud-init-users` | Cloud-init grants `NOPASSWD` for first login; it is meant to be removed. |
 | Dotfiles | `~` | [dotfiles README](https://github.com/timgladwell/dotfiles#servers). |
+| TRIM on a USB SSD | `/etc/udev/rules.d/10-usb-ssd-trim.rules` + `fstrim.timer` | Only for a box that boots from a USB-attached SSD — today Akron alone; every other node is on an SD card. The kernel leaves `provisioning_mode` at `full` for a USB bridge, so discard is a no-op and `fstrim` silently reclaims nothing without the rule — which is what Akron did for the drive's whole life until 2026-09-16, when the first real trim returned 178 GiB. The rule is what makes it survive a reboot or a replug; the `fstrim.timer` it feeds was already enabled. [Runbook](runbooks/usb-trim.md). |
 
 Set during k3s install, per [Bootstrapping a New Remote Site](runbooks/bootstrap-new-remote-site.md):
 

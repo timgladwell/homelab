@@ -15,6 +15,7 @@ Operational procedures for tasks that fall outside the normal GitOps flow.
 - [Reaching PiHole When Traefik Is Not Routing](runbooks/pihole-access.md)
 - [Read-Only Grafana Access for Claude Code](runbooks/grafana-query-access.md)
 - [Let's Encrypt Certificates on a UniFi Console](runbooks/unifi-tls.md)
+- [TRIM on a USB-Attached SSD](runbooks/usb-trim.md)
 
 See also [State That Is Not In Git](host-state.md) — the inventory of everything a reconcile will not restore.
 
