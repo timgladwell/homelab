@@ -415,7 +415,34 @@ class Handler(BaseHTTPRequestHandler):
             log(f"unreadable /api/queries response: {exc}", err=True)
             raise Unavailable("Pi-hole sent a response this page could not read") from None
 
+    def _drain(self):
+        """Consume the body of a request that does not take one.
+
+        The other half of _read_body's problem, and the half that had been
+        missed. do_GET never read a body, so `curl -X GET --data x` left those
+        bytes in the socket, and HTTP/1.1 keep-alive parsed them as the head of
+        the *next* request on that connection — breaking a request that had
+        nothing wrong with it.
+
+        A GET body is never legitimate here, so it is read and dropped rather
+        than refused: answering 400 without draining would be the identical
+        bug. When Content-Length cannot be trusted there is no safe number of
+        bytes to drain, so the connection is closed instead.
+        """
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            self.close_connection = True
+            return
+        if length > MAX_BODY:
+            # Too big to drain politely; hang up rather than read it all.
+            self.close_connection = True
+            return
+        if length:
+            self.rfile.read(length)
+
     def do_GET(self):
+        self._drain()
         # /api/activity takes a query string, so routing is on the path alone.
         url = urllib.parse.urlsplit(self.path)
         if url.path == "/healthz":

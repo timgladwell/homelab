@@ -14,6 +14,7 @@ validate() test while sending Pi-hole something it ignores or misreads.
 So these tests run the real Handler on a real socket and fake only _call,
 which is the seam where app.py stops being ours and starts being Pi-hole's.
 """
+import http.client
 import json
 import threading
 import unittest
@@ -205,6 +206,37 @@ class RejectedBeforeUpstream(ServedByRealHandler):
         self.assertEqual(status, 200)
         self.assertEqual(self.calls, [("POST", "/api/dns/blocking",
                                        {"blocking": False, "timer": 300})])
+
+    def test_a_get_with_a_body_does_not_break_the_next_request(self):
+        # The same keep-alive failure _read_body prevents for POST: bytes left
+        # in the socket become the head of the next request on that
+        # connection, so the request that breaks is the innocent one after it.
+        # urlopen opens a fresh connection per call and cannot see this, which
+        # is why this one test speaks HTTP directly.
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        self.addCleanup(conn.close)
+        conn.request("GET", "/api/blocking", body=b'{"blocking":true}')
+        first = conn.getresponse()
+        self.assertEqual(first.status, 200)
+        first.read()
+        conn.request("GET", "/healthz")
+        resp = conn.getresponse()
+        self.assertEqual((resp.status, json.loads(resp.read())), (200, {"ok": True}))
+
+    def test_an_oversized_get_body_hangs_up_rather_than_draining(self):
+        # Too big to want and too big to drain politely, so the request is
+        # answered and the connection dropped — the same trade _read_body
+        # makes at 413. Asserted by the socket being unusable afterwards:
+        # close_connection closes it without emitting a Connection header.
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        self.addCleanup(conn.close)
+        conn.request("GET", "/healthz", body=b"x" * (app.MAX_BODY + 1))
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 200)
+        resp.read()
+        with self.assertRaises((http.client.HTTPException, OSError)):
+            conn.request("GET", "/healthz")
+            conn.getresponse()
 
     def test_empty_body_is_refused(self):
         status, _ = self.json_request("POST", "/api/blocking", b"")
