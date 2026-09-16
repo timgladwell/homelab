@@ -62,7 +62,8 @@ under `/admin`, not at the root. Ctrl-C when finished.
 Nobody else in the household should have it. The everyday reason for reaching
 Pi-hole — pausing blocking because a site broke — is served without a login by
 the landing page at `https://<site>.internal.zerpzorp.com/`, which holds the
-credential itself and offers only that one action (`base/landing/`).
+credential itself and offers only that one action, alongside a read-only view
+of what the visiting device has been resolving (`base/landing/`).
 
 If port 8080 is already taken locally, pick another: `port-forward svc/pihole-web
 9090:80` and browse to `localhost:9090`. The second number is the Service port

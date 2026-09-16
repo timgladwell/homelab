@@ -63,6 +63,22 @@ button:disabled { opacity: .5; cursor: progress; }
 button.primary { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 input[type=number] { width: 6rem; }
 .hint { color: var(--muted); font-size: .8rem; margin: .75rem 0 0; }
+
+.figures { display: flex; flex-wrap: wrap; gap: 1.75rem; margin: 0 0 1rem; }
+.figure .n { font-size: 1.6rem; font-weight: 600; line-height: 1.1; }
+.figure .l { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
+.domains {
+  display: block; margin: 0; padding: 0; list-style: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem;
+  max-height: 14rem; overflow-y: auto;
+}
+.domains li { display: flex; gap: .6rem; padding: .18rem 0; }
+.domains .t { color: var(--muted); flex: none; }
+.domains .d { overflow-wrap: anywhere; }
+.domains .d.b { color: var(--warn); }
+.domains li.none { color: var(--muted); font-family: inherit; }
+details { margin-top: 1rem; }
+summary { cursor: pointer; color: var(--muted); font-size: .8rem; }
 footer { margin-top: 3rem; color: var(--muted); font-size: .8rem; }
 footer a { color: inherit; }
 </style>
@@ -73,6 +89,27 @@ footer a { color: inherit; }
   <p class="here">Served by <code>${SITE_NAME}</code>. Bare names such as
     <code>pihole.${BASE_DOMAIN}</code> always resolve to the site you are
     standing in; the links below are site-qualified, so they work from anywhere.</p>
+
+  <h2>This device</h2>
+  <div class="panel">
+    <p id="me-status">Checking…</p>
+    <div class="figures" id="me-figures" hidden>
+      <div class="figure"><div class="n" id="me-queries">–</div><div class="l">queries, 24h</div></div>
+      <div class="figure"><div class="n" id="me-blocked">–</div><div class="l">blocked</div></div>
+      <div class="figure"><div class="n" id="me-percent">–</div><div class="l">of queries</div></div>
+    </div>
+    <ul class="domains" id="me-blocked-list"></ul>
+    <details>
+      <summary id="me-recent-summary">Everything this device just asked for</summary>
+      <ul class="domains" id="me-recent-list"></ul>
+    </details>
+    <div class="row" style="margin-top:1rem">
+      <button id="me-refresh">Refresh</button>
+    </div>
+    <p class="hint">Whichever device you are reading this on, matched by the
+      address Pi-hole saw the query come from. Nothing here refreshes on its
+      own — an open tab should cost nothing.</p>
+  </div>
 
   <h2>Ad blocking — ${SITE_NAME}</h2>
   <div class="panel">
@@ -124,8 +161,8 @@ footer a { color: inherit; }
 </main>
 
 <script>
-// The two calls in app.py, and nothing else. The Pi-hole credential lives in
-// that process; this page never sees it and cannot reach any other endpoint.
+// The three endpoints in app.py, and nothing else. The Pi-hole credential lives
+// in that process; this page never sees it and cannot reach any other endpoint.
 //
 // No JavaScript template literals in this file, deliberately. Flux performs
 // dollar-brace substitution over this ConfigMap — that is what fills in
@@ -219,6 +256,88 @@ custom.addEventListener("keydown", e => {
 });
 
 refresh();
+
+// ---------------------------------------------------------------------------
+// This device
+// ---------------------------------------------------------------------------
+const meStatus = document.getElementById("me-status");
+const meFigures = document.getElementById("me-figures");
+const meRefresh = document.getElementById("me-refresh");
+const blockedList = document.getElementById("me-blocked-list");
+const recentList = document.getElementById("me-recent-list");
+
+function paintDomains(el, rows, empty) {
+  el.replaceChildren();
+  if (!rows.length) {
+    const li = document.createElement("li");
+    li.className = "none";
+    li.textContent = empty;
+    el.append(li);
+    return;
+  }
+  for (const row of rows) {
+    const li = document.createElement("li");
+    const t = document.createElement("span");
+    t.className = "t";
+    // Pi-hole reports whole seconds since the epoch, sometimes fractional.
+    t.textContent = new Date(row.time * 1000).toLocaleTimeString();
+    const d = document.createElement("span");
+    d.className = row.blocked ? "d b" : "d";
+    // textContent, not innerHTML: a domain is attacker-chosen text. Anything
+    // on the LAN can make this page render a name of its choosing simply by
+    // resolving it.
+    d.textContent = row.domain ?? "";
+    li.append(t, d);
+    el.append(li);
+  }
+}
+
+async function loadMe() {
+  meRefresh.disabled = true;
+  try {
+    const res = await fetch("/api/activity");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    // An empty panel is a normal answer here, not a failure: identifying a
+    // device by request header depends on Traefik, on the browser and the
+    // resolver agreeing which address this device has, and on Pi-hole
+    // answering. app.py says which of those gave way; the lists stay empty
+    // and the figures stay hidden.
+    if (data.reason) {
+      meFigures.hidden = true;
+      meStatus.className = "err";
+      meStatus.textContent = data.reason;
+      paintDomains(blockedList, [], "No results to show.");
+      paintDomains(recentList, [], "No results to show.");
+      return;
+    }
+    meStatus.className = "";
+    // textContent throughout: a reverse-DNS name is chosen by the device it
+    // names, the same way a domain is chosen by whoever resolved it.
+    meStatus.textContent = data.name ? data.name + " (" + data.client + ")" : data.client;
+    meFigures.hidden = false;
+    document.getElementById("me-queries").textContent = data.queries ?? "–";
+    document.getElementById("me-blocked").textContent = data.blocked ?? "–";
+    const pct = data.queries ? Math.round((data.blocked / data.queries) * 100) : 0;
+    document.getElementById("me-percent").textContent = pct + "%";
+    paintDomains(blockedList, data.recent_blocked || [],
+                 "Nothing blocked for this device in the last 24 hours.");
+    document.getElementById("me-recent-summary").textContent =
+      "Everything this device asked for in the last " +
+      Math.round((data.window || 300) / 60) + " minutes";
+    paintDomains(recentList, data.recent || [],
+                 "Nothing in the last few minutes.");
+  } catch (err) {
+    meFigures.hidden = true;
+    meStatus.className = "err";
+    meStatus.textContent = err.message;
+  } finally {
+    meRefresh.disabled = false;
+  }
+}
+
+meRefresh.onclick = loadMe;
+loadMe();
 </script>
 </body>
 </html>
