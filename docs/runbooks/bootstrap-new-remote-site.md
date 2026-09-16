@@ -60,6 +60,18 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    sudo reboot
    ```
    Then re-run the k3s install command above.
+
+   **Raise the inotify instance limit before the node carries a full workload:**
+   ```bash
+   echo 'fs.inotify.max_user_instances = 1024' | sudo tee /etc/sysctl.d/90-inotify.conf
+   sudo sysctl --system
+   cat /proc/sys/fs/inotify/max_user_instances   # must read 1024
+   ```
+   The kernel default is 128 and the limit is **per UID, not per process** — k3s-server,
+   systemd and every containerd-shim all run as root and draw from the same pool.
+   `k3s-server` alone holds ~54. Once root exhausts it, whichever process starts next
+   fails to create a watcher, and the symptom lands wherever the race happened to be
+   lost rather than on the cause — see #160.
    If k3s was already installed without `K3S_KUBECONFIG_MODE` (installer logs "No change detected so skipping service start"), re-run the install command with the env var set, then `sudo systemctl restart k3s` to pick it up.
 
 8. **Generate a fine-grained PAT** scoped to only the `homelab` repository, with `Contents: Read-only` and `Administration: Read-only` (see Background — this stays in-cluster, so keep it read-only).
