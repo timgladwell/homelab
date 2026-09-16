@@ -14,8 +14,17 @@ metadata:
 data:
   unbound.conf: |
     server:
-      # "Gives query level information, output per query"
-      verbosity: 3
+      # 1 is "operational information". 3 is "query level information, output
+      # per query" — a log line for every DNS query resolved at the site, which
+      # made this the second-largest source of write events on Akron's NVMe.
+      # The per-query record it duplicates is already in Pi-hole's query log,
+      # which is where anyone would look for it. See #349.
+      #
+      # This has to be turned down here rather than dropped in Alloy: containerd
+      # writes the pod's stdout to /var/log/pods on disk before the collector
+      # ever reads it, so a drop rule at collection saves Loki ingest and no
+      # disk writes at all.
+      verbosity: 1
       # "Print log lines that say why queries return SERVFAIL to clients."
       log-servfail: yes
 
