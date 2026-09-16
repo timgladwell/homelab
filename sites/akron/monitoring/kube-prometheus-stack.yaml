@@ -19,7 +19,7 @@ spec:
   chart:
     spec:
       chart: kube-prometheus-stack
-      version: "~88.6.0"
+      version: "~90.2.0"
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
@@ -116,17 +116,25 @@ spec:
       # The remaining KSV-0014s. Grafana writes its state to the PVC at
       # /var/lib/grafana and the sidecars write to their own emptyDir mounts, so
       # nothing needs a writable root — except /tmp, which Grafana uses for
-      # scratch space during provisioning and plugin unpacking. Giving it an
-      # emptyDir is what makes readOnlyRootFilesystem survivable rather than a
-      # CrashLoop waiting for the first operation that needs a temp file.
+      # scratch space during provisioning and plugin unpacking.
+      #
+      # The emptyDir that makes /tmp writable is no longer ours. The grafana
+      # subchart mounts one itself, unconditionally and with no value to gate
+      # it (`charts/grafana/templates/_pod.tpl`), so the `extraEmptyDirMounts`
+      # entry that used to sit here became a second volumeMount on the same
+      # path — which the API server rejects outright ("mountPath must be
+      # unique"), failing the apply rather than the render.
       containerSecurityContext:
         readOnlyRootFilesystem: true
 
-      extraEmptyDirMounts:
-        - name: grafana-tmp
-          mountPath: /tmp
-
     prometheus:
+      serviceAccount:
+        # Chart 90.0.0 added this and defaults it to true: a non-expiring
+        # service-account token Secret, minted so the control-plane
+        # ServiceMonitors can authenticate. Every one of those is disabled
+        # further down this file, so the token has no consumer here and would
+        # be a permanent API credential sitting in the namespace for nothing.
+        createTokenSecret: false
       prometheusSpec:
         scrapeInterval: 60s
         evaluationInterval: 60s
