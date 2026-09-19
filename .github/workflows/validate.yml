@@ -39,7 +39,7 @@ jobs:
       # renovate: datasource=github-releases depName=zegl/kube-score extractVersion=^v(?<version>.+)$
       KUBE_SCORE_VERSION: 1.20.0
       # renovate: datasource=github-releases depName=open-policy-agent/conftest extractVersion=^v(?<version>.+)$
-      CONFTEST_VERSION: 0.69.0
+      CONFTEST_VERSION: 0.70.0
       # renovate: datasource=pypi depName=yamllint
       YAMLLINT_VERSION: 1.38.0
       # scripts/validate/substitute.py imports yaml. This was an undeclared
