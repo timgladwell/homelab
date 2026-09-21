@@ -56,49 +56,60 @@ spec:
         cpu: 200m
         memory: 128Mi
 
-    # Their cost is a burst at startup (list+watch, then generate a serving
-    # certificate) and near-idle afterwards — 1-2m steady state. A 100m limit was enough for
-    # the idle half and not the burst: after the 2026-09-04 reboot emptied its
-    # caches the webhook throttled 82% of CFS periods (2684s throttled against
-    # 138s used), took 17s to stream a single Secret, and so could not answer
-    # its 1s-timeout /healthz. Liveness killed it before it ever warmed up, and
-    # a crash loop that restarts into the same cold-cache burst does not
-    # recover. It survived 11 days only because it was already warm.
+    # Steady state is ~1m of CPU each; these ceilings are insurance for the
+    # startup burst, not for the running cost.
     #
-    # Every admission of a cert-manager CR goes through the webhook, so this
-    # takes infrastructure-config down with it: ClusterIssuer and Certificate
-    # dry-runs fail with "failed calling webhook ... context deadline exceeded".
+    # Measured from process_cpu_seconds_total once #365 made cert-manager's own
+    # metrics available (2026-09-21, v1.21.2, both sites): webhook ~1m,
+    # controller ~1.5m, cainjector ~2m. Against a 250m ceiling that is 250x
+    # headroom, and a healthy webhook throttles 0% of CFS periods.
     #
-    # Raise the ceiling rather than relaxing the probes. The apiserver's own
-    # admission call carries timeout=30s and blew through that too, so a wider
-    # probe window buys a webhook that stays alive while still being too slow
-    # to admit anything — the worse failure, because then nothing restarts and
-    # nothing alerts. A webhook that needs 17s to read one Secret is faulty;
-    # the 1s probe is the detector, not the disease.
+    # The burst is real though, and it is why the ceiling is not dropped back.
+    # Freshly created pods throttle 7-22% of periods in their first scrape
+    # window and 0% after, so startup genuinely touches the limit for a few
+    # seconds while it lists, watches, and generates a serving certificate.
+    # Requests stay at 20m and limits reserve nothing, so this ceiling costs
+    # the node exactly nothing while unused -- there is no saving available by
+    # lowering it, only the reintroduction of a failure that has taken
+    # infrastructure-config down twice.
     #
-    # 250m is a deliberate small step, not a measured figure. Requests are
-    # unchanged at 20m and limits reserve nothing, so a higher ceiling would
-    # have cost the node nothing — but on a box this size the number worth
-    # having is the real one, and stepping up finds it. Note the catch that
-    # makes the step a judgement call rather than free: a throttled container
-    # hides its own demand (`kubectl top` reported 1m here, which was the
-    # quota being enforced, not what it wanted), so a step that is still too
-    # small does not reveal the ceiling, it just throttles higher up. So read
-    # nr_throttled before picking the next number, never `kubectl top`:
-    #   U=$(kubectl -n cert-manager get pod \
-    #        -l app.kubernetes.io/component=webhook \
-    #        -o jsonpath='{.items[0].metadata.uid}')
-    #   sudo find /sys/fs/cgroup -name cpu.stat | grep "${U//-/_}" | \
-    #     xargs -I{} sh -c 'echo "== {}"; cat {}'
-    # NOT cluster-wide Secret caching. An earlier version of this comment said
-    # the webhook and cainjector cache every Secret in the cluster; on v1.21 the
-    # webhook watches exactly one, with a field selector:
-    #   /api/v1/namespaces/cert-manager/secrets
-    #     ?fieldSelector=metadata.name%3Dcert-manager-webhook-ca
-    # and cainjector watches PartialObjectMetadata (metadata only). So the
-    # cluster's total Secret volume does not size either one, and tuning these
-    # numbers against it reasons from a false premise -- as #364 did before
-    # reading the reflector URL above out of the webhook's own logs.
+    # That failure: every admission of a cert-manager CR goes through the
+    # webhook, so a webhook too slow to answer takes the whole layer with it.
+    # ClusterIssuer and Certificate dry-runs fail with "failed calling webhook
+    # ... context deadline exceeded" and the layer never reconciles.
+    #
+    # Raise the ceiling rather than relaxing the probes, if it ever comes to
+    # that again. The apiserver's own admission call carries timeout=30s and
+    # blew through it during #323, so a wider probe window buys a webhook that
+    # stays alive while still being too slow to admit anything -- the worse
+    # failure, because then nothing restarts and nothing alerts.
+    #
+    # What this comment used to say, and why it was wrong, because it misled
+    # two investigations:
+    #
+    #   - "The webhook and cainjector cache Secrets cluster-wide." They do not.
+    #     On v1.21 the webhook watches exactly one Secret, with a field
+    #     selector visible in its own logs:
+    #       /api/v1/namespaces/cert-manager/secrets
+    #         ?fieldSelector=metadata.name%3Dcert-manager-webhook-ca
+    #     and cainjector watches PartialObjectMetadata, which is metadata only.
+    #     So the cluster's total Secret volume does not size either one, and
+    #     #364 wasted time comparing Secret counts between sites before reading
+    #     that URL.
+    #
+    #   - "A cold cache burst caused the 2026-09-04 crash loop, so 100m was too
+    #     small." It did not. That crash loop was a goroutine/timer leak in
+    #     v1.21.1, fixed upstream in v1.21.2 (#357). The 100m -> 250m raise in
+    #     #323 bought 17 days by making each cycle survive ten minutes instead
+    #     of failing immediately, which read as a fix at the time. See #323 for
+    #     the full post-mortem.
+    #
+    # To check any of this in future, read the process, not the container.
+    # process_cpu_seconds_total and go_goroutines come from cert-manager itself
+    # and say what it is doing; `kubectl top` reports the quota being enforced
+    # rather than demand, and cAdvisor's working set differs 2x between these
+    # two sites even when both are healthy and their Go heaps are within 10%.
+    # Both of those were read as signal during #323 and neither was.
     webhook:
       resources:
         requests:
