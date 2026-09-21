@@ -221,6 +221,56 @@ prometheus.scrape "unbound" {
 }
 
 // ---------------------------------------------------------------
+// cert-manager. Added because its absence blocked a diagnosis: the
+// webhook at Akron was restarting every ten minutes with a heap that
+// grew monotonically while it logged nothing, and the leak that
+// implies could not be confirmed without go_goroutines or
+// go_memstats_heap_inuse_bytes. The numbers available instead came
+// from cAdvisor, which sees a container's memory but nothing about
+// what is in it. See #323.
+//
+// Scraping here is an allowlist — a target with no stanza is not
+// collected anywhere — so this was never dropped from a general
+// mechanism, it simply had none. All three Deployments serve
+// http-metrics on 9402, and only the webhook has other named ports,
+// so keeping on the port name is enough to get exactly one target
+// each.
+//
+// instance is the component rather than the pod, because these are
+// three distinct programs and a pod name would make a restart look
+// like a new series. cert-manager also emits certmanager_* metrics
+// (certificate_expiration_timestamp_seconds, and the ready-status
+// gauge) which are the basis of any future expiry alert.
+// ---------------------------------------------------------------
+discovery.relabel "cert_manager" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    regex         = "cert-manager"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+    regex         = "http-metrics"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_component"]
+    target_label  = "instance"
+  }
+}
+
+prometheus.scrape "cert_manager" {
+  targets         = discovery.relabel.cert_manager.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "cert-manager"
+  scrape_interval = "60s"
+}
+
+// ---------------------------------------------------------------
 // Unpoller. Runs at exactly one site (Eastbank) but polls every
 // UniFi controller, so this finds nothing anywhere else and that is
 // fine — the alternative is a PodMonitor, and the Prometheus
