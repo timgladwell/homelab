@@ -14,7 +14,7 @@ spec:
   #                steady   +hook   surge    hard
   #   req cpu        90m     110m    180m    250m
   #   req mem       128Mi   160Mi   256Mi   384Mi
-  #   lim cpu       400m     500m    800m       1
+  #   lim cpu       700m     800m   1400m       2
   #   lim mem       256Mi   320Mi   512Mi   640Mi
   #
   # Sizing to steady state instead is what broke #292 twice over: the hook
@@ -22,8 +22,16 @@ spec:
   # giving it some would have put limits.cpu at exactly 500m of 500m —
   # leaving the next Renovate cert-manager bump to fail on the surge pod,
   # with the Helm upgrade retrying into a failed HelmRelease.
+  #
+  # That is also why this table is not decoration: #292 raised the webhook and
+  # cainjector ceilings to 250m each without recomputing it, which silently
+  # put steady state at 700m and the surge at 1400m against a 1 hard limit.
+  # Nothing failed, because nothing upgraded — the next cert-manager bump
+  # would have hit exactly the failure the note above describes. Recompute
+  # these four rows in the same PR as any change to a resources block above,
+  # because the thing that catches a mistake here is an upgrade, weeks later.
   hard:
     requests.cpu: 250m
     requests.memory: 384Mi
-    limits.cpu: "1"
+    limits.cpu: "2"
     limits.memory: 640Mi
