@@ -36,6 +36,11 @@ namespace: monitoring
 #   11314  unifi-uap                   11315  unifi-clients
 #
 # Re-downloading one discards this datasource fix, so re-apply it after.
+#
+# estate-overview is authored here, not downloaded, so it has no gnetId. It
+# still selects its datasource through a `datasource` template variable rather
+# than naming a uid: the Prometheus datasource's uid is a kube-prometheus-stack
+# chart default that nothing in this repo pins, so a chart bump could change it.
 generatorOptions:
   disableNameSuffixHash: true
   labels:
@@ -43,6 +48,9 @@ generatorOptions:
   annotations:
     kustomize.toolkit.fluxcd.io/substitute: disabled
 configMapGenerator:
+  - name: dashboard-estate-overview
+    files:
+      - estate-overview-dashboard.json
   - name: dashboard-node-exporter-full
     files:
       - node-exporter-full.json

@@ -11,6 +11,14 @@ Run the full pipeline from the repo root:
 ./scripts/validate-k3s.sh
 ```
 
+Run it in the foreground with the Bash tool's `timeout` set to its maximum,
+`600000`. A full run takes about three minutes (2m44s on 2026-09-25), longer
+than the default two-minute timeout, so a default call is killed partway
+through. Backgrounding it instead is what went wrong once: the run finished,
+but the output was then followed with `tail -f`, which never exits, and the
+subagent sat on it indefinitely. The rule behind that: every command you run
+must end on its own. Nothing that follows, streams or waits for input.
+
 Do not run individual `validate/NN-*.sh` scripts standalone unless asked — the
 top-level script encodes the correct gating order (steps 2 and 3 gate later
 steps; see CLAUDE.md's Validation section for the full step list).
