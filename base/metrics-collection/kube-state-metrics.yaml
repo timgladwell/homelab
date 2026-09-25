@@ -51,3 +51,113 @@ spec:
       limits:
         cpu: 100m
         memory: 128Mi
+
+    # Flux object state as gotk_resource_info, one series per object with its
+    # state in labels: which revision each site applied, and whether anything
+    # is failing to. Without this the only way to know is SSH and `flux get`.
+    # See #373.
+    #
+    # Adapted from fluxcd/flux2-monitoring-example's kube-state-metrics-config.yaml,
+    # which runs a dedicated kube-state-metrics with --custom-resource-state-only.
+    # Here it rides the existing instance and its default collectors, so no
+    # second pod and no second scrape. Only the kinds this repo uses are listed.
+    # `exported_namespace` rather than `namespace` is upstream's label name,
+    # kept so Flux's own dashboards work against it unchanged.
+    rbac:
+      extraRules:
+        - apiGroups:
+            - source.toolkit.fluxcd.io
+            - kustomize.toolkit.fluxcd.io
+            - helm.toolkit.fluxcd.io
+          resources:
+            - gitrepositories
+            - helmrepositories
+            - kustomizations
+            - helmreleases
+          verbs: ["list", "watch"]
+    customResourceState:
+      enabled: true
+      config:
+        spec:
+          resources:
+            - groupVersionKind:
+                group: kustomize.toolkit.fluxcd.io
+                version: v1
+                kind: Kustomization
+              metricNamePrefix: gotk
+              metrics:
+                - name: resource_info
+                  help: The current state of a Flux Kustomization resource.
+                  each:
+                    type: Info
+                    info:
+                      labelsFromPath:
+                        name: [metadata, name]
+                  labelsFromPath:
+                    exported_namespace: [metadata, namespace]
+                    ready: [status, conditions, "[type=Ready]", status]
+                    suspended: [spec, suspend]
+                    revision: [status, lastAppliedRevision]
+                    # Not in upstream. Differs from `revision` exactly when a
+                    # new commit was fetched but failed to apply.
+                    attempted_revision: [status, lastAttemptedRevision]
+                    source_name: [spec, sourceRef, name]
+            - groupVersionKind:
+                group: helm.toolkit.fluxcd.io
+                version: v2
+                kind: HelmRelease
+              metricNamePrefix: gotk
+              metrics:
+                - name: resource_info
+                  help: The current state of a Flux HelmRelease resource.
+                  each:
+                    type: Info
+                    info:
+                      labelsFromPath:
+                        name: [metadata, name]
+                  labelsFromPath:
+                    exported_namespace: [metadata, namespace]
+                    ready: [status, conditions, "[type=Ready]", status]
+                    suspended: [spec, suspend]
+                    revision: [status, history, "0", chartVersion]
+                    chart_name: [status, history, "0", chartName]
+                    chart_app_version: [status, history, "0", appVersion]
+                    chart_source_name: [spec, chart, spec, sourceRef, name]
+            - groupVersionKind:
+                group: source.toolkit.fluxcd.io
+                version: v1
+                kind: GitRepository
+              metricNamePrefix: gotk
+              metrics:
+                - name: resource_info
+                  help: The current state of a Flux GitRepository resource.
+                  each:
+                    type: Info
+                    info:
+                      labelsFromPath:
+                        name: [metadata, name]
+                  labelsFromPath:
+                    exported_namespace: [metadata, namespace]
+                    ready: [status, conditions, "[type=Ready]", status]
+                    suspended: [spec, suspend]
+                    revision: [status, artifact, revision]
+                    url: [spec, url]
+            - groupVersionKind:
+                group: source.toolkit.fluxcd.io
+                version: v1
+                kind: HelmRepository
+              metricNamePrefix: gotk
+              metrics:
+                - name: resource_info
+                  help: The current state of a Flux HelmRepository resource.
+                  each:
+                    type: Info
+                    info:
+                      labelsFromPath:
+                        name: [metadata, name]
+                  labelsFromPath:
+                    exported_namespace: [metadata, namespace]
+                    ready: [status, conditions, "[type=Ready]", status]
+                    suspended: [spec, suspend]
+                    revision: [status, artifact, revision]
+                    url: [spec, url]
