@@ -411,3 +411,9 @@ Use `pihole.${SITE_DOMAIN}`, or `kubectl port-forward` when Traefik is not routi
 ### Hardware constraints
 
 All images must support **ARM64** (Raspberry Pi 4B). Verify ARM64 availability before pinning any image. All workloads must declare requests and limits, and storage limits (if applicable).
+
+**A memory limit must cover the process *and* the files it actively reads**: its binary, assets, databases. Page cache is charged to a container's memory limit. When a program's working files don't fit next to its process memory, it evicts and re-reads its own files continuously. That reclaim counts against its CPU quota, so the container throttles and misses its health checks while doing no more work than usual. It caused the cert-manager webhook (#375: 57.9MB binary in a 64Mi limit) and the Grafana (#378) incidents, both of which were first misread as CPU or leak problems.
+
+- **Size from `memory.stat`, not from `kubectl top` or `container_memory_working_set_bytes`.** Read the container cgroup's `anon` + actively used `file` under representative load, including a cold start after idling. The `mstat` command is in #378. Working set churns under reclaim and looks like a leak (the #323 sawtooth).
+- **A full page cache is normal.** The kernel fills spare room with cached files. The problem is `pgscan_direct` and `workingset_refault_file` **rising** between two reads, or major faults (Estate overview → Memory headroom).
+- **Raise the limit, not the request.** Page cache is reclaimable, and limits reserve no node capacity. Recompute the namespace ResourceQuota in the same PR, including the rolling update's second pod.
