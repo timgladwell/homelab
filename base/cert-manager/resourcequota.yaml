@@ -15,7 +15,7 @@ spec:
   #   req cpu        90m     110m    180m    250m
   #   req mem       128Mi   160Mi   256Mi   384Mi
   #   lim cpu       700m     800m   1400m       2
-  #   lim mem       256Mi   320Mi   512Mi   640Mi
+  #   lim mem       384Mi   448Mi   768Mi   896Mi
   #
   # Sizing to steady state instead is what broke #292 twice over: the hook
   # Job was rejected on install for having no resources of its own, and
@@ -34,4 +34,4 @@ spec:
     requests.cpu: 250m
     requests.memory: 384Mi
     limits.cpu: "2"
-    limits.memory: 640Mi
+    limits.memory: 896Mi
