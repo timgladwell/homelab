@@ -445,7 +445,23 @@ prometheus.relabel "cadvisor" {
   // Metric families not referenced by any configured dashboard.
   rule {
     source_labels = ["__name__"]
-    regex         = "container_(tasks_state|cpu_load_average_10s|memory_failures_total|memory_mapped_file)"
+    regex         = "container_(tasks_state|cpu_load_average_10s|memory_mapped_file)"
+    action        = "drop"
+  }
+
+  // TEMPORARY investigation metric (#380): promote or roll back once
+  // #378's measurements are done. Major page faults per container are
+  // kept: a container re-reading its own evicted files near its memory
+  // limit shows up here and nowhere else. The node-wide
+  // node_vmstat_pgmajfault shows that something is thrashing but not
+  // what (#375, #378). Of the four series per container, only
+  // pgmajfault at container scope is needed; minor faults and the
+  // hierarchy duplicate are dropped. Rolling back means adding
+  // memory_failures_total back to the drop regex above, deleting this
+  // rule, and removing the per-container panel from Estate overview.
+  rule {
+    source_labels = ["__name__", "failure_type", "scope"]
+    regex         = "container_memory_failures_total;(pgfault;.*|pgmajfault;hierarchy)"
     action        = "drop"
   }
 

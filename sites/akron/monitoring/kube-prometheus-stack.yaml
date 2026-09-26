@@ -96,13 +96,28 @@ spec:
           searchNamespace: ALL
         datasources:
           enabled: true
+      # The memory limit has to hold Grafana's page cache as well as its
+      # process: its binary, frontend assets, plugins and SQLite. At 768Mi,
+      # idle Grafana sat at ~98% (page cache 520-560MB + process ~250MB), so
+      # a cold first dashboard open (+~240MB: search indexes and state
+      # rebuilt after idling; a warm open is ~+45MB) could only be paid for
+      # by evicting files it was still using. It then re-read them
+      # continuously, reached 830m CPU and failed its probes (2026-09-26,
+      # #378). 1280Mi covers settled cache + idle process + a cold open with
+      # ~270MB spare. The request is unchanged: page cache is reclaimable,
+      # and limits reserve no node capacity. The monitoring ResourceQuota
+      # has room for it, including the rollout's second pod.
+      #
+      # To check it holds, read the container cgroup's memory.stat
+      # (pgscan_direct, workingset_refault_file) against memory.max; see
+      # #378 for the command.
       resources:
         requests:
           cpu: 100m
           memory: 256Mi
         limits:
           cpu: 1000m
-          memory: 768Mi
+          memory: 1280Mi
       # An init container whose whole job is to chown /var/lib/grafana to
       # Grafana's UID — which the pod's own `fsGroup: 472` already does when the
       # volume is mounted. It ran as root, added CHOWN, and needed a writable
