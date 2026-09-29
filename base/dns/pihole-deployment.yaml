@@ -38,7 +38,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: pihole
-          image: pihole/pihole:2026.07.2
+          image: pihole/pihole:2026.09.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 53
