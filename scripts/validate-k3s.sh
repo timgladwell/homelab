@@ -135,6 +135,10 @@ run_step "Python Tests" "$VALIDATE_DIR/13-python-tests.sh"
 # Step 14: Pi-hole secret pairs — independent
 run_step "Pi-hole Secret Pairs" "$VALIDATE_DIR/14-pihole-secret-pairs.sh"
 
+# Step 15: Chart render — independent (flate reads the repo itself, with its
+# own postBuild substitution; it does not use step 3's build output)
+run_step "Chart Render" "$VALIDATE_DIR/15-chart-render.sh"
+
 # Summary
 echo ""
 echo "================================================================"
