@@ -19,6 +19,9 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    # A full run takes under a minute. Without this, a hang runs to GitHub's
+    # 6-hour default before anyone is told; step 15 has hung once already.
+    timeout-minutes: 15
     env:
       # Pinned so CI and a developer's machine reach the same verdict. Only
       # kustomize/kubeconform/kube-score/conftest are installed by hand — flux
@@ -78,6 +81,21 @@ jobs:
         with:
           version: 2.9.5
 
+      # Renders every HelmRelease for step 15. The action installs the flate
+      # release matching its own tag, so the `uses:` ref is the only pin, and
+      # Dependabot's github-actions ecosystem keeps it current. Like alloy, it
+      # only has to be new enough to render the charts.
+      #
+      # `cache: true` restores flate's chart and source cache across runs, so
+      # step 15 only downloads a chart the first time a PR changes its version.
+      # The action keeps it under $RUNNER_TEMP, outside the checkout, which
+      # matters: step 6 runs trivy over ./ and would scan cached charts as if
+      # they were this repo's IaC.
+      - name: Setup flate
+        uses: home-operations/flate/action@v0.6.5
+        with:
+          cache: true
+
       - name: Setup Trivy
         uses: aquasecurity/setup-trivy@v0.3.1
         with:
@@ -128,6 +146,7 @@ jobs:
           conftest --version | head -1
           yamllint --version
           alloy --version | head -1
+          flate --version
           python3 --version
           python3 -c 'import yaml; print("PyYAML", yaml.__version__)'
 
