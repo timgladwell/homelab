@@ -962,7 +962,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Page cache + RSS against the container's memory limit. A full cache is normal: the kernel fills spare room with cached files. It is only a problem when the major-fault graph beside it rises too, which means the container is re-reading files it just evicted. See #378.",
+      "description": "Page cache + RSS against the container's memory limit. A full cache is normal: the kernel fills spare room with cached files. It is only a problem when the major-fault graph beside it rises too, which means the container is re-reading files it just evicted. See #378. Grouped by pod as well as container: two pods can run a container with the same name (Akron's alloy-metrics and log-collecting alloy are both \"alloy\"), and grouping by name alone divides one pod's usage by the other's limit.",
       "gridPos": {
         "h": 8,
         "w": 10,
@@ -975,7 +975,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sort_desc(max by (site, namespace, container) (container_memory_cache{container!=\"\", container!=\"POD\"} + container_memory_rss{container!=\"\", container!=\"POD\"}) / max by (site, namespace, container) (kube_pod_container_resource_limits{resource=\"memory\"}) > 0.8)",
+          "expr": "sort_desc(max by (site, namespace, pod, container) (container_memory_cache{container!=\"\", container!=\"POD\"} + container_memory_rss{container!=\"\", container!=\"POD\"}) / max by (site, namespace, pod, container) (kube_pod_container_resource_limits{resource=\"memory\"}) > 0.8)",
           "refId": "A",
           "format": "table",
           "instant": true,
@@ -990,6 +990,7 @@
               "names": [
                 "site",
                 "namespace",
+                "pod",
                 "container",
                 "Value"
               ]
