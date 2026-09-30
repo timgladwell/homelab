@@ -281,7 +281,15 @@ flate build hr -p clusters/akron        # every chart-rendered object, ~2s warm
 
 That output is the only place workloads like Prometheus, Grafana, Loki and the Alloys are visible at all — everything else in the pipeline stops at the `HelmRelease`. It is what makes a values bug like `alloy.storagePath` mounting nothing legible: grep the rendered StatefulSet for the mount instead of trusting the values block.
 
-**Step 15 is the one validation step that needs the network**, to fetch chart indexes and charts. That was once the reason to keep `flate` out of the pipeline entirely; #213 recorded three bugs that shipped through the gap, one of which ran for months. The cost is contained instead: `flate` caches charts on disk (CI restores that cache across runs), and a fetch failure is reported as `FETCH (network — likely transient, re-run)` or `FETCH (source — …)`, never mixed up with a `RENDER` failure the PR caused. Both still fail the step. Note `flate diff` does not work in this repo at all — go-git rejects the `worktreeconfig` extension git sets here.
+**Step 15 is the one validation step that needs the network**, to fetch chart indexes and charts. That was once the reason to keep `flate` out of the pipeline entirely; #213 recorded three bugs that shipped through the gap, one of which ran for months. The cost is contained instead: `flate` caches charts on disk (CI restores that cache across runs), and a fetch failure is reported as `FETCH (network — likely transient, re-run)` or `FETCH (source — …)`, never mixed up with a `RENDER` failure the PR caused. Both still fail the step.
+
+**Every pull request also gets a rendered diff**, as a comment updated on each push (`.github/workflows/render-diff.yml`, running `.github/scripts/render-diff.sh`): `flate diff all` per site against the base branch, covering Kustomizations after substitution and chart-rendered objects. It is where a Renovate chart bump's actual effect shows up, since the PR's own diff is a one-line version change. It is a review aid, not a check — it cannot fail, so it is not a validation step. Dependabot and fork PRs get a read-only token, so for those the diff is in the job summary only. Locally:
+
+```bash
+flate diff all -p clusters/akron --base origin/main
+```
+
+`flate diff` reads the base revision with go-git, which refuses to open a repository with git's `extensions.worktreeConfig` set: `core.repositoryformatversion does not support extension: worktreeconfig`. This repo does not use per-worktree config; if that error appears, something has set the extension again, and `git config --unset extensions.worktreeConfig` clears it. `flate build` reads only files and is unaffected.
 
 ### Variable substitution
 

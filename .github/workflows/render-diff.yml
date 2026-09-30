@@ -1,0 +1,78 @@
+---
+name: Render diff
+
+# Comments on each pull request with what it changes in the rendered
+# manifests, per site — see .github/scripts/render-diff.sh. A review aid, so it lives
+# apart from Validate: it cannot fail a PR, and it is the only workflow that
+# needs to write to one.
+on:  # yamllint disable-line rule:truthy
+  pull_request:
+
+concurrency:
+  group: render-diff-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  render-diff:
+    runs-on: ubuntu-latest
+    # Seconds normally. Bounds a stalled chart fetch well short of GitHub's
+    # 6-hour default, as Validate does.
+    timeout-minutes: 10
+    steps:
+      # Full history, so the base branch is there to diff against.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Same pin and cache as Validate. `base` is exported as FLATE_BASE, which
+      # the script passes explicitly anyway.
+      - name: Setup flate
+        uses: home-operations/flate/action@v0.6.5
+        with:
+          base: origin/${{ github.base_ref }}
+          cache: true
+
+      - name: Render diff
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+        run: |
+          ./.github/scripts/render-diff.sh "$BASE_REF" > "$RUNNER_TEMP/body.md"
+          cat "$RUNNER_TEMP/body.md" >> "$GITHUB_STEP_SUMMARY"
+
+      # Updates one comment in place rather than adding one per push, found by
+      # the marker the script writes on its first line. Posts a new comment
+      # only when there is something to show, so a PR that changes no manifest
+      # gets no comment at all.
+      #
+      # Skipped where the token cannot write: Dependabot's PRs and forks get a
+      # read-only GITHUB_TOKEN. The job summary above still has the diff.
+      - name: Comment on PR
+        if: >-
+          github.actor != 'dependabot[bot]' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body="$RUNNER_TEMP/body.md"
+          # GitHub rejects comments over 65,536 characters. The job summary
+          # keeps the whole diff, so a long one is cut here and linked.
+          if [[ $(wc -c < "$body") -gt 60000 ]]; then
+            head -c 60000 "$body" > "$body.cut"
+            printf '\n\n…truncated. The full diff is in the [job summary](%s).\n' "$RUN_URL" >> "$body.cut"
+            mv "$body.cut" "$body"
+          fi
+
+          id=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]")
+                      | select(.body | startswith("<!-- flate-render-diff -->")) | .id' | tail -1)
+          if [[ -n "$id" ]]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${id}" -F body=@"$body" > /dev/null
+          elif grep -q '^@@ ' "$body"; then
+            gh pr comment "$PR" --body-file "$body"
+          fi
