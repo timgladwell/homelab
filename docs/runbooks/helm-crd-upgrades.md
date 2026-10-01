@@ -18,7 +18,18 @@ Flux's `crds: CreateReplace` option on a `HelmRelease` can automate this, but CR
    ```
    - `--server-side`: the API server computes the merge, which is more correct for complex schemas.
    - `--force-conflicts`: overwrites fields owned by another manager (e.g. a previous `kubectl apply` or Flux), preventing the update from being blocked by field ownership conflicts.
-4. **Merge the Renovate PR** — Flux reconciles the `HelmRelease` and runs the equivalent of `helm upgrade` automatically. You do not need to run `helm` commands directly.
+4. **Wait for the apply to settle** (see below), then **merge the Renovate PR**. Flux reconciles the `HelmRelease` and runs the equivalent of `helm upgrade` automatically. You do not need to run `helm` commands directly.
+
+Chart-specific steps: [Traefik](traefik-upgrades.md), [kube-prometheus-stack](kube-prometheus-stack-upgrades.md).
+
+## What a CRD apply does to the cluster
+
+A CRD apply is not a quiet schema change. It causes real load, and the dashboards show it.
+
+- **kube-state-metrics rebuilds its custom-resource stores.** KSM runs with `customResourceState` for the Flux `gotk_*` metrics (`base/metrics-collection/kube-state-metrics.yaml`), and it watches CRD discovery. **Every** CRD change makes it reload all four Flux stores, not only changes to the Flux CRDs. A 10-CRD apply is about ten rebuilds in a few seconds. On 2026-10-01 this raised KSM's RSS from 40 to 86 MiB, which put it at about 99% of its 128Mi limit with page cache included. That shows red on Estate overview's *Containers above 80% of their memory limit* panel. It also kept KSM's CPU throttled at its 100m limit.
+- **The API server gets busy, and KSM can get killed for it.** KSM's `/livez` liveness endpoint checks the API server. While the API server was busy with the update, KSM logged `Failed to contact API server for /livez`, failed its liveness probe, and restarted three times (last terminated reason `Error`, not `OOMKilled`). The node's major page faults and CPU rose at the same time. Nearly all the faults were outside pod containers, and `k3s-server` had the most of any process. Both went back to near baseline within a few minutes of the rollout finishing.
+
+This is why step 4 says wait. If you apply and merge together, the CRD's effects and the chart's rollout overlap on the same panels, and you cannot tell which caused what.
 
 ## Breaking changes to check beyond CRDs
 
