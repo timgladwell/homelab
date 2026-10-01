@@ -4,6 +4,7 @@ Operational procedures for tasks that fall outside the normal GitOps flow.
 
 - [Helm Chart Upgrades with CRD Changes](runbooks/helm-crd-upgrades.md)
 - [Traefik](runbooks/traefik-upgrades.md)
+- [kube-prometheus-stack](runbooks/kube-prometheus-stack-upgrades.md)
 - [Flux Upgrades](runbooks/flux-upgrades.md)
 - [Rotating the GitHub PAT for Flux](runbooks/github-pat-rotation.md)
 - [Migrating Akron to the base/ + sites/ Layout](runbooks/base-sites-restructure.md)
