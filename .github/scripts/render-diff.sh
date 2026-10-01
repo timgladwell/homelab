@@ -61,7 +61,7 @@ for site in $(sites); do
     # happens to hold a fence cannot end the code block early.
     longest=$(grep -o '`*' <<< "$diff_out" | awk '{ if (length > n) n = length } END { print n + 0 }')
     fence=$(printf '`%.0s' $(seq 1 $(( longest > 2 ? longest + 1 : 3 ))))
-    echo "<details><summary>${changes} changed paths</summary>"
+    echo "<details><summary>${changes} changed path$([[ $changes -eq 1 ]] || echo s)</summary>"
     echo
     echo "${fence}diff"
     echo "$diff_out"

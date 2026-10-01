@@ -507,12 +507,13 @@
           "options": {
             "include": {
               "names": [
-                "site",
-                "exported_namespace",
                 "name",
                 "chart_name",
                 "revision",
                 "chart_app_version",
+                "chart_source_name",
+                "exported_namespace",
+                "site",
                 "ready",
                 "suspended"
               ]
@@ -523,14 +524,23 @@
           "id": "organize",
           "options": {
             "indexByName": {
-              "site": 0,
-              "exported_namespace": 1,
-              "name": 2,
-              "chart_name": 3,
-              "revision": 4,
-              "chart_app_version": 5,
-              "ready": 6,
-              "suspended": 7
+              "name": 0,
+              "chart_name": 1,
+              "revision": 2,
+              "chart_app_version": 3,
+              "chart_source_name": 4,
+              "exported_namespace": 5,
+              "site": 6,
+              "ready": 7,
+              "suspended": 8
+            },
+            "renameByName": {
+              "name": "release",
+              "chart_name": "chart",
+              "revision": "chart version",
+              "chart_app_version": "app version",
+              "chart_source_name": "chart source",
+              "exported_namespace": "namespace"
             }
           }
         }
@@ -540,7 +550,7 @@
         "cellHeight": "sm",
         "sortBy": [
           {
-            "displayName": "site"
+            "displayName": "release"
           }
         ]
       },
@@ -836,7 +846,7 @@
       "type": "table",
       "id": 12,
       "title": "Running images",
-      "description": "image_spec is what the manifest asked for; image_id is the digest actually pulled.",
+      "description": "One row per running container. version and image are split from the image reference (repository[:tag][@digest]); node comes from kube_pod_info.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -853,7 +863,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "kube_pod_container_info",
+          "expr": "label_replace(label_replace(kube_pod_container_info, \"version\", \"$2\", \"image_spec\", \"^(.*/)?[^/:@]+(?::([^@]+))?(?:@.*)?$\"), \"image\", \"$1\", \"image_spec\", \"^([^@]*?)(?::[^/:@]+)?(?:@.*)?$\") * on (site, namespace, pod) group_left(node) kube_pod_info",
           "refId": "A",
           "format": "table",
           "instant": true,
@@ -866,10 +876,13 @@
           "options": {
             "include": {
               "names": [
-                "site",
-                "namespace",
-                "pod",
                 "container",
+                "pod",
+                "version",
+                "image",
+                "namespace",
+                "node",
+                "site",
                 "image_spec",
                 "image_id"
               ]
@@ -880,12 +893,15 @@
           "id": "organize",
           "options": {
             "indexByName": {
-              "site": 0,
-              "namespace": 1,
-              "pod": 2,
-              "container": 3,
-              "image_spec": 4,
-              "image_id": 5
+              "container": 0,
+              "pod": 1,
+              "version": 2,
+              "image": 3,
+              "namespace": 4,
+              "node": 5,
+              "site": 6,
+              "image_spec": 7,
+              "image_id": 8
             }
           }
         }
@@ -895,7 +911,7 @@
         "cellHeight": "sm",
         "sortBy": [
           {
-            "displayName": "site"
+            "displayName": "container"
           }
         ]
       },
@@ -962,7 +978,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Page cache + RSS against the container's memory limit. A full cache is normal: the kernel fills spare room with cached files. It is only a problem when the major-fault graph beside it rises too, which means the container is re-reading files it just evicted. See #378.",
+      "description": "Page cache + RSS against the container's memory limit. A full cache is normal: the kernel fills spare room with cached files. It is only a problem when the major-fault graph beside it rises too, which means the container is re-reading files it just evicted. See #378. Grouped by pod as well as container: two pods can run a container with the same name (Akron's alloy-metrics and log-collecting alloy are both \"alloy\"), and grouping by name alone divides one pod's usage by the other's limit.",
       "gridPos": {
         "h": 8,
         "w": 10,
@@ -975,7 +991,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sort_desc(max by (site, namespace, container) (container_memory_cache{container!=\"\", container!=\"POD\"} + container_memory_rss{container!=\"\", container!=\"POD\"}) / max by (site, namespace, container) (kube_pod_container_resource_limits{resource=\"memory\"}) > 0.8)",
+          "expr": "sort_desc(max by (site, namespace, pod, container) (container_memory_cache{container!=\"\", container!=\"POD\"} + container_memory_rss{container!=\"\", container!=\"POD\"}) / max by (site, namespace, pod, container) (kube_pod_container_resource_limits{resource=\"memory\"}) > 0.8)",
           "refId": "A",
           "format": "table",
           "instant": true,
@@ -990,6 +1006,7 @@
               "names": [
                 "site",
                 "namespace",
+                "pod",
                 "container",
                 "Value"
               ]
