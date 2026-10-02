@@ -22,6 +22,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - All changes to this repo go through PRs - do not work on the `main` branch directly
 - **Do NOT push to merged PRs.** Any deployment feedback (pod logs, Helm errors, `flux get` output) means the relevant PR is already merged. Always start a new branch for the fix.
 - **Always branch from `origin/main`.** Run `git fetch origin` then `git checkout -b <branch> origin/main` before starting any new change. Never branch from a previous feature branch — it will carry commits that are already merged and cause conflicts.
+- **Three kinds of document, three jobs; anything that should *change* is an issue.**
+  - **ADRs** (`docs/adr/`) specify architecture: given these requirements, this decision, and these rejected alternatives. The scope runs from "what kind of database" to "what shape a function's result takes". They are what keeps patterns cohesive across the system. Conventions are in `docs/adr/README.md`.
+  - **Reference docs** (`docs/*.md`) describe current state, and why it is that way.
+  - **Runbooks** (`docs/runbooks/`) make a procedure repeatable: given a kind of service or operational problem, *pre-checks* confirm its scope and origin, then *steps*, then *post-checks* confirm it was actually resolved. Chart upgrades, major version changes, host software upgrades, chasing down slowness, and resolving an alert are all runbooks.
 
 ### Validation
 
