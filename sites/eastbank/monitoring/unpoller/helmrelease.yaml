@@ -146,7 +146,12 @@ spec:
         # v3.2.0 serves scrapes from a background poll instead of hitting the
         # UniFi API per scrape. Kept: three controllers over a VPN is the case
         # it was added for. `interval = 0` restores the old per-scrape one.
-        interval = "60s"
+        #
+        # 5m, not 60s: each poll cycle leaks ~21 KB in the UDR's unifi-core,
+        # so polling sets the leak rate (#388, from clincha-org/clincha#480's
+        # A/B). The [loki] interval below is a separate poll cycle and is
+        # set to match. Shorten either only once #388 says the leak is fixed.
+        interval = "5m"
 
       [influxdb]
         disable = true
@@ -157,6 +162,9 @@ spec:
       [loki]
         disable = false
         url = "http://alloy-metrics.monitoring.svc.cluster.local:3100"
+        # Polls events, system log and Protect logs on its own ticker
+        # (default 2m), independent of [prometheus]. See the comment there.
+        interval = "5m"
 
       [unifi]
         dynamic = false
