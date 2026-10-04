@@ -265,7 +265,9 @@ A metric gets added in one of two ways:
 
 The Alloy config is the exception: it *is* checked, by validation step 12, because a syntax or argument-name error CrashLoops the collector at *every* site. Each config is a real `.alloy` file next to its `HelmRelease` (`base/metrics-collection/alloy-metrics.alloy`, `sites/akron/monitoring/alloy.alloy`), generated into a ConfigMap the release points at with `configMap.create: false`. The step reads each config out of the built output — that is where it is already hydrated with the site's `cluster-vars` — and runs `alloy validate` with the release's own `--stability.level`, so a public-preview component only passes in a release that opted into one. Nothing is hand-listed: a new Alloy release is picked up automatically, and inlining a config back into `values.alloy.configMap.content` fails the step rather than skipping it.
 
-The generated ConfigMaps set `disableNameSuffixHash: true`. Kustomize's nameReference transformer does not know about `HelmRelease.spec.values.alloy.configMap.name`, so a hashed name would leave the release pointing at a ConfigMap that does not exist. No reload is lost — the chart's `configReloader` sidecar watches the mounted file.
+The generated ConfigMaps set `disableNameSuffixHash: true`. Kustomize's nameReference transformer does not know about `HelmRelease.spec.values.alloy.configMap.name` by default, so a hashed name would leave the release pointing at a ConfigMap that does not exist. No reload is lost — the chart's `configReloader` sidecar watches the mounted file.
+
+A `configurations:` entry can teach nameReference a values field, and that is the fix wherever a chart mounts generated config with nothing to reload it: `sites/eastbank/monitoring/unpoller/kustomizeconfig.yaml` does it for Unpoller, whose chart mounts by `subPath`. **Config read through a `subPath` mount or an env var is only re-read when the pod restarts**, so it needs a hash-suffixed generator (or a chart checksum annotation) or edits never take effect. Unpoller's and Unbound's both went unread that way until #414; the env-var Secrets that still do are #415.
 
 To check one by hand while iterating:
 
