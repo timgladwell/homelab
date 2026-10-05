@@ -42,38 +42,42 @@ the second layer, not the first.
 
 ## 2. Store the token
 
-```bash
-mkdir -p ~/.config/homelab
-printf '%s' '<token>' > ~/.config/homelab/grafana-token
-chmod 600 ~/.config/homelab/grafana-token
-```
+In 1Password, as the `credential` field of an item named **Grafana MCP** in the
+**homelab** vault — the reference the launcher reads is
+`op://homelab/Grafana MCP/credential`.
+
+Nowhere else. Not a dotfile, not `~/.claude.json`, not an exported variable:
+the launcher below reads it from 1Password each time the server starts, so the
+token never sits on disk in plaintext. An earlier version of this runbook had
+it in `~/.config/homelab/grafana-token`; if that file still exists, it is a
+stale copy and can be deleted once 1Password holds the token.
 
 ## 3. Install and register the server
 
 ```bash
 brew install mcp-grafana
+brew install --cask 1password-cli    # `op`, with the desktop app integration on
 ```
 
-Register it. **Run this yourself** rather than having Claude run it — the token
-is expanded inline, and a command Claude runs puts it in the transcript:
+The server is started by a launcher script, `claude/mcp-grafana.sh` in the
+[dotfiles repo](https://github.com/timgladwell/dotfiles), symlinked to
+`~/.claude/mcp-grafana.sh`. It reads the token with `op read`, exports it with
+`GRAFANA_URL`, and `exec`s `mcp-grafana -disable-write`. Register it:
 
 ```bash
-claude mcp add-json grafana --scope user "$(cat <<JSON
-{
-  "command": "mcp-grafana",
-  "args": ["-disable-write"],
-  "env": {
-    "GRAFANA_URL": "https://grafana.akron.internal.zerpzorp.com",
-    "GRAFANA_SERVICE_ACCOUNT_TOKEN": "$(cat ~/.config/homelab/grafana-token)"
-  }
-}
-JSON
-)"
+claude mcp add-json grafana --scope user \
+  '{"type":"stdio","command":"/Users/tim/.claude/mcp-grafana.sh","args":[],"env":{}}'
 ```
+
+The registration holds only a path, so Claude can run it and nothing secret
+lands in `~/.claude.json`. Registering the token directly in the server's
+`env` would bake the plaintext into `~/.claude.json`, which is what the launcher
+exists to avoid.
 
 `-disable-write` drops every mutating tool from the server's advertised list, so
 a write is not something Claude can attempt and have refused — it is not offered
-at all. The Viewer role is still the first control; this is the second.
+at all. The Viewer role is still the first control; this is the second. It is
+set in the launcher, so check it is still there after editing the script.
 
 **`--scope user` is deliberate, and the two alternatives are both wrong here.**
 
@@ -84,10 +88,11 @@ with `claude mcp list`; if it is missing, this is why. The credential is a
 property of the laptop rather than of one checkout, so user scope is the honest
 match.
 
-`--scope project` is worse: it writes `.mcp.json` into the repo with the token
-inline, and nothing here would catch it — the pre-commit hook and validation
-step 10 both only inspect `*secret*.yaml`, so a credential in JSON commits
-silently. `.mcp.json` is gitignored as a backstop.
+`--scope project` writes `.mcp.json` into the repo. With the launcher it would
+hold only a path, but it would also be a path on one machine, and `.mcp.json`
+stays gitignored as a backstop against a token ever landing there inline:
+nothing else would catch it, since the pre-commit hook and validation step 10
+only inspect `*secret*.yaml`.
 
 To move one that landed in the wrong scope:
 
@@ -95,10 +100,9 @@ To move one that landed in the wrong scope:
 claude mcp remove grafana        # from the directory it was registered in
 ```
 
-Note the token is baked into the config rather than read from the file at launch:
-MCP `env` takes literal values, not shell expansions, so the `$(cat ...)` above is
-expanded once by your shell at registration time. The file remains the record of
-what the token is.
+**Starting the server costs one 1Password approval.** A cold `op` session raises
+a touch-to-approve prompt in the desktop app and blocks until it is answered.
+That is once per Claude Code session, not per query.
 
 ## 4. Verify
 
@@ -109,9 +113,20 @@ registered mid-session does not appear until then.
 claude mcp list          # grafana should report ✔ Connected
 ```
 
-`✔ Connected` alone proves a fair amount: the name resolved through PiHole,
-Traefik routed it, the wildcard certificate validated, and the token
-authenticated. A failure is one of those four, in that order.
+`✔ Connected` alone proves a fair amount: 1Password released the token, the
+name resolved through PiHole, Traefik routed it, the wildcard certificate
+validated, and the token authenticated. A failure is one of those five, in that
+order.
+
+**A bare "connection timed out after 30000ms" is almost always the first one**,
+not Grafana. Claude Code gives an MCP server 30 seconds to start; the launcher
+gives the 1Password prompt 25 of them and then exits with a reason on stderr.
+If the prompt is answered late, or is hidden behind other windows, the server
+misses the window and all Claude Code reports is the timeout. Run `/mcp`,
+reconnect `grafana`, and approve the prompt straight away. If no prompt
+appears, run `op whoami` yourself to check the CLI is signed in and its
+desktop-app integration is on. Don't have Claude run `op read` to test it: the
+token would land in the transcript.
 
 Then three reads, in Claude Code:
 
