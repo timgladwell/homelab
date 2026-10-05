@@ -5,7 +5,6 @@ resources:
   - namespace.yaml
   - priorityclass.yaml
   - resourcequota.yaml
-  - unbound-configmap.yaml
   - unbound-deployment.yaml
   - unbound-service.yaml
   - pihole-pvc.yaml
@@ -27,3 +26,10 @@ configMapGenerator:
     namespace: dns
     files:
       - dnsmasq-base.conf
+  # Mounted by subPath, which Kubernetes never refreshes in place, so the hash
+  # suffix is the only thing that gets an edit to Unbound at all. It used to be
+  # a plain ConfigMap, and every change waited for an unrelated restart (#388).
+  - name: unbound-config
+    namespace: dns
+    files:
+      - unbound.conf

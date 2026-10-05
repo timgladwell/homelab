@@ -1,0 +1,12 @@
+---
+# Teaches kustomize's nameReference transformer that a HelmRelease's
+# spec.values.upConfigExistingSecret.name refers to a Secret, so the
+# secretGenerator's hashed name is written into it. Without this the value
+# stays `unpoller-config`, which never exists, and the pod fails to mount.
+#
+# Kustomize knows built-in kinds' reference fields, not a HelmRelease's values.
+nameReference:
+  - kind: Secret
+    fieldSpecs:
+      - kind: HelmRelease
+        path: spec/values/upConfigExistingSecret/name

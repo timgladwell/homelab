@@ -17,3 +17,14 @@ resources:
   - helmrepository.yaml
   - helmrelease.yaml
   - secret.sops.yaml
+# Unpoller's config, from up.conf. The hash suffix stays on: it is the only
+# thing that restarts the pod on an edit, since the chart mounts the Secret by
+# subPath. namespace is required, or the Secret generates into `default` and
+# nameReference never matches the HelmRelease in monitoring/.
+secretGenerator:
+  - name: unpoller-config
+    namespace: monitoring
+    files:
+      - up.conf
+configurations:
+  - kustomizeconfig.yaml

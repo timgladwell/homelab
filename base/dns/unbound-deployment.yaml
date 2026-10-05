@@ -67,7 +67,7 @@ spec:
               mountPath: /etc/unbound/custom.conf.d/unbound.conf
               subPath: unbound.conf
           # A full core, against a 14m average draw, is not a typo. Unbound
-          # runs num-threads: 1 (unbound-configmap.yaml), so a 1000m CFS quota
+          # runs num-threads: 1 (unbound.conf), so a 1000m CFS quota
           # is one it physically cannot exceed and throttling goes to zero
           # rather than merely down. At the previous 200m limit it was being
           # throttled in ~50% of every CFS period, continuously, at both
