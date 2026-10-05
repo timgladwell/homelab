@@ -81,7 +81,7 @@ before Flux can do anything useful.
 | UniFi read-only user | Each controller | Consumed by Unpoller (via SOPS) and NetworkOptimizer (via its own UI). |
 | Cloudflare zone, CAA, API tokens | Cloudflare + 1Password | `acme-akron` / `acme-eastbank`. CAA restricting to Let's Encrypt sits on `internal`, not the apex — Cloudflare's own five-CA set at the apex must stay for Universal SSL. |
 | UDR web UI certificate | UniFi → Settings → Control Plane → Console | Let's Encrypt for `udr.<site>.internal.zerpzorp.com`, issued and renewed by UniFi itself over DNS-01. One `unifi-<site>-udr` Cloudflare token per console, pasted into the UI, and the certificate has to be **activated** after issuing. Renewal fails silently if the token is revoked, and nothing scrapes the console's certificate. Reissue: [runbook](runbooks/unifi-tls.md). |
-| Grafana `claude-code` service account | Grafana UI → its PVC | Viewer-scoped, read-only query access for Claude Code. Lost with the Grafana PVC; symptom is queries failing 401. Reissue: [runbook](runbooks/grafana-query-access.md). |
+| Grafana `claude-code` service account | Grafana UI → its PVC | Viewer-scoped, read-only query access for Claude Code. Its token is in 1Password (`op://homelab/Grafana MCP/credential`), read at server start by the dotfiles launcher. Lost with the Grafana PVC; symptom is queries failing 401. Reissue: [runbook](runbooks/grafana-query-access.md). |
 | NetworkOptimizer UniFi credentials | Its web UI → SQLite on its PVC | **The only application state that no rebuild can restore.** Anything replacing that volume means re-entering them. |
 
 ### Why the resolver fallback is not in DHCP
