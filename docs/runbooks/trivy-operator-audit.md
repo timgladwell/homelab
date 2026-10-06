@@ -107,7 +107,7 @@ skill (`.claude/skills/trivy-audit-conventions/`), which also carries the
 fix/accept/defer rules. It proposes; accepting a finding stays a decision made in
 the main conversation.
 
-`docs/trivy-accepted-findings.txt` holds the decisions from previous cycles with
+`scripts/trivy-accepted-findings.txt` holds the decisions from previous cycles with
 the reason for each. An empty result means nothing has changed since the last
 audit, which is the answer you want most cycles.
 

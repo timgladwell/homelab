@@ -1,6 +1,6 @@
 ---
 name: trivy-audit-conventions
-description: How to triage findings from the periodic trivy-operator cluster audit, and how to record the decisions. Use whenever reading ConfigAuditReport output, deciding whether a finding is fixed or accepted, or editing docs/trivy-accepted-findings.txt.
+description: How to triage findings from the periodic trivy-operator cluster audit, and how to record the decisions. Use whenever reading ConfigAuditReport output, deciding whether a finding is fixed or accepted, or editing scripts/trivy-accepted-findings.txt.
 ---
 
 # trivy audit conventions
@@ -39,7 +39,7 @@ verified with `flate build hr -p clusters/<site>` and the rendered securityConte
 read back, never assumed from the values block.
 
 **Accept** — we looked, and the answer is no, permanently. Goes in
-`docs/trivy-accepted-findings.txt` with the reason. Legitimate grounds:
+`scripts/trivy-accepted-findings.txt` with the reason. Legitimate grounds:
 
 - the behaviour is the workload's entire function (node-exporter's `hostPID`,
   metallb-speaker's `NET_RAW`)
@@ -106,7 +106,7 @@ If a fix needs a Helm value, either name one verified with
 that does not exist is worse than no suggestion, because the values block is
 opaque to validation and a typo passes every step (#213).
 
-Do not edit `docs/trivy-accepted-findings.txt` as part of reporting — accepting a
+Do not edit `scripts/trivy-accepted-findings.txt` as part of reporting — accepting a
 finding is a decision the user makes, in a context they can see.
 
 ## What this audit cannot see
