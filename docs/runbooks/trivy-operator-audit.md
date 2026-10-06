@@ -111,10 +111,16 @@ the main conversation.
 the reason for each. An empty result means nothing has changed since the last
 audit, which is the answer you want most cycles.
 
+Validation step 16 reads the same file, scanning the objects charts render from
+git, so most chart findings are now decided in the PR that introduces them and
+never reach an audit. What the audit still adds is what only exists live:
+operator-created StatefulSets, injected containers, and anything applied outside
+Flux.
+
 The three entry shapes in that file are all the filter understands: a bare
 `AVD-KSV-NNNN` accepts that check everywhere, a bare `namespace/` accepts
-everything under it, and `namespace/workload AVD-KSV-NNNN` accepts one exact
-pair. Workload names have their ReplicaSet hash stripped, so entries survive
+everything under it, and `namespace/workload AVD-KSV-NNNN` (or
+`kind-name AVD-KSV-NNNN` for a cluster-scoped object) accepts one exact pair. Workload names have their ReplicaSet hash stripped, so entries survive
 rollouts. Accepting a workload never hides a *new* check against it — only the
 specific decisions are filtered, which is the property that keeps this from
 rotting into a blindfold, and `./scripts/trivy-audit-diff.sh --self-test` is
@@ -130,9 +136,9 @@ job is to stop things being looked at.
 Each finding is one of three things:
 
 - **A real fix** — the manifest or Helm values change. Normal PR.
-- **A chart default we cannot reach** — record it in `.trivyignore.yaml` with
-  the reason, same as any other exception. Findings against chart-rendered
-  objects have no file path, so note the release name in the statement.
+- **A chart default we cannot reach** — accept it in
+  `scripts/trivy-accepted-findings.txt` with the reason. That one entry also
+  covers validation step 16's scan of the same rendered object.
 - **A check that does not apply here** — exception with a reason, never a
   severity floor.
 

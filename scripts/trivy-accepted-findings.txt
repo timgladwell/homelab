@@ -1,19 +1,31 @@
-# Findings from the trivy-operator audit that are accepted and will not be
-# fixed. Each cycle filters the report through this file so the output is only
-# what is new — see docs/runbooks/trivy-operator-audit.md.
+# Trivy findings on cluster objects that are accepted and will not be fixed.
+#
+# Trivy covers every workload and RBAC object here, chart or not, in three
+# scans with two exception lists:
+#
+#   scan                          sees                          exceptions
+#   validation step 6             every manifest file in git    .trivyignore.yaml
+#                                 (pihole, unbound, landing...) keyed on file path
+#   validation step 16            objects charts render, which  this file
+#                                 step 6 sees only as a
+#                                 HelmRelease
+#   trivy-operator audit          everything live on a cluster  this file
+#
+# So an entry here for a manifest written in git (dns/replicaset-pihole) is
+# read only by the audit; step 6 reads that object's twin in .trivyignore.yaml.
+# Step 16 makes a chart finding fail the PR that introduces it instead of
+# waiting for the next audit cycle. See scripts/trivy-audit-diff.sh,
+# scripts/validate/16-rendered-security-scan.sh and
+# docs/runbooks/trivy-operator-audit.md.
 #
 # Accepted means decided: we looked, and the answer is no. It does NOT mean
 # deferred. Anything still worth doing stays out of this file so it keeps
-# showing up.
+# showing up — which, since step 16, means it keeps validation failing.
 #
-# Format: one "<namespace>/<workload> <AVD-KSV-NNNN>" per line, matched as a
-# fixed string. Workload names have their ReplicaSet/pod hash suffix stripped
-# before matching, so they stay stable across rollouts.
-#
-# This is the live-object twin of .trivyignore.yaml, which covers the same
-# question for the files in git during validation step 6. Two files because the
-# two scanners key on different things — paths there, live workloads here — and
-# neither can read the other's.
+# Format: one "<namespace>/<kind>-<name> <AVD-KSV-NNNN>" per line, or
+# "<kind>-<name> <AVD-KSV-NNNN>" for a cluster-scoped object, matched as a fixed
+# string. These are trivy-operator's report names: a Deployment appears as its
+# ReplicaSet, with the hash suffix stripped so it stays stable across rollouts.
 
 # ---------------------------------------------------------------------------
 # Not ours: k3s manages these and re-applies them from
@@ -133,6 +145,80 @@ monitoring/statefulset-alloy-metrics AVD-KSV-0020
 monitoring/statefulset-alloy-metrics AVD-KSV-0021
 monitoring/replicaset-kube-prometheus-stack-grafana AVD-KSV-0020
 monitoring/replicaset-kube-prometheus-stack-grafana AVD-KSV-0021
+# cert-manager runs as its image's own non-root user; the admission Jobs run as
+# 2000. Both non-root, unprivileged, no host mounts.
+cert-manager/replicaset-cert-manager AVD-KSV-0020
+cert-manager/replicaset-cert-manager AVD-KSV-0021
+cert-manager/replicaset-cert-manager-cainjector AVD-KSV-0020
+cert-manager/replicaset-cert-manager-cainjector AVD-KSV-0021
+cert-manager/replicaset-cert-manager-webhook AVD-KSV-0020
+cert-manager/replicaset-cert-manager-webhook AVD-KSV-0021
+cert-manager/job-cert-manager-startupapicheck AVD-KSV-0020
+cert-manager/job-cert-manager-startupapicheck AVD-KSV-0021
+monitoring/job-kube-prometheus-stack-admission-create AVD-KSV-0020
+monitoring/job-kube-prometheus-stack-admission-create AVD-KSV-0021
+monitoring/job-kube-prometheus-stack-admission-patch AVD-KSV-0020
+monitoring/job-kube-prometheus-stack-admission-patch AVD-KSV-0021
+
+# ---------------------------------------------------------------------------
+# Controllers whose job is the permission. Each of these grants is the
+# component's function, not a convenience: removing it breaks the thing it is
+# deployed for. All are chart-shipped RBAC.
+#
+# cert-manager writes every certificate it issues into a Secret; cainjector
+# patches CA bundles into webhook configurations; the challenges controller
+# creates the solver pods, Services and Ingresses for HTTP-01; the webhook keeps
+# its own serving certificate in a Secret in its namespace.
+# ---------------------------------------------------------------------------
+clusterrole-cert-manager-cainjector AVD-KSV-0041
+clusterrole-cert-manager-cainjector AVD-KSV-0114
+clusterrole-cert-manager-controller-certificates AVD-KSV-0041
+clusterrole-cert-manager-controller-challenges AVD-KSV-0041
+clusterrole-cert-manager-controller-challenges AVD-KSV-0048
+clusterrole-cert-manager-controller-challenges AVD-KSV-0056
+clusterrole-cert-manager-controller-clusterissuers AVD-KSV-0041
+clusterrole-cert-manager-controller-issuers AVD-KSV-0041
+clusterrole-cert-manager-controller-orders AVD-KSV-0041
+cert-manager/role-cert-manager-webhook:dynamic-serving AVD-KSV-0113
+
+# prometheus-operator renders each Prometheus and Alertmanager config into a
+# Secret, and creates their StatefulSets, Services and config ConfigMaps. The
+# admission Jobs generate the operator webhook's certificate into a Secret and
+# patch it into the webhook configurations.
+clusterrole-kube-prometheus-stack-operator AVD-KSV-0041
+clusterrole-kube-prometheus-stack-operator AVD-KSV-0048
+clusterrole-kube-prometheus-stack-operator AVD-KSV-0049
+clusterrole-kube-prometheus-stack-operator AVD-KSV-0056
+clusterrole-kube-prometheus-stack-admission AVD-KSV-0114
+monitoring/role-kube-prometheus-stack-admission AVD-KSV-0113
+
+# MetalLB's controller keeps its webhook certificate in a Secret and patches the
+# CA into its webhook configurations; the speaker (pod-lister) reads the
+# memberlist key Secret. Both Roles are scoped to metallb-system.
+clusterrole-metallb:controller AVD-KSV-0114
+metallb-system/role-metallb-controller AVD-KSV-0113
+metallb-system/role-metallb-pod-lister AVD-KSV-0113
+
+# Traefik reads the TLS Secrets its routes and TLSStore reference. The chart's
+# namespaced mode would confine that to listed namespaces, and IngressRoutes
+# live in whichever namespace owns the service.
+clusterrole-traefik-traefik AVD-KSV-0041
+
+# Grafana's dashboard and datasource sidecars. Every source here is a ConfigMap,
+# but the chart grants configmaps+secrets together whenever any sidecar is
+# enabled, whatever `sidecar.*.resource` says (charts/grafana/templates/
+# clusterrole.yaml). Replacing the chart's role with our own
+# (rbac.useExistingClusterRole) is the only way out, and costs more than it buys.
+clusterrole-kube-prometheus-stack-grafana-clusterrole AVD-KSV-0041
+
+# Prometheus discovers its ServiceMonitors' targets through the API, so its pod
+# needs its token. Alertmanager, which does not, has it turned off.
+monitoring/prometheus-kube-prometheus-stack-prometheus AVD-KSV-0036
+
+# alloy-metrics pins Akron's telemetry hostnames in its own /etc/hosts, so the
+# path that reports PiHole failing does not depend on PiHole resolving. See
+# sites/eastbank/monitoring/alloy-metrics-hostaliases.yaml.
+monitoring/statefulset-alloy-metrics AVD-KSV-0007
 
 # ---------------------------------------------------------------------------
 # system-upgrade-controller mounts host paths because replacing the k3s binary

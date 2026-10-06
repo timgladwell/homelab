@@ -148,8 +148,13 @@ run_step "Python Tests" "$VALIDATE_DIR/13-python-tests.sh"
 run_step "Pi-hole Secret Pairs" "$VALIDATE_DIR/14-pihole-secret-pairs.sh"
 
 # Step 15: Chart render — independent (flate reads the repo itself, with its
-# own postBuild substitution; it does not use step 3's build output)
-run_step "Chart Render" "$VALIDATE_DIR/15-chart-render.sh"
+# own postBuild substitution; it does not use step 3's build output). Gates
+# step 16, which scans what it rendered.
+if run_step "Chart Render" "$VALIDATE_DIR/15-chart-render.sh"; then
+    run_step "Rendered Security Scan" "$VALIDATE_DIR/16-rendered-security-scan.sh"
+else
+    skip_step "Rendered Security Scan" "chart render failed"
+fi
 
 # Summary
 echo ""
