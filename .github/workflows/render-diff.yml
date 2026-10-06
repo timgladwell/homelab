@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
 
       # Same pin and cache as Validate. `base` is exported as FLATE_BASE, which
-      # the script passes explicitly anyway.
+      # the script unsets: it diffs two prepared checkouts with -P instead.
       - name: Setup flate
         uses: home-operations/flate/action@v0.6.5
         with:

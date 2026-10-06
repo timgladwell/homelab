@@ -19,6 +19,17 @@
 # version step 15 uses. flate takes one --kube-version for both sides, so a k3s
 # bump's effect on charts cannot be shown as a diff anyway, and step 15 already
 # renders every chart at the new version.
+#
+# Both sides render with kustomize's name-suffix hash turned off, which the
+# local command above does not do. A generated ConfigMap is named for a hash
+# of its content, so any edit to it renames it, and flate pairs objects by
+# name: the change shows as the whole old document removed, the whole new one
+# added, and every reference to it changed, which buries the edited lines
+# under hundreds of unchanged ones. With the hash off the ConfigMap keeps its
+# name, and flate shows only the lines that changed. The rename carries no
+# information of its own: it is the restart a content change triggers, and the
+# content change is now shown directly. The edit goes only to throwaway copies
+# of each revision, so what ships is still hashed.
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -26,8 +37,25 @@ cd "$REPO_ROOT"
 source scripts/validate/lib-sites.sh
 
 base="${1:?usage: render-diff.sh <base-rev>}"
+# The setup action exports FLATE_BASE, which flate refuses alongside -P.
+unset FLATE_BASE
 errors="$(mktemp)"
-trap 'rm -f "$errors"' EXIT
+work="$(mktemp -d)"
+trap 'git worktree remove --force "$work/head" 2> /dev/null
+      git worktree remove --force "$work/base" 2> /dev/null
+      rm -rf "$errors" "$work"' EXIT
+
+# Throwaway checkouts of HEAD and the base, with hashing off in every
+# kustomization that generates anything. Appending is safe: a file that already
+# has a top-level generatorOptions is skipped, and per-generator `options:`
+# only ever turn hashing off here too.
+git worktree add -q --detach "$work/head" HEAD
+git worktree add -q --detach "$work/base" "$base"
+grep -rl --include=kustomization.yaml 'Generator:' "$work/head" "$work/base" |
+    while read -r f; do
+        grep -q '^generatorOptions:' "$f" ||
+            printf '\ngeneratorOptions:\n  disableNameSuffixHash: true\n' >> "$f"
+    done
 
 echo "<!-- flate-render-diff -->"
 echo "## Rendered manifest diff"
@@ -36,7 +64,7 @@ echo "\`flate diff all\` against \`${base}\`: every manifest as Flux will apply 
 echo "A review aid; Validate's step 15 is the pass/fail check."
 
 for site in $(sites); do
-    diff_out="$(flate diff all -p "clusters/${site}" --base "$base" -o github --no-progress 2> "$errors")"
+    diff_out="$(cd "$work/head" && flate diff all -p "clusters/${site}" -P "$work/base/clusters/${site}" -o github --no-progress 2> "$errors")"
     rc=$?
     changes=$(grep -c '^@@ ' <<< "$diff_out")
 
