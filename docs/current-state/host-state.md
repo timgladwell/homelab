@@ -84,6 +84,26 @@ before Flux can do anything useful.
 | Grafana `claude-code` service account | Grafana UI → its PVC | Viewer-scoped, read-only query access for Claude Code. Lost with the Grafana PVC; symptom is queries failing 401. Reissue: [runbook](../runbooks/grafana-query-access.md). |
 | NetworkOptimizer UniFi credentials | Its web UI → SQLite on its PVC | **The only application state that no rebuild can restore.** Anything replacing that volume means re-entering them. |
 
+### UniFi syslog: which setting sends which format
+
+Two UniFi settings feed Loki through Akron's `alloy-syslog` LoadBalancer
+(`sites/akron/monitoring/alloy-syslog-service.yaml`), each on its own port
+because they send different formats:
+
+| UniFi setting | Sends | Port | Loki stream |
+|---|---|---|---|
+| Settings → Cybersecure → Traffic Logging | Plain RFC 3164 syslog with a `<PRI>` header: device system logs (`systemd`, `dbus-daemon`, `ubios-udapi-server`, `earlyoom`) | UDP `1514` | `{job="unifi-siem"}` |
+| Settings → System Logging (`/network/default/integrations`) | CEF (`CEF:0\|Ubiquiti\|UniFi OS\|…`) with **no** `<PRI>` header: admin activity, config changes, detections | UDP `1515` | `{job="unifi-cef"}` |
+
+**The names are the reverse of what they sound like** — *Cybersecure* sends
+plain system syslog and *System Logging* sends CEF (measured 2026-08-27).
+Port 1515's receiver sets `allow_skip_pri_header = true`; port 1514's is strict,
+so CEF sent there is dropped silently — UDP has no handshake to fail and no
+retry. Both settings offer overlapping categories (Devices, Critical, Admin
+Activity, Updates, VPN, Firewall Default Policy), so the same event can arrive
+twice in two formats; enable categories deliberately rather than everything in
+both.
+
 ### Why the resolver fallback is not in DHCP
 
 #173 originally proposed a two-entry DHCP list (`<pihole>, 1.1.1.1`) on the

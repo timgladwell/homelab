@@ -314,6 +314,9 @@ spec:
     kubeScheduler:
       enabled: false
 
+    # K3s's datastore is SQLite, not etcd, and K3s runs no kube-proxy, so
+    # there is nothing for either monitor to scrape. Do not add an etcd
+    # metrics arg to K3s or try to scrape kube-proxy.
     kubeEtcd:
       enabled: false
 
