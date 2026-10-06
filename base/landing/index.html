@@ -161,6 +161,15 @@ footer a { color: inherit; }
 </main>
 
 <script>
+// Every value from outside this system reaches the DOM through textContent,
+// never innerHTML — domains and client names in Pi-hole's query log are chosen
+// by whoever sends the DNS packet. textContent creates a text node directly, so
+// the HTML parser never runs on the string; that is stronger than escaping, not
+// a weaker form of it. Do not "sanitise" such values at the source instead:
+// escaping belongs at the sink, in the sink's own language, and encoding at the
+// source mangles the stored value for every other consumer (an export, a log
+// line, an alert body).
+//
 // The three endpoints in app.py, and nothing else. The Pi-hole credential lives
 // in that process; this page never sees it and cannot reach any other endpoint.
 //

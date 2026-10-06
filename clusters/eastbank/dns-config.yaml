@@ -7,6 +7,8 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
+  # Load-bearing: renaming prunes everything this owns, PVCs included.
+  # See docs/runbooks/flux-kustomization-changes.md.
   name: dns-config
   namespace: flux-system
 spec:
@@ -24,6 +26,9 @@ spec:
   wait: true
   # Gravity update takes ~10 minutes; 20 minutes provides enough headroom.
   timeout: 20m
+  # pihole-sync calls Pi-hole's API (the pihole-web Service), which the
+  # infrastructure layer deploys. Nothing in this layer needs apps, so it does
+  # not wait for it.
   dependsOn:
     - name: infrastructure
   decryption:

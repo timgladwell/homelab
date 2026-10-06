@@ -1,4 +1,7 @@
 ---
+# ClusterIssuers and Certificates go in base/cert-manager-config/, never here:
+# this ships with the HelmRelease that installs their CRDs, so a CR here fails
+# on a fresh cluster. Validation step 11 enforces it.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

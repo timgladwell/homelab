@@ -201,7 +201,7 @@ spec:
           # than its head block's min-valid-time (~2h) as "out of bounds" —
           # without this window the buffer is decorative. Kept equal to the
           # collector's wal.max_keepalive_time in
-          # base/metrics-collection/alloy-metrics.yaml.
+          # base/metrics-collection/alloy-metrics.alloy.
           outOfOrderTimeWindow: 24h
         storageSpec:
           volumeClaimTemplate:

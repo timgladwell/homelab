@@ -10,6 +10,9 @@ reconcile will not restore.
 |---|---|
 | [Promoting to `stable`](runbooks/promote-to-stable.md) | Operational |
 | [Reaching PiHole When Traefik Is Not Routing](runbooks/pihole-access.md) | Operational |
+| [Adding or Removing a Component, Layer or Variable](runbooks/adding-components.md) | Maintenance |
+| [Renaming or Moving Across Flux Kustomizations](runbooks/flux-kustomization-changes.md) | Maintenance |
+| [Sizing a Container's Memory Limit](runbooks/memory-sizing.md) | Maintenance |
 | [Helm Chart Upgrades with CRD Changes](runbooks/helm-crd-upgrades.md) | Maintenance |
 | [Traefik upgrades](runbooks/traefik-upgrades.md) | Maintenance |
 | [kube-prometheus-stack upgrades](runbooks/kube-prometheus-stack-upgrades.md) | Maintenance |
@@ -18,6 +21,7 @@ reconcile will not restore.
 | [Periodic Cluster Security Audit with trivy-operator](runbooks/trivy-operator-audit.md) | Maintenance |
 | [Renaming the K3s Node](runbooks/node-rename.md) | Maintenance |
 | [TRIM on a USB-Attached SSD](runbooks/usb-trim.md) | Maintenance |
+| [Setting Up a Development Environment](runbooks/development-environment.md) | Provisioning |
 | [Bootstrapping a New Remote Site](runbooks/bootstrap-new-remote-site.md) | Provisioning |
 | [Standing Up a New Headless Box (Flash + Cloud-Init)](runbooks/new-box-standup.md) | Provisioning |
 | [Read-Only Grafana Access for Claude Code](runbooks/grafana-query-access.md) | Provisioning |
