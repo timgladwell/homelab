@@ -18,10 +18,3 @@ For any Traefik Helm chart version bump:
    If there's a diff, apply the new CRDs per the [general process](helm-crd-upgrades.md#general-process) before merging.
 
 5. **Gateway API CRDs** — only relevant if using the Gateway API provider, which this cluster does not use.
-
-## Past upgrades
-
-| Chart version | Traefik app version | CRD update? | Notes |
-|----|----|----|----|
-| v39 → v40 | v3.7 | Yes | New retry middleware options added to CRD provider |
-| v40 → v41 | v3.7.4 → v3.7.5 | No (CRDs identical) | `logs.general`/`logs.access` renamed to `log`/`accessLog`; `providers.file.content` string→object (not used here) |
