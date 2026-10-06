@@ -27,6 +27,9 @@ trap 'rm -rf "$WORK"' EXIT
 
 fail=0
 checked=0
+scanned=0
+: > "$WORK/fired.txt"
+: > "$WORK/rendered.txt"
 for site in $(sites); do
     echo "--- $site ---"
     rendered="${BUILD_DIR}/k3s-rendered-${site}.yaml"
@@ -91,11 +94,17 @@ for site in $(sites); do
     # trivy's IDs are "KSV-0041"; trivy-operator's, and so the accepted list's,
     # are "AVD-KSV-0041". sort -u because some checks report one finding per
     # offending rule or container, and the list decides per object.
-    findings=$(jq -r '
+    jq -r '
         .Results[]? | (.Target | sub("\\.yaml$"; "")) as $t | .Misconfigurations[]?
         | select(.Status == "FAIL")
         | [.Severity, $t, ("AVD-" + .ID), .Title] | @tsv
-    ' "$json" | sort -u | awk -f scripts/trivy-accepted-filter.awk scripts/trivy-accepted-findings.txt -)
+    ' "$json" | sort -u > "$WORK/$site.tsv"
+    # Every site's raw findings and rendered objects, for the stale-entry check.
+    cut -f2,3 "$WORK/$site.tsv" >> "$WORK/fired.txt"
+    (cd "$split" && find . -name '*.yaml' | sed 's#^\./##; s#\.yaml$##') >> "$WORK/rendered.txt"
+    scanned=$((scanned + 1))
+
+    findings=$(awk -f scripts/trivy-accepted-filter.awk scripts/trivy-accepted-findings.txt "$WORK/$site.tsv")
     if [[ -n "$findings" ]]; then
         echo "$findings" | column -t -s "$(printf '\t')"
         fail=1
@@ -105,6 +114,33 @@ for site in $(sites); do
     # flate output format, say — which the harness fails.
     checked=$((checked + $(jq -r '.Results | length // 0' "$json")))
 done
+
+# Stale entries. A new finding fails above by itself; an accepted one that has
+# stopped being true would otherwise sit in the list forever — the chart fixed
+# it, a values change did, or trivy renamed or retired the check. An
+# object/check pair is stale when its object renders at some site and the check
+# fires on it at none: per site would be wrong, since a finding can fire at one
+# site only (alloy-metrics' hostAliases are Eastbank's).
+#
+# Only pairs are checked, and only for objects this step renders. A bare check
+# ID, a "namespace/" prefix, or an object that exists only live (a manifest
+# written here, an operator-created StatefulSet) cannot be judged from here.
+# Skipped unless every site scanned, or a missing site's findings read as stale.
+if [[ $scanned -eq $(sites | wc -l) ]]; then
+    stale=$(awk '
+        FILENAME == ARGV[1] { rendered[$1]; next }
+        FILENAME == ARGV[2] { fired[$1 " " $2]; next }
+        { sub(/#.*/, "") }
+        NF == 2 && ($1 in rendered) && !(($1 " " $2) in fired) { print "  " $1 " " $2 }
+    ' "$WORK/rendered.txt" "$WORK/fired.txt" scripts/trivy-accepted-findings.txt)
+    if [[ -n "$stale" ]]; then
+        echo "--- stale accepted entries ---"
+        echo "$stale"
+        echo "These objects render, but the check no longer fires on them at any"
+        echo "site. Delete each line from scripts/trivy-accepted-findings.txt."
+        fail=1
+    fi
+fi
 
 if [[ $fail -ne 0 ]]; then
     echo ""

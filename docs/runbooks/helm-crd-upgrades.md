@@ -36,3 +36,4 @@ This is why step 4 says wait. If you apply and merge together, the CRD's effects
 Not all breaking changes are CRD-related. Also check the chart's changelog for:
 - **Values restructuring** — fields moved, renamed, or re-nested under new keys (requires updating `values:` in the `HelmRelease`)
 - **Provider or feature renames** — keys that silently have no effect if not updated
+- **An option an accepted trivy finding says is missing** — read the release's entries in `scripts/trivy-accepted-findings.txt`. Several are accepted only because the chart had no value to fix them (Grafana's sidecar RBAC, for one). Validation step 16 already fails when a bump makes an accepted finding stop firing; it cannot tell that a finding which still fires has become fixable.

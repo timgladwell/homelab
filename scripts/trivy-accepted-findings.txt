@@ -22,6 +22,11 @@
 # deferred. Anything still worth doing stays out of this file so it keeps
 # showing up — which, since step 16, means it keeps validation failing.
 #
+# Step 16 also fails on an entry that no longer fires: an object/check pair
+# whose object it renders, but whose check fires on it at no site. Delete the
+# line. Entries for objects it does not render (manifests written here, operator-
+# created StatefulSets, whole namespaces, bare check IDs) are not checked.
+#
 # Format: one "<namespace>/<kind>-<name> <AVD-KSV-NNNN>" per line, or
 # "<kind>-<name> <AVD-KSV-NNNN>" for a cluster-scoped object, matched as a fixed
 # string. These are trivy-operator's report names: a Deployment appears as its
@@ -109,7 +114,6 @@ metallb-system/daemonset-metallb-speaker AVD-KSV-0020
 metallb-system/daemonset-metallb-speaker AVD-KSV-0021
 metallb-system/daemonset-metallb-speaker AVD-KSV-0022
 metallb-system/daemonset-metallb-speaker AVD-KSV-0106
-metallb-system/daemonset-metallb-speaker AVD-KSV-0118
 metallb-system/daemonset-metallb-speaker AVD-KSV-0119
 
 # ---------------------------------------------------------------------------
@@ -123,7 +127,6 @@ monitoring/daemonset-alloy AVD-KSV-0014
 monitoring/daemonset-alloy AVD-KSV-0020
 monitoring/daemonset-alloy AVD-KSV-0021
 monitoring/daemonset-alloy AVD-KSV-0023
-monitoring/daemonset-alloy AVD-KSV-0118
 
 # ---------------------------------------------------------------------------
 # UID/GID <= 10000, for workloads that are already non-root, unprivileged and
