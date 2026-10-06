@@ -94,6 +94,14 @@ spec:
             # Use pihole.${SITE_DOMAIN}, or port-forward — see
             # docs/runbooks/pihole-access.md. The LoadBalancer carries DNS
             # only since #303, so there is no IP path to the UI any more.
+            # #208 retried with the theory that MetalLB's external IP would
+            # change the answer; it does not, because FTL reads its own
+            # interface, not the Service. Before retrying, check whether
+            # anything changed: `dig +short pi.hole @<site-pihole-ip>`
+            # returning a 10.42.x.x pod IP means it has not (still true on
+            # pihole:2026.07.2). The one untried avenue is making the pod CIDR
+            # routable from the LAN with a static route, which trades a
+            # LAN-wide route into the pod network for a convenience name.
             # PiHole is not the DHCP server
             - name: FTLCONF_dhcp_active
               value: "false"

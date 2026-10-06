@@ -86,7 +86,7 @@ spec:
       # This one keeps root and a writable root filesystem — it reads
       # /var/log/pods and the volatile journal through hostPath mounts, which is
       # the entire reason it exists, and those findings are accepted in
-      # docs/trivy-accepted-findings.txt. Capabilities are a different question:
+      # scripts/trivy-accepted-findings.txt. Capabilities are a different question:
       # reading root-owned 0644 log files needs none of them, so dropping the
       # set costs nothing and removes the privilege-escalation path that makes a
       # root container worth worrying about.

@@ -9,6 +9,8 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
+  # Load-bearing: renaming prunes everything this owns, PVCs included.
+  # See docs/runbooks/flux-kustomization-changes.md.
   name: apps
   namespace: flux-system
 spec:

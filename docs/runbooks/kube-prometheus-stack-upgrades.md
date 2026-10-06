@@ -27,7 +27,7 @@ For any kube-prometheus-stack chart version bump:
 
 After merging, an operator bump restarts Prometheus **twice**. The Helm upgrade restarts it once, and the new operator restarts it again when it reconciles the `Prometheus` object with its own config-reloader image. Alertmanager does the same.
 
-Each start replays the WAL, which took about 30s on 2026-10-01. Until Prometheus logs `Server is ready to receive web requests`, every Grafana query against it returns **502**, `up` included. Loki keeps working, so read the Prometheus pod's logs there:
+Each start replays the WAL, which takes about 30s. Until Prometheus logs `Server is ready to receive web requests`, every Grafana query against it returns **502**, `up` included. Loki keeps working, so read the Prometheus pod's logs there:
 
 ```logql
 {namespace="monitoring", pod="prometheus-kube-prometheus-stack-prometheus-0"}
@@ -42,9 +42,3 @@ kubectl -n monitoring logs deploy/kube-prometheus-stack-operator | grep -i forbi
 ```
 
 The last command catches RBAC denials. Operator releases have been tightening the operator's ClusterRole, which v0.94 did by replacing wildcard verbs with explicit ones.
-
-## Past upgrades
-
-| Chart version | Operator | CRD update? | Notes |
-|----|----|----|----|
-| 90.2 → 91.8 | v0.93.1 → v0.94.1 | Yes | Additive only (`retentionPercentage`, `clusterPeerName`, ScrapeConfig SD enums). Operator ClusterRole moved from wildcard to explicit verbs. Prometheus v3.14 → v3.15, with fixes to out-of-order ingestion that affect remote-site WAL replay. |

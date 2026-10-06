@@ -25,7 +25,7 @@ report what survives the filter, using the preloaded skill's format and its
 fix/accept/defer taxonomy.
 
 Propose a classification for each finding with one line of grounds. Do not edit
-`docs/trivy-accepted-findings.txt` and do not change any manifest — accepting a
+`scripts/trivy-accepted-findings.txt` and do not change any manifest — accepting a
 finding is the user's decision, and fixes belong to the calling conversation.
 
 If the filtered output is empty, say so plainly: nothing has changed since the

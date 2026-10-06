@@ -8,6 +8,9 @@ ehthumbs.db
 Thumbs.db
 
 # Claude
+# .claude/agents/ and .claude/skills/ are tracked. If they look missing from
+# git, check ~/.gitignore_global for a blanket `.claude` ignore before blaming
+# this file (`git check-ignore -v <path>` names the rule).
 .claude/worktrees/**
 # `claude mcp add --scope project` writes this file, and it holds the MCP
 # server's env inline — including the Grafana service account token

@@ -24,9 +24,9 @@ Set by `scripts/set-node-identity.sh` (idempotent — re-running converges):
 | Host mapping | `/etc/hosts` | Regenerated wholesale, `127.0.1.1` → FQDN. |
 | cloud-init disabled | `/etc/cloud/cloud-init.disabled` | `update_etc_hosts` is `PER_ALWAYS` and rebuilds `/etc/hosts` from the *seed's* hostname every boot, silently reverting the rename. |
 | Kubelet resolver | `/etc/rancher/k3s/resolv.conf` | The host's resolvers minus the `search` line. |
-| Kubelet arg | `kubelet-arg: resolv-conf=…` in `/etc/rancher/k3s/config.yaml` | Without this the file above is inert. Stops pods inheriting the node's search domain, which otherwise breaks all external DNS in every pod — see [Trap 3](runbooks/node-rename.md). |
+| Kubelet arg | `kubelet-arg: resolv-conf=…` in `/etc/rancher/k3s/config.yaml` | Without this, `/etc/rancher/k3s/resolv.conf` is inert. Stops pods inheriting the node's search domain, which otherwise breaks all external DNS in every pod — see [Trap 3](../runbooks/node-rename.md). |
 
-Set by hand, per [Standing Up a New Headless Box](runbooks/new-box-standup.md):
+Set by hand, per [Standing Up a New Headless Box](../runbooks/new-box-standup.md):
 
 | What | Where | Why |
 |---|---|---|
@@ -34,9 +34,9 @@ Set by hand, per [Standing Up a New Headless Box](runbooks/new-box-standup.md):
 | DHCP override | `nmcli … ipv4.ignore-auto-dns yes` | Stops DHCP appending its own list on top. |
 | Revoked sudo | `/etc/sudoers.d/90-cloud-init-users` | Cloud-init grants `NOPASSWD` for first login; it is meant to be removed. |
 | Dotfiles | `~` | [dotfiles README](https://github.com/timgladwell/dotfiles#servers). |
-| TRIM on a USB SSD | `/etc/udev/rules.d/10-usb-ssd-trim.rules` + `fstrim.timer` | Only for a box that boots from a USB-attached SSD — today Akron alone; every other node is on an SD card. The kernel leaves `provisioning_mode` at `full` for a USB bridge, so discard is a no-op and `fstrim` silently reclaims nothing without the rule — which is what Akron did for the drive's whole life until 2026-09-16, when the first real trim returned 178 GiB. The rule is what makes it survive a reboot or a replug; the `fstrim.timer` it feeds was already enabled. [Runbook](runbooks/usb-trim.md). |
+| TRIM on a USB SSD | `/etc/udev/rules.d/10-usb-ssd-trim.rules` + `fstrim.timer` | Only for a box that boots from a USB-attached SSD — today Akron alone; every other node is on an SD card. The kernel leaves `provisioning_mode` at `full` for a USB bridge, so discard is a no-op and `fstrim` silently reclaims nothing without the rule. The rule is what makes `provisioning_mode=unmap` survive a reboot or a replug; `fstrim.timer` does the trimming. Akron's rule matches its Realtek RTL9210 bridge, USB ID `0bda:9210` — replacing the enclosure means updating it. [Runbook](../runbooks/usb-trim.md). |
 
-Set during k3s install, per [Bootstrapping a New Remote Site](runbooks/bootstrap-new-remote-site.md):
+Set during k3s install, per [Bootstrapping a New Remote Site](../runbooks/bootstrap-new-remote-site.md):
 
 | What | Where | Why |
 |---|---|---|
@@ -65,7 +65,7 @@ before Flux can do anything useful.
 | What | How | Notes |
 |---|---|---|
 | `sops-age` Secret in `flux-system` | `scripts/configure-flux-sops.sh`, or `kubectl create secret generic` | The site's age private key. Without it every Kustomization with `decryption:` fails. |
-| `flux-system` Secret | `flux bootstrap --token-auth` | Holds the GitHub PAT. Rotation: [runbook](runbooks/github-pat-rotation.md). |
+| `flux-system` Secret | `flux bootstrap --token-auth` | Holds the GitHub PAT. Rotation: [runbook](../runbooks/github-pat-rotation.md). |
 
 ---
 
@@ -73,16 +73,37 @@ before Flux can do anything useful.
 
 | What | Where | Notes |
 |---|---|---|
-| DHCP DNS servers | UniFi, per network | All VLANs hand out the site PiHole only. The public fallback is per-node static config, deliberately — see below. |
-| DHCP search domain | UniFi, per network | Set to `<site>.internal.zerpzorp.com`, which resolves for real since #233. Single-label lookups on those VLANs land on the site's Traefik via the `${SITE_DOMAIN}` wildcard — but **only usefully for `ssh` / `ping` / `dig`**, never a browser: TLS validates the single label as typed, and no certificate can cover it. See [naming convention](naming-convention.md). This covers DHCP clients on those VLANs only; VPN clients are the row below. |
+| DHCP DNS servers | UniFi, per network | All VLANs hand out the site PiHole only. The public fallback is per-node static config, deliberately — see [Why the resolver fallback is not in DHCP](#why-the-resolver-fallback-is-not-in-dhcp). |
+| DHCP search domain | UniFi, per network | Set to `<site>.internal.zerpzorp.com`, which resolves for real since #233. Single-label lookups on those VLANs land on the site's Traefik via the `${SITE_DOMAIN}` wildcard — but **only usefully for `ssh` / `ping` / `dig`**, never a browser: TLS validates the single label as typed, and no certificate can cover it. See [naming convention](naming-convention.md). This covers DHCP clients on those VLANs only; VPN clients are the *VPN client search domain* row. |
 | VPN client search domain | Each VPN client's own WireGuard config | **Per device, not estate state.** A `DNS =` line carrying `akron.internal.zerpzorp.com` alongside the resolver. The tunnel hands out `10.6.1.53` on its own; the search domain is not pushed, so every client that has not been edited by hand lacks it. Set on one laptop today — do not read a single-label name working there as evidence it works anywhere else. Configuring it server-side on the console would push it to every client and make this row unnecessary; nobody has. |
 | Syslog targets | UniFi → Settings → Cybersecure → Traffic Logging (`:1514`), and Settings → System Logging (`:1515`) | Both point at `10.6.1.81`, Akron's `alloy-syslog` LoadBalancer, **by IP**. A name works only if the console can resolve it, and today nothing guarantees that: the old `syslog.homelab.home.arpa` target stopped resolving without any error, and the gap in the logs was only noticed later. A name becomes usable again once something keeps it resolvable, such as an A record in the console's table synced from git, or a known resolver path for the console's own lookups. Both are #316. Every site targets Akron across the WAN today; receiving at each site's own collector instead is #420. |
 | UDR DNS records | UniFi → Policy Table → DNS Records | Per-console A records and Forward Domain rules. `syslog.homelab.home.arpa` stopped resolving somewhere around #303, and was attributed to it — but that window held several manual changes and the checks either side were hours apart, so even "PiHole was in the answer path" is inference, not measurement. How this table ranks against the console's own resolver is untested, as is whether it consults PiHole at all (#316). Do not assume an internal name resolves on the device. Nothing in the repo reconciles this table. |
 | UniFi read-only user | Each controller | Consumed by Unpoller (via SOPS) and NetworkOptimizer (via its own UI). |
 | Cloudflare zone, CAA, API tokens | Cloudflare + 1Password | `acme-akron` / `acme-eastbank`. CAA restricting to Let's Encrypt sits on `internal`, not the apex — Cloudflare's own five-CA set at the apex must stay for Universal SSL. |
-| UDR web UI certificate | UniFi → Settings → Control Plane → Console | Let's Encrypt for `udr.<site>.internal.zerpzorp.com`, issued and renewed by UniFi itself over DNS-01. One `unifi-<site>-udr` Cloudflare token per console, pasted into the UI, and the certificate has to be **activated** after issuing. Renewal fails silently if the token is revoked, and nothing scrapes the console's certificate. Reissue: [runbook](runbooks/unifi-tls.md). |
-| Grafana `claude-code` service account | Grafana UI → its PVC | Viewer-scoped, read-only query access for Claude Code. Lost with the Grafana PVC; symptom is queries failing 401. Reissue: [runbook](runbooks/grafana-query-access.md). |
+| UDR web UI certificate | UniFi → Settings → Control Plane → Console | Let's Encrypt for `udr.<site>.internal.zerpzorp.com`, issued and renewed by UniFi itself over DNS-01. One `unifi-<site>-udr` Cloudflare token per console, pasted into the UI, and the certificate has to be **activated** after issuing. Renewal fails silently if the token is revoked, and nothing scrapes the console's certificate. Reissue: [runbook](../runbooks/unifi-tls.md). |
+| Grafana `claude-code` service account | Grafana UI → its PVC | Viewer-scoped, read-only query access for Claude Code. Lost with the Grafana PVC; symptom is queries failing 401. Reissue: [runbook](../runbooks/grafana-query-access.md). |
 | NetworkOptimizer UniFi credentials | Its web UI → SQLite on its PVC | **The only application state that no rebuild can restore.** Anything replacing that volume means re-entering them. |
+| Lottage's Pi-hole | Bare metal at `10.2.1.2` (UDR `10.2.1.1`), hand-managed | Lottage has no K3s cluster here, so nothing syncs it (#392). It resolves Akron and Eastbank through a hand-placed `/etc/dnsmasq.d/site.conf` holding the literal Traefik IPs from `clusters/common/network-vars.yaml` — update it by hand when those change. Drop-ins go in `/etc/dnsmasq.d/`, **not** `/etc/pihole/dnsmasq.d/` (a file there fails silently: queries forward upstream). Restart with `sudo systemctl restart pihole-FTL`; `pihole restartdns` does not exist on this install. Verify with `dig <name> @10.2.1.2`, never through the UDR, which is not a Pi-hole client. |
+
+### UniFi syslog: which setting sends which format
+
+Two UniFi settings feed Loki through Akron's `alloy-syslog` LoadBalancer
+(`sites/akron/monitoring/alloy-syslog-service.yaml`), each on its own port
+because they send different formats:
+
+| UniFi setting | Sends | Port | Loki stream |
+|---|---|---|---|
+| Settings → Cybersecure → Traffic Logging | Plain RFC 3164 syslog with a `<PRI>` header: device system logs (`systemd`, `dbus-daemon`, `ubios-udapi-server`, `earlyoom`) | UDP `1514` | `{job="unifi-siem"}` |
+| Settings → System Logging (`/network/default/integrations`) | CEF (`CEF:0\|Ubiquiti\|UniFi OS\|…`) with **no** `<PRI>` header: admin activity, config changes, detections | UDP `1515` | `{job="unifi-cef"}` |
+
+**The names are the reverse of what they sound like** — *Cybersecure* sends
+plain system syslog and *System Logging* sends CEF (measured 2026-08-27).
+Port 1515's receiver sets `allow_skip_pri_header = true`; port 1514's is strict,
+so CEF sent there is dropped silently — UDP has no handshake to fail and no
+retry. Both settings offer overlapping categories (Devices, Critical, Admin
+Activity, Updates, VPN, Firewall Default Policy), so the same event can arrive
+twice in two formats; enable categories deliberately rather than everything in
+both.
 
 ### Why the resolver fallback is not in DHCP
 
@@ -103,12 +124,6 @@ So the fallback lives in each node's NetworkManager config with
 the machines that need it — the ones that must keep resolving when PiHole is
 down in order to fix PiHole. Every client, on every VLAN, gets PiHole alone.
 
-**Deferred, not solved.** This means the fallback is configured by hand per
-node. That is fine at two nodes. If node count grows, or the list needs to
-change often, this becomes the wrong shape and wants revisiting — most likely
-as a resolver that is itself highly available, rather than as a longer list
-handed to clients.
-
 ---
 
 ## What survives what
@@ -117,9 +132,9 @@ handed to clients.
 |---|---|
 | Pod restart | Nothing here. |
 | `kubectl delete pvc` | Application state on that volume (PiHole gravity, Prometheus/Loki history, NetworkOptimizer's UniFi credentials). |
-| Node rename | Nothing here — NetworkManager profiles bind to the interface, not the hostname. See [Renaming the K3s Node](runbooks/node-rename.md). |
-| k3s reinstall | The in-cluster secrets above. Host files survive. |
-| **Reflash** | **Everything in "Per node".** This is what [new-box-standup](runbooks/new-box-standup.md) exists to rebuild. |
+| Node rename | Nothing here — NetworkManager profiles bind to the interface, not the hostname. See [Renaming the K3s Node](../runbooks/node-rename.md). |
+| k3s reinstall | The secrets in [In-cluster, but not in git](#in-cluster-but-not-in-git). Host files survive. |
+| **Reflash** | **Everything in "Per node".** This is what [new-box-standup](../runbooks/new-box-standup.md) exists to rebuild. |
 
 ## Container logs are not state, and not durable either
 

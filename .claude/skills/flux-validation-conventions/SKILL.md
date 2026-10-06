@@ -21,7 +21,7 @@ must end on its own. Nothing that follows, streams or waits for input.
 
 Do not run individual `validate/NN-*.sh` scripts standalone unless asked — the
 top-level script encodes the correct gating order (steps 2 and 3 gate later
-steps; see CLAUDE.md's Validation section for the full step list).
+steps; `scripts/validate-k3s.sh` lists every step and its gating).
 
 ## Reporting format
 

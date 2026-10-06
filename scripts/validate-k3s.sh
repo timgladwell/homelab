@@ -2,6 +2,18 @@
 # validate-k3s.sh — runs all validation steps and reports a structured summary.
 # Each step runs independently; failures do not prevent subsequent steps from running.
 # The output is structured so that failures are easy to identify and fix.
+#
+# Conventions for every step:
+# - Warnings are errors. A step fails on any finding at any severity. A check
+#   that does not apply here gets an explicit exception with a reason
+#   (.trivyignore.yaml, a kube-score --ignore-test, a conftest policy change),
+#   never a severity floor, which would silently hide the next finding too.
+# - Prefer a tool's own line-oriented output (kube-score -o ci, kubeconform
+#   -summary, conftest -o tap) over parsing its JSON. SARIF is not the portable
+#   answer: trivy buries severity in message text, and kube-score's drops the
+#   object name. Trivy has no line format, so it is the one jq query, guarded
+#   by SchemaVersion.
+# - End with a "CHECKED <n> <noun>" line; see the coverage invariant below.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VALIDATE_DIR="$SCRIPT_DIR/validate"

@@ -139,5 +139,5 @@ to issue a new one.
 ## Recording it
 
 The service account is UI-created and not reproducible from a reconcile, so it
-is listed in [State That Is Not In Git](../host-state.md). A Grafana rebuild
+is listed in [State That Is Not In Git](../current-state/host-state.md). A Grafana rebuild
 that replaces the PVC loses it, and the symptom is queries failing with 401.

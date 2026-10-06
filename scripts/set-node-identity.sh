@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set this box's hostname and /etc/hosts to its FQDN, per docs/naming-convention.md.
+# Set this box's hostname and /etc/hosts to its FQDN, per docs/current-state/naming-convention.md.
 #
 # k3s takes its node name from the hostname, so this is what decides the node's
 # identity in the cluster. Run it BEFORE restarting k3s — see

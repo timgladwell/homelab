@@ -17,7 +17,7 @@ name: Promote to stable
 # actors require an organization, and this is a user-owned repo. That turns out
 # better than a bypass — with no bypass actor, `non_fast_forward` applies to
 # everyone including the owner, so `stable` can only ever move forward.
-# See docs/runbooks/stable-promotion-reset.md.
+# See docs/adr/0002-rollout-across-sites.md and docs/runbooks/promote-to-stable.md.
 on:  # yamllint disable-line rule:truthy
   workflow_dispatch:
     inputs:

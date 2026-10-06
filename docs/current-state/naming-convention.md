@@ -73,7 +73,7 @@ state, not UniFi state — nothing to re-enter after a UniFi rebuild.
 its Let's Encrypt order over DNS-01 with a Cloudflare API token, so no name
 here needs to resolve publicly and no device needs a second, public label —
 every name in this document stays internal. See
-[Let's Encrypt Certificates on a UniFi Console](runbooks/unifi-tls.md).
+[Let's Encrypt Certificates on a UniFi Console](../runbooks/unifi-tls.md).
 
 ### Site-local names
 

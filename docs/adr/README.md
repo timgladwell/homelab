@@ -15,11 +15,8 @@ One file per decision, `NNNN-short-title.md`, with:
 
 - a header listing **Status** (`Proposed`, `Accepted` or `Deprecated`),
   **Date** and **Deciders**;
-- **Context** — the requirements and constraints;
-- **Decision**;
-- **Consequences** — positive, and negative or risks;
-- **Alternatives considered** — what was rejected, and why;
-- **Changelog** — one row per change, newest last:
+- **Changelog** — directly after the header, one row per change, newest
+  last, so the evolution reads before the detail:
 
   ```markdown
   ## Changelog
@@ -31,6 +28,10 @@ One file per decision, `NNNN-short-title.md`, with:
 
   Keep descriptions to one line. If one has to break, GitHub renders `<br>`
   inside a table cell.
+- **Context** — the requirements and constraints;
+- **Decision**;
+- **Consequences** — positive, and negative or risks;
+- **Alternatives considered** — what was rejected, and why.
 
 Refer to this repo's ADRs by relative link, and to another repo's by full URL
 naming the repo. timbot numbers its ADRs independently, so a bare "ADR 0001" is

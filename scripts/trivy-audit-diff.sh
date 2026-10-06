@@ -13,7 +13,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ACCEPTED="${TRIVY_ACCEPTED:-$REPO_ROOT/docs/trivy-accepted-findings.txt}"
+ACCEPTED="${TRIVY_ACCEPTED:-$REPO_ROOT/scripts/trivy-accepted-findings.txt}"
 
 filter() {
   local reports=$1 accepted=$2

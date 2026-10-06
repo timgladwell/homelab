@@ -25,7 +25,7 @@ token per console, scoped as tightly as Cloudflare allows, recorded in
 
 - The name must already resolve on the LAN. `udr.<site>.internal.zerpzorp.com`
   is answered by that site's PiHole from `sites/<site>/infrastructure/site.conf`
-  — see [naming convention](../naming-convention.md).
+  — see [naming convention](../current-state/naming-convention.md).
 
   **A site with no K3s cluster here has no PiHole, so it has no answer for the
   name.** DNS-01 does not care — the certificate issues against a name that
@@ -54,7 +54,7 @@ anyway, so one can be revoked without taking out the other three.
 `internal.zerpzorp.com`** — the same compromise the cluster's `acme-*` tokens
 make, and for the same reason: `internal.` is a set of records inside the
 `zerpzorp.com` zone today, not a separately delegated zone, and Cloudflare
-scopes tokens by zone. `docs/naming-convention.md` explains why `internal.`
+scopes tokens by zone. `docs/current-state/naming-convention.md` explains why `internal.`
 exists and what the tighter scope would buy; the zone split and every place
 that assumes the current shape are tracked in #314.
 
@@ -86,7 +86,7 @@ warning that looks like the issuance failed.
 
 `Name` is a label for the certificate entry in this list, not a hostname. It
 does not rename the console and it does not appear in DNS — see *the UDR
-cannot be renamed* in [naming convention](../naming-convention.md).
+cannot be renamed* in [naming convention](../current-state/naming-convention.md).
 
 ## Verify
 
@@ -110,7 +110,7 @@ The failure mode is the token, not the certificate: revoke or expire the
 Cloudflare token and renewal fails silently ~60 days later. Nothing in this
 repo watches for that — the console's own certificate is outside everything
 Prometheus scrapes. It is recorded in
-[State That Is Not In Git](../host-state.md) for that reason.
+[State That Is Not In Git](../current-state/host-state.md) for that reason.
 
 ## Rebuilding a console
 

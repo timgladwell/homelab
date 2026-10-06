@@ -1,4 +1,12 @@
 ---
+# What this site is: values that differ per site. Values identical at every
+# site, or describing one site to the others, go in
+# clusters/common/network-vars.yaml instead (ADR 0004).
+#
+# Adding a variable: add it to every site's cluster-vars that reconciles a
+# manifest using it, before or in the same PR as that manifest (#300). Nothing
+# reports an unused variable, so grep before adding one, and before believing
+# one is dead.
 apiVersion: v1
 kind: ConfigMap
 metadata:

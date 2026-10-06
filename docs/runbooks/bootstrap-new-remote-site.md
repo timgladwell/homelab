@@ -2,23 +2,21 @@
 
 ## Background
 
-Eastbank is a new, previously-bare-metal site being brought under GitOps for the first time. `flux bootstrap` **is** the correct tool here — it's genuine initial setup, not an upgrade to an already-bootstrapped cluster, where updating the in-cluster `Kustomization` directly is correct instead. The manifests it would generate (`clusters/<site>/flux-system/gotk-components.yaml`, `gotk-sync.yaml`) already exist in the repo from the restructure PR, pre-populated to match; bootstrap should find them already correct and only need to create the GitHub deploy credentials and apply to the new cluster.
+A new site is bare metal being brought under GitOps for the first time, so `flux bootstrap` **is** the correct tool here — it's genuine initial setup, not an upgrade to an already-bootstrapped cluster, where updating the in-cluster `Kustomization` directly is correct instead. The manifests it would generate (`clusters/<site>/flux-system/gotk-components.yaml`, `gotk-sync.yaml`) are committed before bootstrap (step 1 copies them from Eastbank); bootstrap should find them already correct and only need to create the GitHub deploy credentials and apply to the new cluster.
 
-**Akron watches `main`; every other site watches `stable`.** That is the canary order — Akron takes each change first, and remote sites only see it once it is promoted. A new site's `gotk-sync.yaml` therefore points at `stable`. `stable` is moved only by the **Promote to stable** workflow, as a fast-forward to a commit that already exists on `main` — never by a PR, merge or rebase. Its ruleset is `deletion` + `non_fast_forward` with no bypass actor, so `stable` can only ever move forward, but **direct pushes are not blocked**. This means `stable` must already contain the site's manifests (promote before this runbook's step 7) for reconciliation to find anything once bootstrap connects.
+**Akron watches `main`; every other site watches `stable`.** That is the canary order — Akron takes each change first, and remote sites only see it once it is promoted. A new site's `gotk-sync.yaml` therefore points at `stable`. `stable` is moved only by the **Promote to stable** workflow, as a fast-forward to a commit that already exists on `main` — never by a PR, merge or rebase. Its ruleset is `deletion` + `non_fast_forward` + `required_signatures` with no bypass actor ([ADR 0002](../adr/0002-rollout-across-sites.md)), so `stable` can only ever move forward, but **fast-forward pushes are not blocked**. This means `stable` must already contain the site's manifests (promote before this runbook's step 7) for reconciliation to find anything once bootstrap connects.
 
-**The Flux CLI version you bootstrap with must match `app.kubernetes.io/version` in the site's already-committed `gotk-components.yaml` exactly.** A mismatched CLI regenerates different component manifests, which is a diff `flux bootstrap` will try to push to `stable` — and since only non-fast-forward pushes are refused, that push can *succeed*, silently putting content on `stable` that never passed through `main`. Under the old "Rebase and merge only" ruleset this was blocked; it no longer is, so the version check is now the only thing preventing it.
+**The Flux CLI version you bootstrap with must match `app.kubernetes.io/version` in the site's already-committed `gotk-components.yaml` exactly.** A mismatched CLI regenerates different component manifests, which is a diff `flux bootstrap` will try to push to `stable` — and since only non-fast-forward pushes are refused, that push can *succeed*, silently putting content on `stable` that never passed through `main`. The version check is the only thing preventing it.
 
 **Auth mode: `--token-auth`, matching Akron.** Without this flag, `flux bootstrap` defaults to creating an SSH deploy key on the repo and storing it in-cluster — a different auth mechanism than Akron actually uses (see `github-pat-rotation.md`: Akron's `flux-system` Secret holds a `username`/`password` pair where `password` is a PAT). `--token-auth` stores that PAT in-cluster instead of creating a deploy key, keeping every site's auth mechanism consistent. Use a **fine-grained PAT scoped to only the `homelab` repository**, with `Contents: Read-only` and `Administration: Read-only` — read-only is sufficient because the cluster only ever needs to pull; if the CLI version match above holds, bootstrap never needs to push anything, and no site's cluster should ever be writing back to git.
 
 If this is a brand-new device (not just a Flux re-bootstrap on existing hardware), the OS itself needs standing up first — see [Standing Up a New Headless Box](new-box-standup.md).
 
-**Lottage is out of scope** until its 2GB Pi is upgraded — it may not have enough headroom to run k3s stably at all. Its cluster scaffolding has been removed from this repo; when the hardware is upgraded, re-add it by copying `sites/eastbank/` and `clusters/eastbank/`. This runbook is Eastbank-only for now.
+## Process (only after Akron is confirmed healthy)
 
-## Process (per site — currently Eastbank only, and only after Akron is confirmed healthy)
+1. **Copy Eastbank's directories and fill in real network values.** Copy `sites/eastbank/` to `sites/<site>/` and `clusters/eastbank/` to `clusters/<site>/`, replacing `eastbank` throughout. Drop components Eastbank alone runs (NetworkOptimizer in `apps/`, Unpoller in `monitoring/`) unless this site should run them. Then set this site's static IPs in `clusters/<site>/cluster-vars.yaml`: `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`, `NODE_IP`, `LAN_CIDR`, `LAN_GATEWAY`.
 
-1. **Fill in real network values.** `clusters/<site>/cluster-vars.yaml` has `CHANGEME` placeholders for `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`, `NODE_IP`, `LAN_CIDR`, `LAN_GATEWAY`. Replace with that site's actual static IPs before merging.
-
-   Also add `sites/<site>/infrastructure/site.conf` with that site's dnsmasq records — copy Eastbank's, which is comments only. The file is not optional: `policy/pihole_dnsmasq_site.rego` fails the build without it, because a site with no file is indistinguishable from a site that wants no DNS records.
+   Put this site's dnsmasq records in the copied `sites/<site>/infrastructure/site.conf` (Eastbank's is comments only). Keep the file even if it stays empty: `policy/pihole_dnsmasq_site.rego` fails the build without it, because a site with no file is indistinguishable from a site that wants no DNS records.
 
 2. **Generate that site's age keypair** (do this locally, keep the private key off any machine that doesn't need it):
    ```bash
@@ -26,18 +24,19 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    age-keygen -y <site>.agekey   # prints the public key
    ```
 
-3. **Replace the `CHANGEME-<site>-age-public-key` placeholder** in `.sops.yaml` with the real public key from step 2, in the same PR as step 1.
+3. **Add a creation rule to `.sops.yaml`** for `^sites/<site>/.*secret\.sops\.yaml$` with the public key from step 2 — copy Eastbank's rule. Same PR as step 1.
 
-4. **Create the new site's own secrets.** Every secret is scoped to one site's directory, so there is nothing shared to re-encrypt. Copy the nearest equivalent into `sites/<site>/infrastructure/` and edit it with that site's real values:
+4. **Re-key the copied secrets to this site, then set its real values.** Every secret is scoped to one site's directory, so there is nothing shared to re-encrypt. The copies are still encrypted to Eastbank's key: `sops` applies `.sops.yaml` only when a file is created or explicitly re-keyed, not on `edit`, so `updatekeys` comes first:
    ```bash
-   cp sites/eastbank/infrastructure/cloudflare-secret.sops.yaml sites/<site>/infrastructure/
+   find sites/<site> -name '*secret*.sops.yaml' -exec sops updatekeys -y {} \;
    ./scripts/secrets-helper.sh edit sites/<site>/infrastructure/cloudflare-secret.sops.yaml
-   cp sites/eastbank/infrastructure/pihole-secret.sops.yaml sites/<site>/infrastructure/
    ./scripts/secrets-helper.sh edit sites/<site>/infrastructure/pihole-secret.sops.yaml
-   cp sites/eastbank/apps/pihole-secret.sops.yaml sites/<site>/apps/
    ./scripts/secrets-helper.sh edit sites/<site>/apps/pihole-secret.sops.yaml
    ```
-   `secrets-helper.sh edit` re-encrypts on save to whatever `.sops.yaml` says for that path, so the copy picks up the new site's key automatically. Requires the source site's private key locally to decrypt the copy once.
+   Requires Eastbank's private key locally to decrypt each copy once. Confirm no copy still names Eastbank's key — validation only checks that secrets are encrypted, not to whom, so a miss surfaces as a Flux decryption failure on the new cluster:
+   ```bash
+   grep -l "$(grep -A1 'sites/eastbank' .sops.yaml | awk '/age:/{print $2}')" -r sites/<site>   # expect no output
+   ```
 
    **The two `pihole-secret` files must hold the same password.** They are separate files only because Secrets do not cross namespaces — Pi-hole and `pihole-sync` read the one in `dns`, the landing page reads the one in `landing`. Nothing validates that they agree; a mismatch shows up as the landing page failing every call while Pi-hole itself is healthy.
 
@@ -109,6 +108,8 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    flux get kustomizations -A
    flux get sources git
    ```
-   Eastbank should show `infrastructure`, `infrastructure-config`, `dns-config`.
+   Every layer in `clusters/<site>/` should be `Ready`: `infrastructure`, `infrastructure-config`, `dns-config`, `monitoring`, `apps`.
 
 12. **Verify PiHole is actually serving DNS** on the new site's LAN before pointing any client devices at it.
+
+13. **Verify the site's metrics reach Akron.** In Grafana at Akron, `up{site="<site>"}` should return the new site's targets within a few minutes. Nothing alerts on a site that never started sending.

@@ -4,6 +4,12 @@
 - **Date:** 2026-09-18
 - **Deciders:** Tim Gladwell
 
+## Changelog
+
+| Date | By | Description |
+| --- | --- | --- |
+| 2026-10-02 | Tim and Claude | Accepted as a platform service with a tenant contract; each tenant gets a database with read-write and read-only roles (#355) |
+
 ## Context
 
 Applications in the estate get PostgreSQL the way they would from a cloud
@@ -29,7 +35,7 @@ Constraints this repo already imposes:
 - All images must be ARM64. All workloads declare requests and limits.
 - Everything is reconciled by Flux from this repo, except configuration that
   cannot be: settings on a node, and accounts with outside services (UniFi,
-  Cloudflare, and now AWS). Those are inventoried in `docs/host-state.md`.
+  Cloudflare, and now AWS). Those are inventoried in `docs/current-state/host-state.md`.
 - Warnings are errors in validation, and secrets are SOPS-encrypted per site.
 
 The data is not valuable enough to justify real cost — that is why it runs on a
@@ -173,7 +179,7 @@ surface.
 
 The bucket, the IAM user and the budget alert below are not reconciled by
 anything in this repo. Like the UniFi and Cloudflare configuration, they belong
-in `docs/host-state.md` with everything else that fails silently.
+in `docs/current-state/host-state.md` with everything else that fails silently.
 
 ### Retention
 
@@ -331,9 +337,3 @@ insert unless every sequence is advanced by hand.
 | Local S3 (MinIO / Garage) + rclone to Drive | Unnecessary once an existing AWS account is available; adds RAM, a component, and a shared failure domain |
 | Google Drive / iCloud as the backup target | iCloud via rclone needs the real Apple ID password plus 2FA, produces a 30-day trust token requiring interactive reauth, and demands Advanced Data Protection off — a chain that silently dies monthly. Drive lacks object-store semantics and is the wrong shape for a continuous WAL stream |
 | Replication or a second instance for HA | There is one node. It protects against nothing |
-
-## Changelog
-
-| Date | By | Description |
-| --- | --- | --- |
-| 2026-10-02 | Tim and Claude | Accepted as a platform service with a tenant contract; each tenant gets a database with read-write and read-only roles (#355) |
