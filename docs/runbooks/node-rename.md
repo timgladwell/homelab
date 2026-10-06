@@ -1,7 +1,7 @@
 # Renaming the K3s Node
 
 Changes a node's Linux hostname and K3s node name to its FQDN, per
-[the naming convention](../naming-convention.md). Iteration 1 of #228.
+[the naming convention](../current-state/naming-convention.md). Iteration 1 of #228.
 
 **This destroys every PersistentVolume on the node.** That is the intended
 outcome here, not an accident — see Trap 1. Do not run this on a cluster whose

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Enterprise best practices always.** Treat this as a high-scale production K8s environment in terms of design, structure, and operational patterns, even though it runs on a single node. This means proper namespace isolation, resource limits, health checks, RBAC, and GitOps workflows.
 - **GitOps is the single source of truth.** All cluster state is declared in this repository. Manual `kubectl apply` or imperative changes are not acceptable. Everything flows through Flux CD reconciliation.
 
-  **The exceptions are inventoried in `docs/host-state.md`** — node-level configuration, the two bootstrap secrets, and everything in UniFi and Cloudflare. Read it before assuming a rebuild restores something. Every item there fails silently: nothing alerts when the kubelet resolver config is missing, you find out when pods cannot resolve anything. **Adding host-level configuration means adding it to that page in the same PR.**
+  **The exceptions are inventoried in `docs/current-state/host-state.md`** — node-level configuration, the two bootstrap secrets, and everything in UniFi and Cloudflare. Read it before assuming a rebuild restores something. Every item there fails silently: nothing alerts when the kubelet resolver config is missing, you find out when pods cannot resolve anything. **Adding host-level configuration means adding it to that page in the same PR.**
 - **Security by default.** No secrets in the repo (use SOPS/Age encryption). Pre-commit hooks enforce this. All manifests should follow least-privilege principles.
 
   **Data originating outside the system is untrusted, and reaches the DOM through `textContent`.** Never `innerHTML`, and never "sanitise" it on the way in by encoding it at the source.
@@ -133,7 +133,7 @@ The rule that makes this work: **`base/` never contains anything site-specific.*
 
 ### Naming
 
-**`docs/naming-convention.md` is the reference for every hostname, site identifier and node name.** Read it before choosing a name for anything — a service, an ingress host, a node, a DNS label.
+**`docs/current-state/naming-convention.md` is the reference for every hostname, site identifier and node name.** Read it before choosing a name for anything — a service, an ingress host, a node, a DNS label.
 
 It describes the **live** state (`<role>.<site>.internal.zerpzorp.com`). Iteration 4 of #228 cut every deployed name over from `home.arpa` in one PR, together with TLS and the telemetry move, so the convention now governs existing resources as well as new ones. `home.arpa` appears only in planning docs that record past work.
 

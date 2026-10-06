@@ -35,7 +35,7 @@ Constraints this repo already imposes:
 - All images must be ARM64. All workloads declare requests and limits.
 - Everything is reconciled by Flux from this repo, except configuration that
   cannot be: settings on a node, and accounts with outside services (UniFi,
-  Cloudflare, and now AWS). Those are inventoried in `docs/host-state.md`.
+  Cloudflare, and now AWS). Those are inventoried in `docs/current-state/host-state.md`.
 - Warnings are errors in validation, and secrets are SOPS-encrypted per site.
 
 The data is not valuable enough to justify real cost — that is why it runs on a
@@ -179,7 +179,7 @@ surface.
 
 The bucket, the IAM user and the budget alert below are not reconciled by
 anything in this repo. Like the UniFi and Cloudflare configuration, they belong
-in `docs/host-state.md` with everything else that fails silently.
+in `docs/current-state/host-state.md` with everything else that fails silently.
 
 ### Retention
 

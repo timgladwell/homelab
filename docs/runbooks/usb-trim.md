@@ -101,7 +101,7 @@ It has also never complained. Debian's unit runs
 is precisely the flag that turns "the discard operation is not supported" into
 a silent exit 0. So the timer is green, the service is green, the journal is
 unremarkable, and the work is not happening — which is the exact shape
-[host-state.md](../host-state.md) exists to inventory.
+[host-state.md](../current-state/host-state.md) exists to inventory.
 
 Nothing would have caught it either. node-exporter's `systemd` collector is
 opt-in upstream and nothing here opts in, so no unit state reaches Prometheus

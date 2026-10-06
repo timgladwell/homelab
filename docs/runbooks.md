@@ -18,5 +18,5 @@ Operational procedures for tasks that fall outside the normal GitOps flow.
 - [Let's Encrypt Certificates on a UniFi Console](runbooks/unifi-tls.md)
 - [TRIM on a USB-Attached SSD](runbooks/usb-trim.md)
 
-See also [State That Is Not In Git](host-state.md) — the inventory of everything a reconcile will not restore.
+See also [State That Is Not In Git](current-state/host-state.md) — the inventory of everything a reconcile will not restore.
 

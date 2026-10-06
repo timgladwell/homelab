@@ -61,7 +61,7 @@ Raspberry Pi OS (bookworm+, including trixie) provisions the first boot via **cl
      - systemctl enable ssh
      - systemctl start ssh
    ```
-   **`hostname` must be the node's full FQDN** per [the naming convention](../naming-convention.md) — K3s takes its node name from the hostname, so a short name here means the cluster registers under the wrong identity and has to be renamed after the fact (see [Renaming the K3s Node](node-rename.md)). Note that `manage_etc_hosts: true` makes cloud-init rewrite `/etc/hosts` on every boot, which is why `scripts/set-node-identity.sh` disables cloud-init outright — getting the name right here avoids ever needing that.
+   **`hostname` must be the node's full FQDN** per [the naming convention](../current-state/naming-convention.md) — K3s takes its node name from the hostname, so a short name here means the cluster registers under the wrong identity and has to be renamed after the fact (see [Renaming the K3s Node](node-rename.md)). Note that `manage_etc_hosts: true` makes cloud-init rewrite `/etc/hosts` on every boot, which is why `scripts/set-node-identity.sh` disables cloud-init outright — getting the name right here avoids ever needing that.
 
    `sudo: NOPASSWD` here is intentional and temporary — it's only to get past first login without a working password prompt; revoke it in the last step below. DNS fallback (next step) is left as a manual post-login step rather than cloud-init `network-config` — it depends on the NetworkManager connection profile actually created on this boot, which isn't reliably targetable in the seed file.
 

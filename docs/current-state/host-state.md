@@ -24,9 +24,9 @@ Set by `scripts/set-node-identity.sh` (idempotent — re-running converges):
 | Host mapping | `/etc/hosts` | Regenerated wholesale, `127.0.1.1` → FQDN. |
 | cloud-init disabled | `/etc/cloud/cloud-init.disabled` | `update_etc_hosts` is `PER_ALWAYS` and rebuilds `/etc/hosts` from the *seed's* hostname every boot, silently reverting the rename. |
 | Kubelet resolver | `/etc/rancher/k3s/resolv.conf` | The host's resolvers minus the `search` line. |
-| Kubelet arg | `kubelet-arg: resolv-conf=…` in `/etc/rancher/k3s/config.yaml` | Without this the file above is inert. Stops pods inheriting the node's search domain, which otherwise breaks all external DNS in every pod — see [Trap 3](runbooks/node-rename.md). |
+| Kubelet arg | `kubelet-arg: resolv-conf=…` in `/etc/rancher/k3s/config.yaml` | Without this the file above is inert. Stops pods inheriting the node's search domain, which otherwise breaks all external DNS in every pod — see [Trap 3](../runbooks/node-rename.md). |
 
-Set by hand, per [Standing Up a New Headless Box](runbooks/new-box-standup.md):
+Set by hand, per [Standing Up a New Headless Box](../runbooks/new-box-standup.md):
 
 | What | Where | Why |
 |---|---|---|
@@ -34,9 +34,9 @@ Set by hand, per [Standing Up a New Headless Box](runbooks/new-box-standup.md):
 | DHCP override | `nmcli … ipv4.ignore-auto-dns yes` | Stops DHCP appending its own list on top. |
 | Revoked sudo | `/etc/sudoers.d/90-cloud-init-users` | Cloud-init grants `NOPASSWD` for first login; it is meant to be removed. |
 | Dotfiles | `~` | [dotfiles README](https://github.com/timgladwell/dotfiles#servers). |
-| TRIM on a USB SSD | `/etc/udev/rules.d/10-usb-ssd-trim.rules` + `fstrim.timer` | Only for a box that boots from a USB-attached SSD — today Akron alone; every other node is on an SD card. The kernel leaves `provisioning_mode` at `full` for a USB bridge, so discard is a no-op and `fstrim` silently reclaims nothing without the rule — which is what Akron did for the drive's whole life until 2026-09-16, when the first real trim returned 178 GiB. The rule is what makes it survive a reboot or a replug; the `fstrim.timer` it feeds was already enabled. [Runbook](runbooks/usb-trim.md). |
+| TRIM on a USB SSD | `/etc/udev/rules.d/10-usb-ssd-trim.rules` + `fstrim.timer` | Only for a box that boots from a USB-attached SSD — today Akron alone; every other node is on an SD card. The kernel leaves `provisioning_mode` at `full` for a USB bridge, so discard is a no-op and `fstrim` silently reclaims nothing without the rule — which is what Akron did for the drive's whole life until 2026-09-16, when the first real trim returned 178 GiB. The rule is what makes it survive a reboot or a replug; the `fstrim.timer` it feeds was already enabled. [Runbook](../runbooks/usb-trim.md). |
 
-Set during k3s install, per [Bootstrapping a New Remote Site](runbooks/bootstrap-new-remote-site.md):
+Set during k3s install, per [Bootstrapping a New Remote Site](../runbooks/bootstrap-new-remote-site.md):
 
 | What | Where | Why |
 |---|---|---|
@@ -65,7 +65,7 @@ before Flux can do anything useful.
 | What | How | Notes |
 |---|---|---|
 | `sops-age` Secret in `flux-system` | `scripts/configure-flux-sops.sh`, or `kubectl create secret generic` | The site's age private key. Without it every Kustomization with `decryption:` fails. |
-| `flux-system` Secret | `flux bootstrap --token-auth` | Holds the GitHub PAT. Rotation: [runbook](runbooks/github-pat-rotation.md). |
+| `flux-system` Secret | `flux bootstrap --token-auth` | Holds the GitHub PAT. Rotation: [runbook](../runbooks/github-pat-rotation.md). |
 
 ---
 
@@ -80,8 +80,8 @@ before Flux can do anything useful.
 | UDR DNS records | UniFi → Policy Table → DNS Records | Per-console A records and Forward Domain rules. `syslog.homelab.home.arpa` stopped resolving somewhere around #303, and was attributed to it — but that window held several manual changes and the checks either side were hours apart, so even "PiHole was in the answer path" is inference, not measurement. How this table ranks against the console's own resolver is untested, as is whether it consults PiHole at all (#316). Do not assume an internal name resolves on the device. Nothing in the repo reconciles this table. |
 | UniFi read-only user | Each controller | Consumed by Unpoller (via SOPS) and NetworkOptimizer (via its own UI). |
 | Cloudflare zone, CAA, API tokens | Cloudflare + 1Password | `acme-akron` / `acme-eastbank`. CAA restricting to Let's Encrypt sits on `internal`, not the apex — Cloudflare's own five-CA set at the apex must stay for Universal SSL. |
-| UDR web UI certificate | UniFi → Settings → Control Plane → Console | Let's Encrypt for `udr.<site>.internal.zerpzorp.com`, issued and renewed by UniFi itself over DNS-01. One `unifi-<site>-udr` Cloudflare token per console, pasted into the UI, and the certificate has to be **activated** after issuing. Renewal fails silently if the token is revoked, and nothing scrapes the console's certificate. Reissue: [runbook](runbooks/unifi-tls.md). |
-| Grafana `claude-code` service account | Grafana UI → its PVC | Viewer-scoped, read-only query access for Claude Code. Lost with the Grafana PVC; symptom is queries failing 401. Reissue: [runbook](runbooks/grafana-query-access.md). |
+| UDR web UI certificate | UniFi → Settings → Control Plane → Console | Let's Encrypt for `udr.<site>.internal.zerpzorp.com`, issued and renewed by UniFi itself over DNS-01. One `unifi-<site>-udr` Cloudflare token per console, pasted into the UI, and the certificate has to be **activated** after issuing. Renewal fails silently if the token is revoked, and nothing scrapes the console's certificate. Reissue: [runbook](../runbooks/unifi-tls.md). |
+| Grafana `claude-code` service account | Grafana UI → its PVC | Viewer-scoped, read-only query access for Claude Code. Lost with the Grafana PVC; symptom is queries failing 401. Reissue: [runbook](../runbooks/grafana-query-access.md). |
 | NetworkOptimizer UniFi credentials | Its web UI → SQLite on its PVC | **The only application state that no rebuild can restore.** Anything replacing that volume means re-entering them. |
 
 ### Why the resolver fallback is not in DHCP
@@ -117,9 +117,9 @@ handed to clients.
 |---|---|
 | Pod restart | Nothing here. |
 | `kubectl delete pvc` | Application state on that volume (PiHole gravity, Prometheus/Loki history, NetworkOptimizer's UniFi credentials). |
-| Node rename | Nothing here — NetworkManager profiles bind to the interface, not the hostname. See [Renaming the K3s Node](runbooks/node-rename.md). |
+| Node rename | Nothing here — NetworkManager profiles bind to the interface, not the hostname. See [Renaming the K3s Node](../runbooks/node-rename.md). |
 | k3s reinstall | The in-cluster secrets above. Host files survive. |
-| **Reflash** | **Everything in "Per node".** This is what [new-box-standup](runbooks/new-box-standup.md) exists to rebuild. |
+| **Reflash** | **Everything in "Per node".** This is what [new-box-standup](../runbooks/new-box-standup.md) exists to rebuild. |
 
 ## Container logs are not state, and not durable either
 
