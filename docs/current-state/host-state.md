@@ -24,7 +24,7 @@ Set by `scripts/set-node-identity.sh` (idempotent — re-running converges):
 | Host mapping | `/etc/hosts` | Regenerated wholesale, `127.0.1.1` → FQDN. |
 | cloud-init disabled | `/etc/cloud/cloud-init.disabled` | `update_etc_hosts` is `PER_ALWAYS` and rebuilds `/etc/hosts` from the *seed's* hostname every boot, silently reverting the rename. |
 | Kubelet resolver | `/etc/rancher/k3s/resolv.conf` | The host's resolvers minus the `search` line. |
-| Kubelet arg | `kubelet-arg: resolv-conf=…` in `/etc/rancher/k3s/config.yaml` | Without this the file above is inert. Stops pods inheriting the node's search domain, which otherwise breaks all external DNS in every pod — see [Trap 3](../runbooks/node-rename.md). |
+| Kubelet arg | `kubelet-arg: resolv-conf=…` in `/etc/rancher/k3s/config.yaml` | Without this, `/etc/rancher/k3s/resolv.conf` is inert. Stops pods inheriting the node's search domain, which otherwise breaks all external DNS in every pod — see [Trap 3](../runbooks/node-rename.md). |
 
 Set by hand, per [Standing Up a New Headless Box](../runbooks/new-box-standup.md):
 
@@ -73,8 +73,8 @@ before Flux can do anything useful.
 
 | What | Where | Notes |
 |---|---|---|
-| DHCP DNS servers | UniFi, per network | All VLANs hand out the site PiHole only. The public fallback is per-node static config, deliberately — see below. |
-| DHCP search domain | UniFi, per network | Set to `<site>.internal.zerpzorp.com`, which resolves for real since #233. Single-label lookups on those VLANs land on the site's Traefik via the `${SITE_DOMAIN}` wildcard — but **only usefully for `ssh` / `ping` / `dig`**, never a browser: TLS validates the single label as typed, and no certificate can cover it. See [naming convention](naming-convention.md). This covers DHCP clients on those VLANs only; VPN clients are the row below. |
+| DHCP DNS servers | UniFi, per network | All VLANs hand out the site PiHole only. The public fallback is per-node static config, deliberately — see [Why the resolver fallback is not in DHCP](#why-the-resolver-fallback-is-not-in-dhcp). |
+| DHCP search domain | UniFi, per network | Set to `<site>.internal.zerpzorp.com`, which resolves for real since #233. Single-label lookups on those VLANs land on the site's Traefik via the `${SITE_DOMAIN}` wildcard — but **only usefully for `ssh` / `ping` / `dig`**, never a browser: TLS validates the single label as typed, and no certificate can cover it. See [naming convention](naming-convention.md). This covers DHCP clients on those VLANs only; VPN clients are the *VPN client search domain* row. |
 | VPN client search domain | Each VPN client's own WireGuard config | **Per device, not estate state.** A `DNS =` line carrying `akron.internal.zerpzorp.com` alongside the resolver. The tunnel hands out `10.6.1.53` on its own; the search domain is not pushed, so every client that has not been edited by hand lacks it. Set on one laptop today — do not read a single-label name working there as evidence it works anywhere else. Configuring it server-side on the console would push it to every client and make this row unnecessary; nobody has. |
 | Syslog targets | UniFi → Settings → Cybersecure → Traffic Logging (`:1514`), and Settings → System Logging (`:1515`) | Both point at `10.6.1.81`, Akron's `alloy-syslog` LoadBalancer, **by IP**. A name works only if the console can resolve it, and today nothing guarantees that: the old `syslog.homelab.home.arpa` target stopped resolving without any error, and the gap in the logs was only noticed later. A name becomes usable again once something keeps it resolvable, such as an A record in the console's table synced from git, or a known resolver path for the console's own lookups. Both are #316. Every site targets Akron across the WAN today; receiving at each site's own collector instead is #420. |
 | UDR DNS records | UniFi → Policy Table → DNS Records | Per-console A records and Forward Domain rules. `syslog.homelab.home.arpa` stopped resolving somewhere around #303, and was attributed to it — but that window held several manual changes and the checks either side were hours apart, so even "PiHole was in the answer path" is inference, not measurement. How this table ranks against the console's own resolver is untested, as is whether it consults PiHole at all (#316). Do not assume an internal name resolves on the device. Nothing in the repo reconciles this table. |
@@ -124,12 +124,6 @@ So the fallback lives in each node's NetworkManager config with
 the machines that need it — the ones that must keep resolving when PiHole is
 down in order to fix PiHole. Every client, on every VLAN, gets PiHole alone.
 
-**Deferred, not solved.** This means the fallback is configured by hand per
-node. That is fine at two nodes. If node count grows, or the list needs to
-change often, this becomes the wrong shape and wants revisiting — most likely
-as a resolver that is itself highly available, rather than as a longer list
-handed to clients.
-
 ---
 
 ## What survives what
@@ -139,7 +133,7 @@ handed to clients.
 | Pod restart | Nothing here. |
 | `kubectl delete pvc` | Application state on that volume (PiHole gravity, Prometheus/Loki history, NetworkOptimizer's UniFi credentials). |
 | Node rename | Nothing here — NetworkManager profiles bind to the interface, not the hostname. See [Renaming the K3s Node](../runbooks/node-rename.md). |
-| k3s reinstall | The in-cluster secrets above. Host files survive. |
+| k3s reinstall | The secrets in [In-cluster, but not in git](#in-cluster-but-not-in-git). Host files survive. |
 | **Reflash** | **Everything in "Per node".** This is what [new-box-standup](../runbooks/new-box-standup.md) exists to rebuild. |
 
 ## Container logs are not state, and not durable either
