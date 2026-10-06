@@ -161,10 +161,10 @@ spec:
         # Retention is a disk decision and nothing else. The TSDB index is
         # per-block, so a query opens only the blocks overlapping its range —
         # a 1h query costs the same whether 7d or 90d sits on disk — and
-        # memory tracks active series, of which the head holds ~2h. Task 2.6
-        # in docs/monitoring-tasks.md reads as though cutting retention helped
-        # the thermal throttling; #52 found the cause was the 1Gi memory cap,
-        # and retention was merely in the same batch.
+        # memory tracks active series, of which the head holds ~2h. Cutting
+        # retention in #50 looked like it helped the early thermal throttling;
+        # #52 found the cause was the 1Gi memory cap, and retention was merely
+        # in the same batch.
         #
         # Sized from the measured rate rather than a guess: ~1260 samples/sec
         # steady x 86400 x 90d x ~1.7 bytes/sample is ~16.6GB. retentionSize
