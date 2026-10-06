@@ -36,7 +36,7 @@ jobs:
       # kustomize tags as `kustomize/v5.8.1`; no trailing `$` here only to stay
       # inside yamllint's 120-column limit — anchoring the start is what matters.
       # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.+)
-      KUSTOMIZE_VERSION: 5.8.1
+      KUSTOMIZE_VERSION: 5.8.2
       # renovate: datasource=github-releases depName=yannh/kubeconform extractVersion=^v(?<version>.+)$
       KUBECONFORM_VERSION: 0.8.0
       # renovate: datasource=github-releases depName=zegl/kube-score extractVersion=^v(?<version>.+)$
