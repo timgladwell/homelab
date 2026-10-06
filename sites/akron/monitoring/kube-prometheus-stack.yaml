@@ -223,6 +223,11 @@ spec:
 
     alertmanager:
       alertmanagerSpec:
+        # Alertmanager and its config-reloader read only mounted files; nothing
+        # in the pod calls the Kubernetes API, so it carries no token. The
+        # operator mounts one by default when this is unset. Prometheus keeps
+        # its token: it discovers its ServiceMonitors' targets through the API.
+        automountServiceAccountToken: false
         resources:
           requests:
             cpu: 50m

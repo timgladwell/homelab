@@ -60,13 +60,16 @@ is a mild annoyance; one silently filtered forever is a hole.
 
 ## Editing the accepted file
 
-Three entry shapes, matched by `scripts/trivy-audit-diff.sh`:
+Three entry shapes, matched by `scripts/trivy-accepted-filter.awk` — for this
+audit and for validation step 16, which scans chart-rendered objects against the
+same file. An entry changes what CI accepts, not just what the audit reports.
 
 | Shape | Meaning |
 |---|---|
 | `AVD-KSV-0125` | that check, accepted everywhere |
 | `kube-system/` | everything under that namespace |
-| `dns/replicaset-pihole AVD-KSV-0003` | one exact workload/check pair |
+| `dns/replicaset-pihole AVD-KSV-0003` | one exact object/check pair |
+| `clusterrole-traefik-traefik AVD-KSV-0041` | the same, for a cluster-scoped object |
 
 Prefer the narrowest shape that expresses the actual decision. A bare check ID
 is right for something like the untrusted-registry check, which carries no

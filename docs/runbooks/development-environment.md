@@ -42,7 +42,7 @@ here touches a cluster.
 
 ## Working on a change
 
-**Validate everything** — the same fifteen steps CI runs, per site:
+**Validate everything** — the same sixteen steps CI runs, per site:
 
 ```bash
 ./scripts/validate-k3s.sh

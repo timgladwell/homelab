@@ -56,6 +56,19 @@ spec:
           cpu: 50m
           memory: 100Mi
 
+    # Only what this config uses: discovery.kubernetes and
+    # loki.source.kubernetes. The chart's default `rules` also grant cluster-wide
+    # read on Secrets, for components this collector does not run. See the same
+    # block in base/metrics-collection/alloy-metrics.yaml.
+    rbac:
+      rules:
+        - apiGroups: ["", "discovery.k8s.io", "networking.k8s.io"]
+          resources: ["endpoints", "endpointslices", "ingresses", "pods", "services"]
+          verbs: ["get", "list", "watch"]
+        - apiGroups: [""]
+          resources: ["pods", "pods/log", "namespaces"]
+          verbs: ["get", "list", "watch"]
+
     controller:
       type: daemonset
 
