@@ -25,19 +25,7 @@ filter() {
     # ReplicaSet and pod hashes change on every rollout; the accepted list keys
     # on the stable part of the name.
     sed -E 's#(/[a-z-]+)-[a-f0-9]{5,10}\t#\1\t#' |
-    awk -F'[ \t]+' '
-      NR==FNR {
-        sub(/#.*/, ""); if ($0 ~ /^[ \t]*$/) next
-        # Three shapes: a bare check ID (accepted everywhere), a bare
-        # "namespace/" (accepted wholly), or an exact workload/check pair.
-        if (NF == 1) { if ($1 ~ /^AVD-/) chk[$1]; else pfx[$1] }
-        else pair[$1 " " $2]
-        next
-      }
-      ($3 in chk) { next }
-      (($2 " " $3) in pair) { next }
-      { for (p in pfx) if (index($2, p) == 1) next; print }
-    ' "$accepted" - |
+    awk -f "$REPO_ROOT/scripts/trivy-accepted-filter.awk" "$accepted" - |
     sort
 }
 
