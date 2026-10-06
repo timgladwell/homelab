@@ -66,6 +66,18 @@ spec:
           cpu: 50m
           memory: 100Mi
 
+    # The chart's default `rules` grant every namespaced permission any Alloy
+    # component might need, including cluster-wide read on Secrets for
+    # `remote.kubernetes.secret`. This config uses only discovery.kubernetes, so
+    # that is all it gets. A component added later that needs more fails loudly
+    # with "forbidden" in the collector's logs; it does not degrade silently.
+    # `clusterRules` (nodes and their metrics endpoints) stay at the default.
+    rbac:
+      rules:
+        - apiGroups: ["", "discovery.k8s.io", "networking.k8s.io"]
+          resources: ["endpoints", "endpointslices", "ingresses", "pods", "services"]
+          verbs: ["get", "list", "watch"]
+
     controller:
       type: statefulset
       replicas: 1
