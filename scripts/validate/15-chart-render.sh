@@ -139,7 +139,10 @@ for site in $(sites); do
         fail=1
         echo "  TIMEOUT: flate did not finish within ${render_timeout}s. A re-run usually passes;"
         echo "  record this in #428 first, with the goroutine dump. Its last log lines:"
-        grep '^time=' "$errors" | tail -n 10 | sed 's/^/    /'
+        # Cut, because debug logging prints a chart's whole values schema on
+        # one line (traefik's is 200 KB), and `gh run view --log` drops
+        # everything after a line that long, dump included.
+        grep '^time=' "$errors" | tail -n 10 | cut -c1-300 | sed 's/^/    /'
         # A process blocked mid-run always dumps. Only one caught starting up
         # (before Go installs its handler) or already exiting does not, which
         # a multi-minute stall never is.
