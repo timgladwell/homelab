@@ -52,11 +52,11 @@ jobs:
       # change would have broken step 3 with an ImportError.
       # renovate: datasource=pypi depName=PyYAML
       PYYAML_VERSION: 6.0.3
-      # Pinned like the rest, but note this one is *not* the version the
-      # clusters run — the alloy chart decides that. It only has to be new
-      # enough to know every component the configs use.
+      # The clusters' Alloy comes from the alloy chart, not this pin. Renovate
+      # groups the two into one PR (renovate.json), so CI validates against
+      # the version a chart bump is about to deploy.
       # renovate: datasource=github-releases depName=grafana/alloy extractVersion=^v(?<version>.+)$
-      ALLOY_VERSION: 1.19.2
+      ALLOY_VERSION: 1.20.1
 
     steps:
       - uses: actions/checkout@v7

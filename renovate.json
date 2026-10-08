@@ -45,6 +45,13 @@
       ]
     }
   ],
+  "packageRules": [
+    {
+      "description": "The alloy chart (flux manager) and the alloy binary CI validates with (custom.regex) move in one PR, so a minor's breaking changes are read together before they deploy.",
+      "matchDepNames": ["alloy", "grafana/alloy"],
+      "groupName": "grafana alloy"
+    }
+  ],
   "schedule": ["every weekend"],
   "minimumReleaseAge": "3 days"
 }

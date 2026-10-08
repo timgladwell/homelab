@@ -30,7 +30,9 @@ spec:
   chart:
     spec:
       chart: alloy
-      version: "~1.x"
+      # A patch range like every other chart, so an Alloy minor arrives as a
+      # Renovate PR, grouped with ALLOY_VERSION in .github/workflows/validate.yml.
+      version: "~1.13.0"
       sourceRef:
         kind: HelmRepository
         name: grafana
