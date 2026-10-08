@@ -64,7 +64,9 @@ echo "\`flate diff all\` against \`${base}\`: every manifest as Flux will apply 
 echo "A review aid; Validate's step 15 is the pass/fail check."
 
 for site in $(sites); do
-    diff_out="$(cd "$work/head" && flate diff all -p "clusters/${site}" -P "$work/base/clusters/${site}" -o github --no-progress 2> "$errors")"
+    # Serial, for the same parallel-reconcile livelock as step 15 (#437).
+    diff_out="$(cd "$work/head" && flate diff all -p "clusters/${site}" -P "$work/base/clusters/${site}" \
+        --concurrency 1 -o github --no-progress 2> "$errors")"
     rc=$?
     changes=$(grep -c '^@@ ' <<< "$diff_out")
 
