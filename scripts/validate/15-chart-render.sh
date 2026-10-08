@@ -97,12 +97,15 @@ classify() {
     '
 }
 
-# flate has no overall deadline of its own, and a chart fetch has hung CI
-# for minutes with no output at all (#385). A normal cold render takes seconds.
-# After the deadline flate gets TERM, then KILL 10s later: it shuts down
-# gracefully on TERM, which waits out any fetch in flight, and a fetch that
-# never returns would wait forever. `timeout` exits 124 on the deadline and
-# 137 if it had to KILL.
+# flate has no overall deadline of its own, and has hung CI for minutes with
+# no output at all: once in a chart fetch (#385), and repeatedly after every
+# fetch had finished (#428). A normal cold render takes seconds.
+#
+# After the deadline flate gets QUIT, then KILL 10s later. QUIT rather than
+# TERM because it is a diagnostic: Go answers it by printing every goroutine's
+# stack and exiting, which names the exact wait flate was stuck in, where a
+# graceful TERM shutdown left only "context canceled". `timeout` exits 124 on
+# the deadline whichever signal it sends, and 137 if it had to KILL.
 render_timeout=300
 
 fail=0
@@ -116,7 +119,8 @@ for site in $(sites); do
     # timeout, where its last lines name the fetch or render still in flight.
     # Its closing "reconcile complete … helm_releases=N" line is also the
     # count for CHECKED, so the tree is rendered once rather than asked again.
-    timeout --kill-after=10 "$render_timeout" flate build hr -p "clusters/${site}" --kube-version "$kube_version" \
+    timeout --signal=QUIT --kill-after=10 "$render_timeout" \
+        flate build hr -p "clusters/${site}" --kube-version "$kube_version" \
         --no-progress --log-level debug > "$rendered" 2> "$errors"
     rc=$?
 
@@ -129,9 +133,18 @@ for site in $(sites); do
             --no-color || fail=1
     elif [[ $rc -eq 124 || $rc -eq 137 ]]; then
         fail=1
-        echo "  TIMEOUT: flate did not finish within ${render_timeout}s — most likely a chart fetch"
-        echo "  that stalled; re-run. Its last log lines, naming what was in flight:"
-        tail -n 10 "$errors" | sed 's/^/    /'
+        echo "  TIMEOUT: flate did not finish within ${render_timeout}s. A re-run usually passes;"
+        echo "  record this in #428 first, with the goroutine dump. Its last log lines:"
+        grep '^time=' "$errors" | tail -n 10 | sed 's/^/    /'
+        # A process blocked mid-run always dumps. Only one caught starting up
+        # (before Go installs its handler) or already exiting does not, which
+        # a multi-minute stall never is.
+        if grep -q '^SIGQUIT' "$errors"; then
+            echo "  Goroutine dump at the deadline:"
+            sed -n '/^SIGQUIT/,$p' "$errors" | sed 's/^/    /'
+        else
+            echo "  No goroutine dump: flate was starting up or exiting when the deadline hit."
+        fi
     else
         fail=1
         if ! grep -v '^time=' "$errors" | classify; then
