@@ -10,6 +10,7 @@ reconcile will not restore.
 |---|---|
 | [Promoting to `stable`](runbooks/promote-to-stable.md) | Operational |
 | [Reaching PiHole When Traefik Is Not Routing](runbooks/pihole-access.md) | Operational |
+| [Taking a Heap Dump of the UniFi Network App](runbooks/unifi-network-heap-dump.md) | Operational |
 | [Adding or Removing a Component, Layer or Variable](runbooks/adding-components.md) | Maintenance |
 | [Renaming or Moving Across Flux Kustomizations](runbooks/flux-kustomization-changes.md) | Maintenance |
 | [Sizing a Container's Memory Limit](runbooks/memory-sizing.md) | Maintenance |
