@@ -98,8 +98,8 @@ classify() {
 }
 
 # flate has no overall deadline of its own, and has hung CI for minutes with
-# no output at all: once in a chart fetch (#385), and repeatedly after every
-# fetch had finished (#428). A normal cold render takes seconds.
+# no output at all, once in a chart fetch (#385). A normal cold render takes
+# seconds.
 #
 # After the deadline flate gets QUIT, then KILL 10s later. QUIT rather than
 # TERM because it is a diagnostic: Go answers it by printing every goroutine's
@@ -119,9 +119,13 @@ for site in $(sites); do
     # timeout, where its last lines name the fetch or render still in flight.
     # Its closing "reconcile complete … helm_releases=N" line is also the
     # count for CHECKED, so the tree is rendered once rather than asked again.
+    #
+    # --concurrency 1: flate's parallel reconcile can livelock, spinning until
+    # the deadline (upstream home-operations/flate#828, here #437). Serial
+    # output is byte-identical and costs about half a second on a cold cache.
     timeout --signal=QUIT --kill-after=10 "$render_timeout" \
         flate build hr -p "clusters/${site}" --kube-version "$kube_version" \
-        --no-progress --log-level debug > "$rendered" 2> "$errors"
+        --concurrency 1 --no-progress --log-level debug > "$rendered" 2> "$errors"
     rc=$?
 
     if [[ $rc -eq 0 ]]; then
