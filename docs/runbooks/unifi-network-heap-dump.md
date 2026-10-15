@@ -1,10 +1,9 @@
 # Taking a Heap Dump of the UniFi Network App
 
 Captures the UniFi Network application's Java heap on a UDR and reads it on a
-laptop, to count what the app is holding on to. It was written to measure the
-leaked `GetDeviceTags` gRPC streams between the Network app and `unifi-core`
-(#388), and is the way to check whether a firmware or Network update has fixed
-that leak.
+laptop, to count what the app is holding on to: in particular the gRPC streams
+it keeps open to `unifi-core`, which is how a stream leak shows up. The
+appendix has a worked example.
 
 Run per console, by hand, over SSH. Nothing here is persistent: the one change
 to the box is reverted in the same sitting.
@@ -43,7 +42,8 @@ to the box is reverted in the same sitting.
 - **The app pauses while it writes,** a few seconds for ~370 MB. Routing,
   Wi-Fi and Protect are unaffected; the Network UI and API stall briefly, and
   Unpoller may log one failed poll.
-- **Laptop:** Eclipse Memory Analyzer (MAT) and a Java runtime.
+- **Laptop:** Python 3 for the stream count. Only the fallback, reading it by
+  hand, needs Eclipse Memory Analyzer (MAT) and a Java runtime.
   - **MAT:** download it from <https://eclipse.dev/mat/download/>. That is how
     it has been installed here; the `memoryanalyzer` Homebrew cask exists but
     is untested.
@@ -121,7 +121,30 @@ ssh root@<udr-ip> 'rm /usr/lib/unifi/svm-heapdump-*.hprof; ls /usr/lib/unifi/*.h
 
 The final `ls` must report *No such file or directory*.
 
-## Read it in MAT
+## Count the streams
+
+From the repo checkout on the laptop:
+
+```sh
+python3 -I scripts/hprof-grpc-streams.py ~/heapdumps/svm-heapdump-*.hprof
+```
+
+It takes ~20 s for a ~350 MB dump and prints only counts and gRPC method names,
+so the output can be posted. It prints two blocks:
+
+- **Instance counts of the `io/grpc/okhttp/OkHttpClient*` classes.**
+  `OkHttpClientTransport` is one per gRPC connection; one is normal, the
+  connection to `unifi-core` on `127.0.0.1:11051`.
+- **Open `OkHttpClientStream`s by gRPC method.** A method with one row per
+  call it has ever made is leaking; see *Reading the numbers*.
+
+If it exits with `unknown heap sub-record`, a newer build writes a record the
+script doesn't parse. Read the dump in MAT instead.
+
+## Read it in MAT (fallback, and for sizes)
+
+The script counts streams but doesn't size them. MAT gives the retained size,
+and is the fallback when the script can't parse a dump.
 
 File → Open Heap Dump → *Leak Suspects Report* can be skipped. The first parse
 takes a few minutes and writes index files next to the `.hprof`.
@@ -135,36 +158,36 @@ takes a few minutes and writes index files next to the `.hprof`.
    `authority 127.0.0.1:11051`, `unifi-core`'s gRPC port.
 3. **Split them by method.** Right-click `OkHttpClientStream` → List objects →
    with outgoing references, expand one, and follow `method` → `fullMethodName`
-   to the `unifi.core.console.v1.DeviceTagsAPI/GetDeviceTags` string.
-   Right-click that string → List objects → with incoming references, and expand
-   its `MethodDescriptor`. The total under it counts every reference to the
-   method: one from the class's static field, one from an array, and **three
-   per call**. So `(total − 2) / 3` is the number of `GetDeviceTags` streams.
-   The rest of the histogram count are other methods; one long-lived
-   `ConsoleAPI/ConsoleStatus` stream is normal.
+   to the method's name string. Right-click that string → List objects → with
+   incoming references, and expand its `MethodDescriptor`. The total under it
+   counts every reference to the method: one from the class's static field, one
+   from an array, and **three per open stream**. So `(total − 2) / 3` is that
+   method's stream count.
 
 ## Reading the numbers
 
-The leak holds one `GetDeviceTags` stream per call, about **3.6 KB** each.
-Unpoller makes two calls per poll cycle, so at the current 5-minute interval
-expect about **24 streams an hour** (~576 a day). The count starts from
-whichever restarted most recently, `unifi-core` or the Network app: either
-restart drops the connection and frees every stream. The pre-check uptimes give
-the baseline.
+Most gRPC calls close their stream when they finish, so a healthy app holds a
+handful: long-lived subscriptions such as `ConsoleAPI/ConsoleStatus`, plus any
+calls in flight. A method whose count keeps up with **the number of calls made
+to it** is leaking one stream per call.
 
-- **Count close to `2 × poll cycles since the later restart`:** the leak is
-  still there. The first measurement and its prediction are in #388.
-- **A handful of streams, after more than a day of polling:** the leak is fixed,
-  or Unpoller stopped calling `device-tags`. Check which before closing
-  anything.
+Count calls from whichever restarted most recently, `unifi-core` or the Network
+app: either restart drops the connection and frees every stream. The pre-check
+uptimes give that starting point. To get a number big enough to read without
+waiting days, call the API that triggers the method at a known rate before
+taking the dump (an example is in the appendix).
+
+- **Count ≈ calls since the later restart:** leaking.
+- **A handful, after many calls:** not leaking, or nothing called the method.
+  Check which before drawing a conclusion.
 
 ## A cheaper check without a dump
 
-The Network app's GC log shows the same leak, with no permission change and no
-dump file. After each full GC the heap is down to what is actually live, so the
-lowest post-GC size in each window is a floor that rises with the leak and drops
-when `unifi-core` restarts. Lines are timestamped in seconds since the app
-started:
+The Network app's GC log shows the growth of anything it retains, with no
+permission change and no dump file. After each full GC the heap is down to
+what is actually live, so the lowest post-GC size in each window is a floor
+that rises with a leak and drops when whatever holds the leaked objects is
+restarted. Lines are timestamped in seconds since the app started:
 
 ```sh
 for f in /data/unifi/logs/gc.log.1 /data/unifi/logs/gc.log; do echo "== $f"; awk '{t=substr($1,2)+0} t<last{if(cb!="")printf "%5.0fh %7.2f\n",cb*6,mn; print "-- restart: " last "s -> " t "s"; cb=""} {last=t} /Full GC/{split($(NF-1),a,"->"); v=a[2]+0; b=int(t/21600); if(cb==""||b!=cb){if(cb!="")printf "%5.0fh %7.2f\n",cb*6,mn; cb=b; mn=v} else if(v<mn)mn=v} END{if(cb!="")printf "%5.0fh %7.2f\n",cb*6,mn}' "$f"; done
@@ -173,9 +196,9 @@ for f in /data/unifi/logs/gc.log.1 /data/unifi/logs/gc.log; do echo "== $f"; awk
 Each row is a 6-hour window and its lowest post-full-GC heap in MB. A
 `-- restart` line is the app starting again (several in a row are its
 start-up sequence); a line that is not a GC record also resets the timestamp, so
-check one that appears mid-run before reading it as a restart. Expect a rise
-of about 2 MB a day at 5-minute polling (10 MB a day at 60 s), with a step down
-of the accumulated amount at each `unifi-core` restart.
+check one that appears mid-run before reading it as a restart. A steady rise
+across windows, with a step down at each restart, is a leak; its slope is the
+leak rate.
 
 ## Post-checks
 
@@ -185,3 +208,43 @@ of the accumulated amount at each `unifi-core` restart.
 - SSH is turned off again for the console.
 - On the laptop: `rm -r ~/heapdumps` once the numbers are recorded; the MAT
   index files are inside it.
+
+## Appendix: example — the `GetDeviceTags` stream leak
+
+This runbook was first used to measure a leak in which every
+`unifi.core.console.v1.DeviceTagsAPI/GetDeviceTags` call left a stream open
+(#388). The REST call that triggers it is
+`GET /proxy/network/v2/api/site/default/device-tags`. Unpoller makes it twice
+per poll cycle.
+
+**Driving it at a known rate:** one call every 2 s for an hour, from a
+read-only account, before the dump.
+
+```sh
+jar=$(mktemp); read -r U; read -rs P
+curl -sk -c $jar -H 'Content-Type: application/json' \
+  -d "{\"username\":\"$U\",\"password\":\"$P\"}" https://<udr-ip>/api/auth/login -o /dev/null -w '%{http_code}\n'
+end=$((SECONDS+3600)); n=0
+while [ $SECONDS -lt $end ]; do
+  curl -sk -b $jar https://<udr-ip>/proxy/network/v2/api/site/default/device-tags -o /dev/null -w '%{http_code} '
+  n=$((n+1)); sleep 2; done; echo; echo calls=$n; rm $jar
+```
+
+**The count:** UniFi OS 6.0.12, Network 10.6.106, after 1,715 calls plus 3.3 h
+of polling at 5 min (~80 more):
+
+```
+   1798  io/grpc/okhttp/OkHttpClientStream
+   1798  io/grpc/okhttp/OkHttpClientStream$TransportState
+   1798  io/grpc/okhttp/OkHttpClientStream$Sink
+      1  io/grpc/okhttp/OkHttpClientTransport
+      …
+-- OkHttpClientStream by method
+   1797  unifi.core.console.v1.DeviceTagsAPI/GetDeviceTags
+      1  unifi.core.console.v1.ConsoleAPI/ConsoleStatus
+```
+
+1,797 against ~1,795 calls: one leaked stream per call. Each held about
+3.6 KB on the Network app's side. In the GC log, the same leak was a floor
+rising ~10 MB a day at a 60 s poll interval and ~2 MB a day at 5 min, dropping
+by the accumulated amount at each `unifi-core` restart.
