@@ -121,6 +121,7 @@ Akron is the canary, and the branch layout enforces it — Akron's `GitRepositor
 2. Confirm Akron is healthy (below). Reconciliation pauses for ~1–2 minutes during the restart; nothing breaks, work queues up.
 3. Run the **Promote to stable** workflow from the Actions tab. Eastbank upgrades.
 4. Upgrade the `flux` CLI on **both boxes** to match — see below. Flux does not do this for you.
+5. Confirm the controllers' signals with the post-checks in [Planning a Workload's Observability](workload-observability.md#post-checks). Its pre-checks go alongside the five checks above.
 
 ```bash
 flux version      # server-side versions, not just the CLI

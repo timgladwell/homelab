@@ -14,6 +14,7 @@ reconcile will not restore.
 | [Adding or Removing a Component, Layer or Variable](runbooks/adding-components.md) | Maintenance |
 | [Renaming or Moving Across Flux Kustomizations](runbooks/flux-kustomization-changes.md) | Maintenance |
 | [Sizing a Container's Memory Limit](runbooks/memory-sizing.md) | Maintenance |
+| [Planning a Workload's Observability](runbooks/workload-observability.md) | Maintenance |
 | [Helm Chart Upgrades with CRD Changes](runbooks/helm-crd-upgrades.md) | Maintenance |
 | [Traefik upgrades](runbooks/traefik-upgrades.md) | Maintenance |
 | [kube-prometheus-stack upgrades](runbooks/kube-prometheus-stack-upgrades.md) | Maintenance |
