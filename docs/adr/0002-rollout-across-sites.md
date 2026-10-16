@@ -32,9 +32,9 @@ Constraints:
 **Akron watches `main`; every other site watches `stable`.** Akron is the canary.
 
 **`stable` is only ever fast-forwarded to a commit already on `main`**, by the
-*Promote to stable* workflow (`.github/workflows/promote-to-stable.yml`), run by
-hand. The workflow refuses to run unless the operator asserts Akron is healthy
-and the commit has a successful `Validate` run. It never passes `--force`.
+*Promote to stable* workflow, run by hand. The workflow refuses to run unless
+the operator asserts Akron is healthy and the commit has a successful `Validate`
+run. It never passes `--force`.
 Procedure: [Promoting to `stable`](../runbooks/promote-to-stable.md).
 
 **Rulesets, with no bypass actor on either branch:**

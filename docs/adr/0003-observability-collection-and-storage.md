@@ -46,8 +46,8 @@ and Grafana Alloy as the only collector.
 - *All cardinality trimming lives in the collector config*, in one place.
 
 **The collector is the only thing at a site that crosses the VPN.** Applications
-push to their local `alloy-metrics` (Loki push API on `alloy-metrics:3100`),
-which buffers to a WAL and forwards. Endpoints are path-scoped Traefik routes on
+push to their local `alloy-metrics` (Loki push API), which buffers to a WAL
+and forwards. Endpoints are path-scoped Traefik routes on
 `websecure` (`/api/v1/write`, `/loki/api/v1/push`), with the hostnames pinned in
 the collector's `/etc/hosts` at remote sites, so no resolver is in the path.
 
