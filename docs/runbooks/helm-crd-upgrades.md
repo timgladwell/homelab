@@ -20,6 +20,8 @@ Flux's `crds: CreateReplace` option on a `HelmRelease` can automate this, but CR
    - `--force-conflicts`: overwrites fields owned by another manager (e.g. a previous `kubectl apply` or Flux), preventing the update from being blocked by field ownership conflicts.
 4. **Wait for the apply to settle** (see below), then **merge the Renovate PR**. Flux reconciles the `HelmRelease` and runs the equivalent of `helm upgrade` automatically. You do not need to run `helm` commands directly.
 
+**Observability:** an upgrade can change what the component emits. Before merging, follow the pre-checks in [Planning a Workload's Observability](workload-observability.md); after merging, its post-checks.
+
 Chart-specific steps: [Traefik](traefik-upgrades.md), [kube-prometheus-stack](kube-prometheus-stack-upgrades.md).
 
 ## What a CRD apply does to the cluster

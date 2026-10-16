@@ -18,3 +18,5 @@ For any Traefik Helm chart version bump:
    If there's a diff, apply the new CRDs per the [general process](helm-crd-upgrades.md#general-process) before merging.
 
 5. **Gateway API CRDs** — only relevant if using the Gateway API provider, which this cluster does not use.
+
+6. **Observability.** Follow [Planning a Workload's Observability](workload-observability.md): its pre-checks before merging, its post-checks after.

@@ -107,6 +107,7 @@ scripts/validate-k3s.sh  the validation pipeline; steps in scripts/validate/
 |---|---|
 | Adding or removing a component, layer, variable, secret or ingress route | [Adding or Removing a Component, Layer or Variable](docs/runbooks/adding-components.md) |
 | Renaming a Flux Kustomization, moving a resource between them, or renaming anything a webhook keeps unique | [Renaming or Moving Across Flux Kustomizations](docs/runbooks/flux-kustomization-changes.md) — these can delete PVCs or deadlock Flux |
+| Anything that adds or changes a workload, upgrades included | [Planning a Workload's Observability](docs/runbooks/workload-observability.md) |
 | Any memory limit | [Sizing a Container's Memory Limit](docs/runbooks/memory-sizing.md) |
 | Helm chart values or versions | Render and read them (`flate`, in [the development runbook](docs/runbooks/development-environment.md)); chart upgrades have their own [runbooks](docs/runbooks.md) |
 | Flux itself | [Flux Upgrades](docs/runbooks/flux-upgrades.md) — the CI pin and every box's CLI are hand work |

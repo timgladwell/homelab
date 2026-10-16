@@ -23,6 +23,8 @@ For any kube-prometheus-stack chart version bump:
 
 4. **If Prometheus's own version changed, read its release notes** ([prometheus releases](https://github.com/prometheus/prometheus/releases)). A deprecated command-line flag is usually not a concern: the operator passes flags only when they differ from the defaults. For example, it omits `--log.level` when `logLevel` is `info` (`pkg/prometheus/promcfg.go`).
 
+5. **Observability.** Follow [Planning a Workload's Observability](workload-observability.md): its pre-checks before merging, its post-checks after the rollout below has settled.
+
 ## What the rollout looks like
 
 After merging, an operator bump restarts Prometheus **twice**. The Helm upgrade restarts it once, and the new operator restarts it again when it reconciles the `Prometheus` object with its own config-reloader image. Alertmanager does the same.

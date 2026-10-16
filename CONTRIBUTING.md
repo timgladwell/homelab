@@ -173,3 +173,18 @@ Anything introduced as temporary carries a machine-readable tag where it lives:
 In Markdown, the same inside `<!-- -->`. Both fields are required. The issue
 owns the retirement work. Extending the date is a commit that changes it, with
 the reason in the commit message.
+
+## Dropped signals
+
+[ADR 0003](docs/adr/0003-observability-collection-and-storage.md) collects
+every metric and log by default and drops only for the hardware's sake, so a
+drop has to be revisitable. Each one carries a tag where it is made:
+
+```alloy
+// DROP(saves: ~12k series, measured: 2026-10-01): <what is dropped, and why it is not needed>
+```
+
+Both fields are required. `saves` is the measured cost (series for metrics,
+lines or bytes per day for logs) and `measured` is when it was measured.
+Restoring a dropped signal for an investigation is a temporary change, tagged
+as above.

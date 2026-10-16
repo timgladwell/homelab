@@ -37,6 +37,9 @@ instead.
    `flate build hr -p clusters/<site>`. A setting whose silent loss would cost
    something earns a rule in `policy/rendered_chart_settings.rego`, which asserts
    it is present in the rendered objects.
+6. **What does it emit, and what will it cost?** Follow the pre-checks in
+   [Planning a Workload's Observability](workload-observability.md) before it
+   ships.
 
 ## Steps
 
@@ -73,6 +76,10 @@ configMapGenerator:
 Back it with a conftest policy asserting the merged key exists
 (`policy/pihole_sync_clients.rego`): an absent site file usually reads as
 "desired state is empty", which is a delete.
+
+**Collecting its signals:** the steps in
+[Planning a Workload's Observability](workload-observability.md#steps),
+including its scrape pair.
 
 **A web UI:** an `IngressRoute` in the pattern of
 `base/traefik-routes/pihole-ingressroute.yaml` is the whole job — TLS and DNS
@@ -111,3 +118,5 @@ Validation discovers sites and layers on its own; none of these needs a change t
 2. The PR's rendered-diff comment shows only the objects you expected.
 3. After merge, at Akron: `flux get kustomizations -A` is `Ready`, and the new
    workload's pods are `Running` with their desired replica count.
+4. Its signals arrive at the cost expected: the post-checks in
+   [Planning a Workload's Observability](workload-observability.md#post-checks).
