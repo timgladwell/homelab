@@ -9,7 +9,10 @@ prometheus.remote_write "default" {
     site = "${SITE_NAME}",
   }
 
-  // What makes a remote site survive a WAN outage. Truncation only
+  // Implements ADR 0003's outage window: changing max_keepalive_time
+  // changes what the system accepts as lost, so it is an ADR revision.
+  // What makes a remote site survive an outage of the WAN or of Akron
+  // (anything that stops delivery to Akron's ingest). Truncation only
   // discards samples below the lowest successfully-sent timestamp, so
   // unsent data is kept regardless of age until max_keepalive_time —
   // that value, not truncate_frequency, is the ceiling on outage
@@ -57,7 +60,7 @@ loki.write "default" {
   // logs you would want afterwards to answer "was this router
   // compromised, and when". max_segment_age is the ceiling on how
   // much outage this survives; the chart default is 1h, and 24h
-  // matches the metrics WAL above.
+  // matches the metrics WAL above (ADR 0003's outage window).
   //
   // NOTE: this wal block is flagged *experimental* upstream, unlike
   // prometheus.remote_write's, which is stable. A breaking change to

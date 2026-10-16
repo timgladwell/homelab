@@ -9,6 +9,7 @@
 | Date | By | Description |
 | --- | --- | --- |
 | 2026-10-06 | Tim and Claude | Proposed, from CLAUDE.md's observability section and the decisions in `monitoring-tasks.md`, each checked against the code (#413) |
+| 2026-10-16 | Tim and Claude | Outage window stated as a 24-hour target, with what it does not cover (#388) |
 
 ## Context
 
@@ -42,14 +43,29 @@ and Grafana Alloy as the only collector.
 - *The chart does no scraping of its own.* kube-prometheus-stack's kubelet,
   apiserver, node-exporter, kube-state-metrics, controller-manager and scheduler
   monitors are disabled, so nothing is collected twice.
-- *All cardinality trimming lives in the collector config*
-  (`alloy-metrics.alloy`), in one place.
+- *All cardinality trimming lives in the collector config*, in one place.
 
 **The collector is the only thing at a site that crosses the VPN.** Applications
 push to their local `alloy-metrics` (Loki push API on `alloy-metrics:3100`),
 which buffers to a WAL and forwards. Endpoints are path-scoped Traefik routes on
 `websecure` (`/api/v1/write`, `/loki/api/v1/push`), with the hostnames pinned in
 the collector's `/etc/hosts` at remote sites, so no resolver is in the path.
+
+**Remote data survives an outage of up to 24 hours.** An outage is anything
+that stops a collector delivering to Akron: the WAN, the VPN, or Akron itself.
+The collector holds what it cannot send for that long, and Akron's Prometheus
+accepts samples that late; past it, the oldest data is dropped. The window is a
+Pareto choice. A short one is cheap and covers most outages, and each extra day
+costs SD-card space and wear at remote sites, a wider out-of-order window at
+Akron, and a longer drain on reconnect (#270).
+
+- *Covered:* ISP and WAN drops, upgrades and reboots, an evening's power cut.
+- *Not covered, accepted as loss:* a multi-day outage at Akron while nobody is
+  there to fix it (#388), and waiting for replacement hardware. Alerting is what
+  makes that loss visible (#221).
+
+The collector's WAL settings and Prometheus's `outOfOrderTimeWindow` implement
+the window, and each carries a comment naming this ADR.
 
 **Unpoller runs once, at Eastbank**, polling every site's UniFi controller over
 the VPN and writing back through its local collector (#120). Polling does not need
@@ -83,7 +99,7 @@ in git.
 
 - No TSDB on an SD card; remote sites stay light.
 - One place to query every site, and one place to trim cardinality.
-- A WAN outage delays remote data instead of losing it.
+- An outage within the window delays remote data instead of losing it.
 
 **Negative and risks**
 
@@ -92,6 +108,8 @@ in git.
 - **Two settings must stay in sync** or a remote site silently loses data across
   an outage: the collector's WAL `max_keepalive_time` and Prometheus's
   `outOfOrderTimeWindow`. Each carries a comment naming the other.
+- **An outage longer than the window loses remote data**, silently until the
+  alerting in #221 exists.
 - Remote telemetry depends on Akron's Traefik.
 - `loki.write`'s WAL is experimental upstream, unlike `prometheus.remote_write`'s.
 
