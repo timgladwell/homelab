@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | 2026-10-06 | Tim and Claude | Proposed, from CLAUDE.md's observability section and the decisions in `monitoring-tasks.md`, each checked against the code (#413) |
 | 2026-10-16 | Tim and Claude | Outage window stated as a 24-hour target, with what it does not cover (#388) |
+| 2026-10-16 | Tim and Claude | Everything running is collected by default, excluded only for the hardware's sake; formalised after #323 showed what an uncollected component costs (#367) |
 
 ## Context
 
@@ -77,9 +78,26 @@ scale-out path, if log volume ever justifies it, is SimpleScalable.
 **Dashboards are ConfigMaps** loaded by the Grafana sidecar, generated from JSON
 in git.
 
-**What gets collected:**
+**Every signal is collected by default; what is not needed is dropped.**
+Metrics and logs from every workload at every site, ours or anyone else's, are
+collected unless a drop excludes them:
 
-- Don't collect what a query can derive, including a second source of the same
+- *Operating needs signals before the problem.* Which signal a problem needs is
+  rarely known until it happens, so the default is all of them.
+- *Most of what runs here is other people's software.* Its signals are defined
+  upstream and change with each release. Tracking what every component emits in
+  order to list it would be continual work, and would fall behind.
+
+One rule covers everything, our own software included: a single approach is
+easier to reason about than two.
+
+**A drop is a concession to the hardware**, never a judgement that a signal is
+not wanted, so it has to be revisitable when the hardware or the cost changes.
+Each drop carries a `DROP` tag (CONTRIBUTING.md) recording what it saves and
+when that was measured. Deciding what to drop follows guidelines, a list
+expected to grow as experience does:
+
+- Don't keep what a query can derive, including a second source of the same
   signal — unless it is used routinely (a dashboard panel, a frequent query),
   where collecting or a recording rule is cheaper than recomputing. The cost that
   matters is collector and Prometheus CPU and memory, not storage.
@@ -88,10 +106,20 @@ in git.
 - Intervals as short as the resources allow. Lengthening one is a concession to
   the hardware, and the `rate()` windows that read it must still get enough
   samples.
-- A metric is added either as a **base metric** — answering a question that will
-  come up again, with its keep/drop rule saying which — or **temporarily** during
-  an investigation, carrying a `TEMPORARY` tag (CONTRIBUTING.md) and an issue to
-  promote or remove it.
+- A dropped signal can be restored temporarily for an investigation, carrying a
+  `TEMPORARY` tag (CONTRIBUTING.md) and an issue to keep it or drop it again.
+
+**Every change to a workload plans its observability**, whether it adds the
+workload or changes it, upgrades included. Before it ships: research what the
+component emits and how it is best collected, including what would be expensive
+here and what to drop. After it ships: confirm the signals arrive, and settle
+what is kept and dropped. Research is what keeps a new workload's first intake
+from overwhelming Prometheus or Loki; tuning after deployment is the last 20%.
+The procedure is [Planning a Workload's Observability](../runbooks/workload-observability.md).
+
+**Some signals need transforming** to be useful, such as node-exporter's
+`instance` set to the node name. Transformations follow collection where labels
+matter, and no target is collected twice.
 
 ## Consequences
 
@@ -100,6 +128,8 @@ in git.
 - No TSDB on an SD card; remote sites stay light.
 - One place to query every site, and one place to trim cardinality.
 - An outage within the window delays remote data instead of losing it.
+- A new component is collected because it exists, so "is X monitored?" is
+  answered by the cluster rather than by reading the collector's configuration.
 
 **Negative and risks**
 
@@ -112,10 +142,28 @@ in git.
   alerting in #221 exists.
 - Remote telemetry depends on Akron's Traefik.
 - `loki.write`'s WAL is experimental upstream, unlike `prometheus.remote_write`'s.
+- **More work per change.** Each change to a workload researches its
+  observability ahead of time, re-checks production after it ships, and decides
+  what is kept and dropped.
+- **A new workload's first intake could overwhelm Prometheus or Loki** on this
+  hardware, and become an incident. The research before it ships is the
+  mitigation.
+- **A default only collects what is exposed.** A component with no metrics
+  endpoint, such as Traefik with metrics off or PiHole with no exporter, stays
+  dark; how to handle each is decided when its collection is implemented.
 
 ## Alternatives considered
 
 - **A TSDB at every site.** Rejected for SD-card wear and remote-site headroom.
+- **An allowlist of what to collect.** Needs knowing in advance which signals
+  will be needed, and keeping up with what other people's software emits; both
+  fail silently.
+- **Our own software opting in.** We know what it emits, but two approaches are
+  harder to reason about than one rule, and that knowledge does not need a
+  different default.
+- **Components declaring their own metrics** (pod annotations, or #211). The
+  same problem as an allowlist: most components are other people's software,
+  whose charts do not carry the declaration, so each would need an override.
 - **Promtail for logs.** End-of-life, superseded by Alloy, which also collects
   metrics, so one collector covers both.
 - **Apps pushing straight to Akron.** Works, but couples every app to a remote
