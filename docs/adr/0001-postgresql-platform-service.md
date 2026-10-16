@@ -35,7 +35,8 @@ Constraints this repo already imposes:
 - All images must be ARM64. All workloads declare requests and limits.
 - Everything is reconciled by Flux from this repo, except configuration that
   cannot be: settings on a node, and accounts with outside services (UniFi,
-  Cloudflare, and now AWS). Those are inventoried in `docs/current-state/host-state.md`.
+  Cloudflare, and now AWS). Those are inventoried in
+  [State That Is Not In Git](../current-state/host-state.md).
 - Warnings are errors in validation, and secrets are SOPS-encrypted per site.
 
 The data is not valuable enough to justify real cost — that is why it runs on a
@@ -179,7 +180,8 @@ surface.
 
 The bucket, the IAM user and the budget alert below are not reconciled by
 anything in this repo. Like the UniFi and Cloudflare configuration, they belong
-in `docs/current-state/host-state.md` with everything else that fails silently.
+in [State That Is Not In Git](../current-state/host-state.md) with everything
+else that fails silently.
 
 ### Retention
 
@@ -188,7 +190,10 @@ in `docs/current-state/host-state.md` with everything else that fails silently.
   requires. A lifecycle rule deleting by age has no such knowledge and can expire
   required WAL, producing a backup set that looks healthy in the console and
   fails at restore time.
-- An S3 lifecycle rule at ~60 days is a runaway-cost backstop only.
+- **An S3 lifecycle rule at ~60 days, as a runaway-cost backstop only.** It
+  must stay well past the retention window plus the longest gap between base
+  backups, or it expires WAL that the oldest base backup still needs. The rule
+  is configured in AWS, outside git (#401).
 
 Beyond two weeks there is no value in point-in-time granularity. There is no
 long-horizon retention (monthly or yearly copies) of the database, and nothing in

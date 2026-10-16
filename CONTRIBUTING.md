@@ -94,7 +94,14 @@ observability data", "how are secrets managed" — holding the current answer,
 its context and the alternatives rejected. The answer is expected to change as
 scope and cost change; the ADR is revised in place and keeps its question.
 Concrete specifications (a pod's memory limit, a chart value) are not ADR
-material: the value is in code, its derivation in an issue.
+material: the value is in code, its derivation in an issue. A **target** is
+different: a value whose change would change what the system promises or
+accepts as lost, like how long an outage the collectors survive. Choosing one is
+a trade-off, so the ADR states it, with its reasoning and what it does not
+cover, and changing it is a revision of the ADR. The settings that implement it
+are in code, each with a comment naming the ADR; tuning a setting to meet a
+target stays there. The ADR names settings, not the files they are in, because
+files move; the exception is an ADR whose decision is the layout itself.
 
 An ADR is the one document that keeps a change table: one short row per
 evolution of the answer, so its history reads at a glance.
