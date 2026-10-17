@@ -63,7 +63,7 @@ Akron, and a longer drain on reconnect (#270).
 - *Covered:* ISP and WAN drops, upgrades and reboots, an evening's power cut.
 - *Not covered, accepted as loss:* a multi-day outage at Akron while nobody is
   there to fix it (#388), and waiting for replacement hardware. Alerting is what
-  makes that loss visible (#221).
+  makes that loss visible.
 
 The collector's WAL settings and Prometheus's `outOfOrderTimeWindow` implement
 the window, and each carries a comment naming this ADR.
@@ -138,8 +138,8 @@ matter, and no target is collected twice.
 - **Two settings must stay in sync** or a remote site silently loses data across
   an outage: the collector's WAL `max_keepalive_time` and Prometheus's
   `outOfOrderTimeWindow`. Each carries a comment naming the other.
-- **An outage longer than the window loses remote data**, silently until the
-  alerting in #221 exists.
+- **An outage longer than the window loses remote data**, and the loss is
+  silent unless alerting reports it.
 - Remote telemetry depends on Akron's Traefik.
 - `loki.write`'s WAL is experimental upstream, unlike `prometheus.remote_write`'s.
 - **More work per change.** Each change to a workload researches its

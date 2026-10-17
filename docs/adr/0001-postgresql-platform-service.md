@@ -193,11 +193,11 @@ else that fails silently.
 - **An S3 lifecycle rule at ~60 days, as a runaway-cost backstop only.** It
   must stay well past the retention window plus the longest gap between base
   backups, or it expires WAL that the oldest base backup still needs. The rule
-  is configured in AWS, outside git (#401).
+  is configured in AWS, outside git.
 
 Beyond two weeks there is no value in point-in-time granularity. There is no
 long-horizon retention (monthly or yearly copies) of the database, and nothing in
-this repo provides one for anything else either — see #352.
+this repo provides one for anything else either.
 
 ### Cost control
 
@@ -215,33 +215,23 @@ If cost has to come down, the levers in order of least harm are
 point-in-time reach). Each one changes the tenant contract, so the contract table
 changes with it.
 
-### Restore drills
-
-Untested backups are not backups. A restore to a timestamp, into a throwaway
-`Cluster`, with the target confirmed honoured, is performed:
-
-- first while the database is still empty, before any tenant is onboarded;
-- then quarterly;
-- and after any change to backup or archive configuration.
-
-PITR restores the whole instance, so restoring one tenant means restoring into a
-throwaway `Cluster` and dumping that tenant's database back into the live one.
-The runbook covers both.
-
 ### Resources: DNS wins
 
-Postgres carries explicit memory requests and limits. The limit covers the
-process, `shared_buffers`, *and* the hot part of the OS page cache: Postgres
-relies on the page cache by design, and page cache is charged to the container's
-limit. A limit sized to the process alone produces the self-eviction thrash
-recorded in #378. Size from `memory.stat` under representative load, and
-recompute the namespace `ResourceQuota` in the same change.
+A database on a Raspberry Pi that also serves the household's DNS is a
+resource-contention risk, and the risk lands on DNS. Access to the node's
+resources is therefore prioritised so that DNS is never the workload that loses:
 
-The DNS workload is given `requests == limits` (Guaranteed QoS) and a higher
-`PriorityClass` than the database and than any tenant. Under memory pressure the
-kubelet then evicts task automation rather than household DNS. This protects
-other workloads *from* the database; it is the same reason Akron is the only site
-that stores observability data.
+- **DNS outranks everything.** The DNS workload runs with Guaranteed QoS
+  (`requests == limits`) and a higher `PriorityClass` than the database and any
+  tenant, so under memory pressure the kubelet evicts task automation, never
+  household DNS.
+- **The database is bounded, page cache included.** Postgres relies on the OS
+  page cache by design, and page cache is charged to the container's limit, so
+  the limit has to cover the cache as well as the process. A limit sized to the
+  process alone thrashes on self-eviction (#378).
+
+This is how other workloads are protected *from* the database. It is the same
+reason Akron is the only site that stores observability data.
 
 ### Alerting
 
@@ -273,8 +263,7 @@ CNPG expresses steps 1 and 3 declaratively: a `Cluster` with
 `bootstrap.initdb.import` runs `pg_dump`/`pg_restore` from the source cluster, so
 the migration is a manifest rather than a typed procedure. The `monolith` import
 type carries several databases and their roles at once, which is what a shared
-instance needs; confirm it against the CNPG release in use when the first major
-upgrade is due.
+instance needs.
 
 Logical replication would cut the window to seconds and is rejected: it requires
 `wal_level=logical` permanently, inflating WAL volume on a USB-attached NVMe that
@@ -317,8 +306,9 @@ insert unless every sequence is advanced by hand.
 - **Archive failure fills the disk and takes DNS with it.** Covered by the first
   alert above, and the reason it is first.
 - **Tenants share an instance.** A noisy tenant affects the others, a restart
-  restarts all of them, and a whole-instance PITR rolls all of them back — hence
-  the per-tenant restore path above. With one tenant, none of this bites yet.
+  restarts all of them, and a whole-instance PITR rolls all of them back. So
+  restoring one tenant means restoring into a throwaway `Cluster` and dumping
+  that tenant's database back into the live one.
 - **This repo now owns an application's runtime dependency.** A tenant feature
   needing `pg_trgm` or a non-default server parameter is a PR here first. That
   lead time is the cost of the boundary.
