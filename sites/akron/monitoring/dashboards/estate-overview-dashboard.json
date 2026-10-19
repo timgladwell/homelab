@@ -978,7 +978,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Page cache + RSS against the container's memory limit. A full cache is normal: the kernel fills spare room with cached files. It is only a problem when the major-fault graph beside it rises too, which means the container is re-reading files it just evicted. See #378. Grouped by pod as well as container: two pods can run a container with the same name (Akron's alloy-metrics and log-collecting alloy are both \"alloy\"), and grouping by name alone divides one pod's usage by the other's limit.",
+      "description": "Page cache + RSS against the container's memory limit. A full cache is normal: the kernel fills spare room with cached files. It is only a problem when the refault graph beside it rises too, which means the container is re-reading files it just evicted. See #378. Grouped by pod as well as container: two pods can run a container with the same name (Akron's alloy-metrics and log-collecting alloy are both \"alloy\"), and grouping by name alone divides one pod's usage by the other's limit.",
       "gridPos": {
         "h": 8,
         "w": 10,
@@ -1077,12 +1077,12 @@
     {
       "type": "timeseries",
       "id": 15,
-      "title": "Major page faults by container (top 5, temporary: #380)",
+      "title": "Page cache refaults by container (top 5)",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Reads from disk to bring back evicted pages. Near zero normally; a sustained rise in a container that is near its memory limit means it is thrashing its own files (#375, #378). This series is a temporary investigation metric; #380 decides whether it stays.",
+      "description": "Pages per second read back from disk soon after being evicted, whether the file is mapped (a binary) or read (a SQLite database). Near zero normally; a sustained rise in a container that is near its memory limit means it is thrashing its own files (#375, #378). Matches workingset_refault_file in the container's memory.stat exactly (#380).",
       "gridPos": {
         "h": 8,
         "w": 14,
@@ -1095,7 +1095,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk(5, sum by (site, namespace, container) (rate(container_memory_failures_total{failure_type=\"pgmajfault\", scope=\"container\"}[5m])))",
+          "expr": "topk(5, sum by (site, namespace, container) (rate(container_memory_workingset_refault_file_total{container!=\"\", container!=\"POD\"}[5m])))",
           "refId": "A",
           "format": "time_series",
           "instant": false,
@@ -1132,7 +1132,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Node-wide. Shows that something is thrashing even for containers whose per-container faults are not yet collected.",
+      "description": "Node-wide, including host processes outside any container. Counts mapped files only, so it misses thrash on files that are read rather than mapped; the refault graph above covers both, per container.",
       "gridPos": {
         "h": 6,
         "w": 24,
