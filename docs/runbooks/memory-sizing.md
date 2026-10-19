@@ -15,14 +15,19 @@ as CPU or leak problems.
 
 ## Pre-checks
 
-1. **Is the node thrashing at all?** Node-wide major faults, normally near 0/s:
+1. **Is any container thrashing?** Page cache refaults per container, normally
+   near 0/s. Worst 10-minute rate in each day; run it as a range query over a
+   few weeks, since weekly jobs (Pi-hole's gravity rebuild) are a common cause:
 
    ```promql
-   rate(node_vmstat_pgmajfault{site="<site>"}[10m])
+   max_over_time(sum by (site, namespace, container) (rate(container_memory_workingset_refault_file_total{container!="", container!="POD"}[10m]))[1d:10m])
    ```
 
-   This is node-wide, so it says *that*, not *which container*. Which containers
-   run close to their limit, worst case over 7 days:
+   This is the same counter as `workingset_refault_file` in the steps below, so it finds
+   the container and the time of day without a shell on the host. Do not use
+   major faults (`node_vmstat_pgmajfault`) for this: they count only mapped
+   files, and missed Pi-hole re-reading its SQLite database (#380). Which
+   containers run close to their limit, worst case over 7 days:
 
    ```promql
    sort_desc(max by (site, namespace, container) (max_over_time((container_memory_cache{container!="", container!="POD"} + container_memory_rss{container!="", container!="POD"})[7d:10m]))

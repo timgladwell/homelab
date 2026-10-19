@@ -452,19 +452,14 @@ prometheus.relabel "cadvisor" {
     action        = "drop"
   }
 
-  // TEMPORARY investigation metric (#380): promote or roll back once
-  // #378's measurements are done. Major page faults per container are
-  // kept: a container re-reading its own evicted files near its memory
-  // limit shows up here and nowhere else. The node-wide
-  // node_vmstat_pgmajfault shows that something is thrashing but not
-  // what (#375, #378). Of the four series per container, only
-  // pgmajfault at container scope is needed; minor faults and the
-  // hierarchy duplicate are dropped. Rolling back means adding
-  // memory_failures_total back to the drop regex above, deleting this
-  // rule, and removing the per-container panel from Estate overview.
+  // DROP(saves: ~155 series, measured: 2026-10-19): page faults per
+  // container. Redundant with container_memory_workingset_refault_file_total,
+  // which counts every evicted file page brought back, read or mapped,
+  // while major faults count only mapped ones: they missed Pi-hole's weekly
+  // SQLite thrash entirely (#380). Keep the refault series.
   rule {
-    source_labels = ["__name__", "failure_type", "scope"]
-    regex         = "container_memory_failures_total;(pgfault;.*|pgmajfault;hierarchy)"
+    source_labels = ["__name__"]
+    regex         = "container_memory_failures_total"
     action        = "drop"
   }
 
