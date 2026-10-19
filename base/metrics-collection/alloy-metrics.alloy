@@ -431,19 +431,21 @@ prometheus.scrape "cadvisor" {
   }
 }
 
-// Cardinality trimming. Ported verbatim from the ServiceMonitor
-// relabelings Akron's kube-prometheus-stack used to carry — this is
-// now the only copy in the repo, which is the point of both sites
-// sharing one collector.
+// Cardinality trimming, carried over from the relabelings Akron's
+// kube-prometheus-stack used to have (#147). Those replaced the chart's
+// defaults rather than extending them, so this is not upstream's set;
+// each rule stands on its own reasoning. This is the only copy in the
+// repo, which is the point of both sites sharing one collector.
+//
+// `id` (the cgroup path) is kept, and must not be dropped: it is the only
+// label telling the non-pod cgroups apart (/, kubepods.slice and its QoS
+// slices, system.slice/k3s.service). Without it they collapse into one
+// series that rejects samples and corrupts every rate over it (#307).
+// It costs nothing for pods, where it maps one-to-one to `name`.
+// Anything summing a container_* metric must filter container!="" or a
+// specific id, because / contains everything below it.
 prometheus.relabel "cadvisor" {
   forward_to = [prometheus.remote_write.default.receiver]
-
-  // Full cgroup paths are unused by any dashboard and contribute
-  // disproportionately to series cardinality.
-  rule {
-    action = "labeldrop"
-    regex  = "id"
-  }
 
   // Metric families not referenced by any configured dashboard.
   rule {
