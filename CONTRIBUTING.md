@@ -184,6 +184,30 @@ edited in place as it changes; each child is a smaller area of the work, and
 may have children of its own. Discussion goes in comments. A leaf is closed by
 the PR that ships it, or by a decision recorded in it.
 
+**An issue records what was understood when it was written**, not settled fact.
+New information, new capabilities or more skill can overturn a conclusion. An
+issue that does so names the premise the old conclusion rested on, and the
+earlier issue gets a comment linking forward.
+
+### Exploratory issues
+
+Context worth keeping for work that is not scheduled, and may never be: a
+brainstorm, a spike, a draft PR to look at. It stays open and labelled
+`exploratory`, so the question of when stays visible. A backlog view leaves it
+out with `-label:exploratory`.
+
+The body is a parent issue like any other (the gap, the findings, premises that
+turned out wrong, alternatives rejected), with two differences:
+
+- **The planned work is a list in the body, not sub-issues**, so the backlog
+  holds only work someone has committed to. A note at the top says so.
+- **Every finding is dated**, because it will be read long after it was true.
+
+Picking one up starts with rechecking its premises, its own findings included,
+then creating the sub-issues. The label comes off and it becomes an ordinary
+plan. One item can be split out earlier: open it as its own issue and replace
+it in the list with the link.
+
 ## Pull requests
 
 The proposed change and nothing else: why it is built this way, the
