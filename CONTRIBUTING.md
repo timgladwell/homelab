@@ -14,6 +14,10 @@ replacing this section with whatever per-repo deltas remain. -->
 findings and anything that *should* change live in issues. A file may point at
 an issue; it never holds the work itself.
 
+The one kind of document that describes something other than the deployed
+system is an [ADR](#adrs): it specifies the **target** design. The gap between
+the two is work, and lives in issues.
+
 The one exception is something known to be temporary — a workaround, a
 diagnostic metric, a runbook for a long-running investigation. It stays, but
 carries a [`TEMPORARY` tag](#temporary-things) saying why and until when.
@@ -25,7 +29,7 @@ carries a [`TEMPORARY` tag](#temporary-things) saying why and until when.
 | [Code comment](#code-comments) | Why this code is the way it is, and how to change it without breaking something | History, plans |
 | [`CLAUDE.md`](#claudemd) | System-level boundaries and invariants, and an index of change-triggered runbooks | Anything a lower-level home can carry |
 | [`docs/current-state/`](#current-state-docs) | The deployed system's state that code does not define | Procedures, plans, history |
-| [`docs/adr/`](#adrs) | The current answer to one system-level design question | Concrete specifications, procedures |
+| [`docs/adr/`](#adrs) | The target design that solves one product problem, and why it was chosen | How to implement it, progress toward it |
 | [`docs/runbooks/`](#runbooks) | A procedure for a specific outcome | One-off history, past-run logs |
 | [Issues](#issues) | Plans and their structure, tasks, findings, decisions, history | — |
 | [Pull requests](#pull-requests) | Why this change is built this way | Analysis results, discovered work |
@@ -89,19 +93,49 @@ history, PRs and issues.
 
 ## ADRs
 
-One ADR per system-level design question — "how does the system store
-observability data", "how are secrets managed" — holding the current answer,
-its context and the alternatives rejected. The answer is expected to change as
-scope and cost change; the ADR is revised in place and keeps its question.
-Concrete specifications (a pod's memory limit, a chart value) are not ADR
-material: the value is in code, its derivation in an issue. A **target** is
-different: a value whose change would change what the system promises or
-accepts as lost, like how long an outage the collectors survive. Choosing one is
-a trade-off, so the ADR states it, with its reasoning and what it does not
-cover, and changing it is a revision of the ADR. The settings that implement it
-are in code, each with a comment naming the ADR; tuning a setting to meet a
-target stays there. The ADR names settings, not the files they are in, because
-files move; the exception is an ADR whose decision is the layout itself.
+An ADR specifies the **target state** of part of the system: the design that
+solves one product problem — "how does the system store observability data",
+"how are secrets managed" — under the constraints it is solved in. It is a
+system-design and decision-making document.
+
+**It holds** the problem and its constraints, the decision, its consequences,
+and the alternatives rejected, with the trade-offs that decided between them.
+Implementation detail appears only where it is key to the decision: a technology
+feature the choice depends on, or a limitation that rules an option out.
+
+**It does not hold:**
+
+- **How to carry out the implementation.** That is a runbook or an issue.
+- **Progress toward the target.** It does not say what is built yet, link the
+  issues delivering it, or describe how the deployed system is configured
+  today. An issue cited as *evidence* for the decision (an incident, a
+  measurement) belongs; an issue that *queues the work* to reach it does not.
+  An ADR's status records the decision, not the implementation: `Accepted`
+  means decided, not built.
+
+**Targets and settings.** Concrete specifications (a pod's memory limit, a
+chart value) are not ADR material: the value is in code, its derivation in an
+issue. A **target** is different: a value whose change would change what the
+system promises or accepts as lost, like how long an outage the collectors
+survive. Choosing one is a trade-off, so the ADR states it, with its reasoning
+and what it does not cover, and changing it is a revision of the ADR. The
+settings that implement it are in code, each with a comment naming the ADR;
+tuning a setting to meet a target stays there. The ADR names settings, not the
+files they are in, because files move; the exception is an ADR whose decision
+is the layout itself.
+
+**It is revised in place, and expected to be.** It keeps its problem and is never
+superseded by a new ADR; the answer changes when:
+
+- **Implementing it teaches something.** An ADR is always at least a little
+  off, and implementation is where the plan meets reality. A gap in the design
+  or the target state goes back into the ADR. A lesson about the implementation
+  stays in code and issues.
+- **A constraint changes.** A design for ten users will not serve thousands,
+  and a Raspberry Pi's limits stop applying once hosting moves to a proper
+  server.
+
+It is retired (`Deprecated`) only when its product problem no longer exists.
 
 An ADR is the one document that keeps a change table: one short row per
 evolution of the answer, so its history reads at a glance.

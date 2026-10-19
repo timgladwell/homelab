@@ -1,13 +1,14 @@
 # Architecture decision records
 
-An ADR specifies part of the system's architecture: given these requirements,
-this is the decision, and these are the alternatives rejected. Each ADR addresses
-a problem inherent in the system's design. The scope runs
-from "what kind of database" down to "what shape a function's result takes".
-ADRs exist so that everyone working on the system reaches for the same patterns.
+An ADR specifies the target design that solves one product problem, and why it
+was chosen over the alternatives. The scope runs from "what kind of database"
+down to "what shape a function's result takes". ADRs exist so that everyone
+working on the system reaches for the same patterns.
 
-They are not where current state is described (that is `docs/*.md`), where a
-procedure is written down (`docs/runbooks/`), or where work is queued (issues).
+What an ADR holds and what it does not, including that it never tracks progress
+toward its target, is in [CONTRIBUTING.md](../../CONTRIBUTING.md#adrs). That file
+is loaded into every Claude Code session; this one is not, so the rules live
+there.
 
 ## Format
 
@@ -44,8 +45,5 @@ they were made. Many decisions in this repo were made before the convention
 existed and are not recorded as ADRs yet, so a low number does not mean an early
 or foundational decision.
 
-Revising an ADR is expected, not a failure. If the chosen solution turns out to
-be wrong, the ADR is revised in place: it is still the same problem and the same
-discussion, so it is not superseded by a new ADR. Each revision adds a changelog
-row. An ADR is `Deprecated` only when its problem has gone out of the system's
-scope.
+Revising an ADR in place, and retiring one, are covered in
+[CONTRIBUTING.md](../../CONTRIBUTING.md#adrs). Each revision adds a changelog row.
