@@ -54,9 +54,9 @@ docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
 # sets the chart's alloy.stabilityLevel: Akron's log collector to public-preview,
 # for otelcol.receiver.syslog, and the metrics collector to experimental, for
 # loki.write's WAL alone. The chart always renders
-# --stability.level=<alloy.stabilityLevel>, so a copy in extraArgs is a second
-# flag that wins only by coming last, and the release reads as one level while
-# running at another. That is rejected outright rather than modelled here.
+# --stability.level=<alloy.stabilityLevel>, so that value is the only one read
+# here. A copy in extraArgs would be a second flag that wins only by coming
+# last; step 15's policy (policy/rendered_chart_settings.rego) rejects it.
 #
 # `alloy validate` enforces a component's own stability level, but not a gate a
 # component applies to its arguments when it is built: as of 1.21 it accepts
@@ -80,11 +80,6 @@ for doc in docs:
                  "values.alloy.configMap.content. Put it in a .alloy file and "
                  "generate the ConfigMap, so alloy fmt/validate can be pointed "
                  "at it directly.")
-    if any(a.startswith("--stability.level") for a in alloy.get("extraArgs", [])):
-        sys.exit(f"ERROR: {doc['metadata']['name']} sets --stability.level in "
-                 "values.alloy.extraArgs. Use values.alloy.stabilityLevel: the "
-                 "chart already renders that flag, so a second one wins only by "
-                 "coming last.")
     if not cm.get("name"):
         continue
     level = alloy.get("stabilityLevel")
