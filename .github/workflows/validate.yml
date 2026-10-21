@@ -55,14 +55,14 @@ jobs:
       - uses: actions/checkout@v7
 
       # Pinned to the minor the clusters run — base/landing/deployment.yaml and
-      # base/pihole-sync/sync-job.yaml both pin python:3.14.x, and step 13's
+      # base/pihole-sync/sync-job.yaml both pin python:3.15.x, and step 13's
       # tests should run on the interpreter the pods will. Also gives pip a
       # writable environment: the runner's system python is PEP 668
       # externally-managed, so installing into it needs --break-system-packages.
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       # Pinned to the version the clusters run (clusters/*/flux-system/), not
       # the newest release: CI should build the way the clusters will. Bump
