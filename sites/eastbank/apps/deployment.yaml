@@ -161,6 +161,13 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 5
+          # 512Mi is deliberate and sits near 99% of its limit on Estate
+          # overview; that is page cache, not pressure. It covers the process
+          # peak (~280Mi) plus the files it actively uses (file_mapped ~120Mi),
+          # measured with refaults ~0 in #378. #279 kept it from rising to 1Gi:
+          # a fifth of the node is the wrong trade for an occasional tool, and
+          # the tight limit doubles as leak mitigation. Raise it only on
+          # sustained refaults (container_memory_workingset_refault_file_total).
           resources:
             requests:
               cpu: 100m

@@ -164,18 +164,21 @@ spec:
           # be a victim by exceeding the ceiling that would have killed it
           # anyway.
           #
-          # 384Mi, down from a 512Mi limit, because 512Mi was never justified
-          # by anything: peak working set over 30 days is 211Mi at Akron and
-          # 148Mi at Eastbank, across a window containing several pihole-sync
-          # gravity rebuilds. FTL has never been OOMKilled here.
+          # 384Mi covers normal serving: FTL's process peaks at ~72Mi, and page
+          # cache refaults are ~0 outside gravity rebuilds (#378). FTL has never
+          # been OOMKilled here.
           #
-          # Total cgroup usage does hit 513Mi at both sites, which looks like a
-          # near miss and is not one — 496Mi of that is page cache for FTL's
-          # SQLite databases, which the kernel fills opportunistically because
-          # the headroom exists and reclaims under pressure. Lowering the
-          # ceiling shrinks that cache rather than risking a kill. Read
-          # container_memory_working_set_bytes, not
-          # container_memory_max_usage_bytes, before revisiting this number.
+          # Rebuilds thrash at this limit, knowingly. gravity.db is ~1.1 GB,
+          # and a rebuild writes a full new copy while FTL serves from the old
+          # one, so it re-reads ~4.6 GB in a few minutes each week. DNS stayed
+          # Ready throughout when measured. No limit that fits the node holds a
+          # 1.1 GB rewrite, so raising this would only shorten the thrash and
+          # reserve more node memory (request equals limit, above). The lever
+          # is the database's size, ~78% of it NRD blocklists: #468.
+          #
+          # Before revisiting this number, read refaults
+          # (container_memory_workingset_refault_file_total), not working set:
+          # working set is what this limit was once wrongly cut from.
           #
           # The CPU limit is NOT set equal to the request. Doing that is what
           # Guaranteed QoS requires, and it is actively harmful here: the CFS
