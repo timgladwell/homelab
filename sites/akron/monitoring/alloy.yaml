@@ -137,9 +137,14 @@ spec:
         - name: GOMEMLIMIT
           value: 230MiB
 
-      extraArgs:
-        - --disable-reporting
-        - --stability.level=public-preview
+      # Process flags go through the chart's own values, as in alloy-metrics,
+      # not extraArgs: the chart always renders --stability.level=<value>, so a
+      # copy in extraArgs is a second flag that takes effect only because it
+      # comes last; validation step 12 rejects one. Public-preview is for
+      # otelcol.receiver.syslog (the UniFi CEF listener in alloy.alloy).
+      enableReporting: false
+      stabilityLevel: public-preview
+
       # Config lives beside this file as alloy.alloy — see the note in
       # base/metrics-collection/alloy-metrics.yaml.
       configMap:

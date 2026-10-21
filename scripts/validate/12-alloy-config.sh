@@ -41,7 +41,7 @@ for site in $(sites); do
     mkdir -p "$WORK/$site"
 
     python3 - "$BUILD_OUTPUT" "$WORK/$site" <<'PY' || exit 1
-import pathlib, sys, yaml
+import pathlib, re, sys, yaml
 
 built, outdir = sys.argv[1], pathlib.Path(sys.argv[2])
 docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
@@ -50,10 +50,25 @@ docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
 # the config can be validated with the release's own settings.
 #
 # Alloy refuses to run a component below the process's stability level, so a
-# release that has not opted in must not validate as though it had. Akron's log
-# collector passes --stability.level=public-preview and uses
-# otelcol.receiver.syslog; the metrics collectors pass nothing and must stay on
-# generally-available components.
+# release that has not opted in must not validate as though it had. Each release
+# sets the chart's alloy.stabilityLevel: Akron's log collector to public-preview,
+# for otelcol.receiver.syslog, and the metrics collector to experimental, for
+# loki.write's WAL alone. The chart always renders
+# --stability.level=<alloy.stabilityLevel>, so a copy in extraArgs is a second
+# flag that wins only by coming last, and the release reads as one level while
+# running at another. That is rejected outright rather than modelled here.
+#
+# `alloy validate` enforces a component's own stability level, but not a gate a
+# component applies to its arguments when it is built: as of 1.21 it accepts
+# loki.write's `wal { enabled = true }` at any level, while `alloy run` refuses
+# it below experimental. A gate of that kind is caught only on the cluster (#498).
+#
+# Experimental is process-wide, so validating at it alone would admit any
+# experimental component added later. The WAL is the only thing a release is
+# allowed to need it for, so such a release is validated a second time, with
+# every wal block stripped, at generally-available. The first pass still checks
+# the wal blocks' own attributes. A release that genuinely needs another
+# experimental component fails here until this rule is revisited.
 releases = {}
 for doc in docs:
     if doc.get("kind") != "HelmRelease":
@@ -65,11 +80,16 @@ for doc in docs:
                  "values.alloy.configMap.content. Put it in a .alloy file and "
                  "generate the ConfigMap, so alloy fmt/validate can be pointed "
                  "at it directly.")
+    if any(a.startswith("--stability.level") for a in alloy.get("extraArgs", [])):
+        sys.exit(f"ERROR: {doc['metadata']['name']} sets --stability.level in "
+                 "values.alloy.extraArgs. Use values.alloy.stabilityLevel: the "
+                 "chart already renders that flag, so a second one wins only by "
+                 "coming last.")
     if not cm.get("name"):
         continue
+    level = alloy.get("stabilityLevel")
     releases[cm["name"]] = (doc["metadata"]["name"], cm.get("key", "config.alloy"),
-                            [a for a in alloy.get("extraArgs", [])
-                             if a.startswith("--stability.level")])
+                            [f"--stability.level={level}"] if level else [])
 
 for doc in docs:
     if doc.get("kind") != "ConfigMap":
@@ -80,6 +100,10 @@ for doc in docs:
     name, key, flags = entry
     (outdir / f"{name}.alloy").write_text(doc["data"][key])
     (outdir / f"{name}.args").write_text(" ".join(flags))
+    if flags and flags[-1] == "--stability.level=experimental":
+        (outdir / "ga").mkdir(exist_ok=True)
+        (outdir / "ga" / f"{name}.alloy").write_text(
+            re.sub(r"\n[ \t]*wal[ \t]*\{[^{}]*\}", "", doc["data"][key]))
 
 # A release pointing at a ConfigMap nothing generates would otherwise vanish
 # from this step silently, and CrashLoop on the cluster.
@@ -99,6 +123,15 @@ PY
             echo "✓ $name"
         else
             echo "✗ $name"
+            fail=1
+        fi
+        stripped="$WORK/$site/ga/$name.alloy"
+        [[ -f "$stripped" ]] || continue
+        if alloy validate "$stripped"; then
+            echo "✓ $name without its wal blocks, at generally-available"
+        else
+            echo "✗ $name without its wal blocks, at generally-available:" \
+                 "only loki.write's WAL may need experimental"
             fail=1
         fi
     done

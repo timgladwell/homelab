@@ -142,6 +142,9 @@ matter, and no target is collected twice.
   silent unless alerting reports it.
 - Remote telemetry depends on Akron's Traefik.
 - `loki.write`'s WAL is experimental upstream, unlike `prometheus.remote_write`'s.
+  The collector has to run at the experimental stability level to use it, which
+  admits every other experimental component too, and the WAL can still skip
+  unsent entries after a hard kill, an OOM kill included (grafana/alloy#7112).
 - **More work per change.** Each change to a workload researches its
   observability ahead of time, re-checks production after it ships, and decides
   what is kept and dropped.
