@@ -12,9 +12,8 @@ Run the full pipeline from the repo root:
 ```
 
 Run it in the foreground with the Bash tool's `timeout` set to its maximum,
-`600000`. A full run takes about three minutes (2m44s on 2026-09-25), longer
-than the default two-minute timeout, so a default call is killed partway
-through. Backgrounding it instead is what went wrong once: the run finished,
+`600000`. A full run can take longer than the default two-minute timeout, so
+a default call is killed partway through. Backgrounding it instead is what went wrong once: the run finished,
 but the output was then followed with `tail -f`, which never exits, and the
 subagent sat on it indefinitely. The rule behind that: every command you run
 must end on its own. Nothing that follows, streams or waits for input.
@@ -25,28 +24,23 @@ steps; `scripts/validate-k3s.sh` lists every step and its gating).
 
 ## Reporting format
 
-Report results as a pass/fail table, one row per step, in the order the
-script printed them:
+Report results as a pass/fail table with one row for every step the script
+ran, using the names it printed and in the order it printed them. The script
+is the only list of steps. This example shows the shape, not the steps:
 
 ```
 | Step | Result |
 |---|---|
 | YAML Lint | PASS |
 | Flux Build | PASS |
-| Kustomize Build | PASS |
-| Schema Validation | PASS |
-| Best Practices | PASS |
-| Variable References | PASS |
-| Policy (conftest) | PASS |
-| CRD Availability | PASS |
+| … | … |
 | Security Scan | FAIL |
-| Dependency Coverage | PASS |
-| Secrets Encrypted | PASS |
+| … | … |
 ```
 
-That is the order `validate-k3s.sh` prints — the three build-gated steps
-(Variable References, Policy, CRD Availability) run *before* Security Scan,
-Dependency Coverage and Secrets Encrypted, not after.
+The order is not numeric: the steps that need the build run as a block
+straight after it, ahead of the independent steps. Follow the output, not
+the file numbers.
 
 Below the table:
 
