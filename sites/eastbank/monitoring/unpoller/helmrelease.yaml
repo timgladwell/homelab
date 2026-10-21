@@ -67,10 +67,12 @@ spec:
   values:
     image:
       # The chart has been parked at appVersion v2.21.0 since Jan 2026 while
-      # Unpoller itself shipped v3, so the tag is pinned ahead of the chart
-      # (#122). This is only safe because the chart is a thin wrapper: it
-      # mounts up.conf at /etc/unpoller/up.conf and sets no flags, and that
-      # path is unchanged in v3. Drop this pin when a 3.x chart appears.
+      # Unpoller itself moved on to v5, so the tag is pinned ahead of the
+      # chart (#122). This is only safe because the chart is a thin wrapper:
+      # it mounts up.conf at /etc/unpoller/up.conf and sets no flags, and
+      # that path is unchanged through v5. On a major bump, check the path
+      # and up.conf's keys against the release. Drop this pin when the
+      # chart's appVersion reaches the pinned major.
       #
       # renovate: datasource=docker depName=ghcr.io/unpoller/unpoller
       tag: v5.7.0
