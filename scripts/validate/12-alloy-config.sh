@@ -69,6 +69,23 @@ docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
 # every wal block stripped, at generally-available. The first pass still checks
 # the wal blocks' own attributes. A release that genuinely needs another
 # experimental component fails here until this rule is revisited.
+WAL = re.compile(r"\n[ \t]*wal[ \t]*\{")
+
+def strip_wal(text):
+    # Brace-matched, so a wal block with nested blocks is removed whole. A brace
+    # inside a string or comment in the block would miscount, and fail loudly.
+    out, i = [], 0
+    while m := WAL.search(text, i):
+        out.append(text[i:m.start()])
+        depth, i = 1, m.end()
+        while depth:
+            depth += {"{": 1, "}": -1}.get(text[i], 0)
+            i += 1
+    return "".join(out + [text[i:]])
+
+assert strip_wal('a {\n  wal {\n    b { c = 1 }\n  }\n  d = 2\n}\nwal {}') \
+    == 'a {\n  d = 2\n}'
+
 releases = {}
 for doc in docs:
     if doc.get("kind") != "HelmRelease":
@@ -97,8 +114,7 @@ for doc in docs:
     (outdir / f"{name}.args").write_text(" ".join(flags))
     if flags and flags[-1] == "--stability.level=experimental":
         (outdir / "ga").mkdir(exist_ok=True)
-        (outdir / "ga" / f"{name}.alloy").write_text(
-            re.sub(r"\n[ \t]*wal[ \t]*\{[^{}]*\}", "", doc["data"][key]))
+        (outdir / "ga" / f"{name}.alloy").write_text(strip_wal(doc["data"][key]))
 
 # A release pointing at a ConfigMap nothing generates would otherwise vanish
 # from this step silently, and CrashLoop on the cluster.
