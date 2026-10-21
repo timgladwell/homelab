@@ -144,6 +144,19 @@ spec:
         - name: GOMEMLIMIT
           value: 690MiB
 
+      # For loki.write's WAL alone, the one experimental feature this config
+      # uses (see the note on its wal block). From Alloy 1.21 a WAL-enabled
+      # loki.write fails to load below this level, at public-preview too, and
+      # the collector crash-loops at every site.
+      #
+      # The flag is process-wide, so it would also admit any experimental
+      # component added later. Step 12 catches that: it validates this config a
+      # second time with its wal blocks stripped, at generally-available.
+      # Upstream has no plan to promote the WAL yet, and it can still skip
+      # unsent entries after a SIGKILL (grafana/alloy#7112). An OOM kill is a
+      # SIGKILL, so GOMEMLIMIT above also protects the WAL.
+      stabilityLevel: experimental
+
       # The log push endpoint (loki.source.api below). Adding it here is what
       # puts it on the chart's Service, so in-cluster senders can reach it at
       # alloy-metrics:3100. The scrape job for Alloy itself filters on the
