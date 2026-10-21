@@ -54,9 +54,9 @@ docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
 # sets the chart's alloy.stabilityLevel: Akron's log collector to public-preview,
 # for otelcol.receiver.syslog, and the metrics collector to experimental, for
 # loki.write's WAL alone. The chart always renders
-# --stability.level=<alloy.stabilityLevel>, so a copy in extraArgs is a second
-# flag that wins only by coming last, and the release reads as one level while
-# running at another. That is rejected outright rather than modelled here.
+# --stability.level=<alloy.stabilityLevel>, so that value is the only one read
+# here. A copy in extraArgs would be a second flag that wins only by coming
+# last; step 15's policy (policy/rendered_chart_settings.rego) rejects it.
 #
 # `alloy validate` enforces a component's own stability level, but not a gate a
 # component applies to its arguments when it is built: as of 1.21 it accepts
@@ -69,6 +69,23 @@ docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
 # every wal block stripped, at generally-available. The first pass still checks
 # the wal blocks' own attributes. A release that genuinely needs another
 # experimental component fails here until this rule is revisited.
+WAL = re.compile(r"\n[ \t]*wal[ \t]*\{")
+
+def strip_wal(text):
+    # Brace-matched, so a wal block with nested blocks is removed whole. A brace
+    # inside a string or comment in the block would miscount, and fail loudly.
+    out, i = [], 0
+    while m := WAL.search(text, i):
+        out.append(text[i:m.start()])
+        depth, i = 1, m.end()
+        while depth:
+            depth += {"{": 1, "}": -1}.get(text[i], 0)
+            i += 1
+    return "".join(out + [text[i:]])
+
+assert strip_wal('a {\n  wal {\n    b { c = 1 }\n  }\n  d = 2\n}\nwal {}') \
+    == 'a {\n  d = 2\n}'
+
 releases = {}
 for doc in docs:
     if doc.get("kind") != "HelmRelease":
@@ -80,11 +97,6 @@ for doc in docs:
                  "values.alloy.configMap.content. Put it in a .alloy file and "
                  "generate the ConfigMap, so alloy fmt/validate can be pointed "
                  "at it directly.")
-    if any(a.startswith("--stability.level") for a in alloy.get("extraArgs", [])):
-        sys.exit(f"ERROR: {doc['metadata']['name']} sets --stability.level in "
-                 "values.alloy.extraArgs. Use values.alloy.stabilityLevel: the "
-                 "chart already renders that flag, so a second one wins only by "
-                 "coming last.")
     if not cm.get("name"):
         continue
     level = alloy.get("stabilityLevel")
@@ -102,8 +114,7 @@ for doc in docs:
     (outdir / f"{name}.args").write_text(" ".join(flags))
     if flags and flags[-1] == "--stability.level=experimental":
         (outdir / "ga").mkdir(exist_ok=True)
-        (outdir / "ga" / f"{name}.alloy").write_text(
-            re.sub(r"\n[ \t]*wal[ \t]*\{[^{}]*\}", "", doc["data"][key]))
+        (outdir / "ga" / f"{name}.alloy").write_text(strip_wal(doc["data"][key]))
 
 # A release pointing at a ConfigMap nothing generates would otherwise vanish
 # from this step silently, and CrashLoop on the cluster.
