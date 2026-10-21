@@ -54,5 +54,7 @@
     }
   ],
   "schedule": ["every weekend"],
-  "minimumReleaseAge": "3 days"
+  "minimumReleaseAge": "3 days",
+  "description": "minimumReleaseAgeBehaviour: some registries (ghcr.io among them) give Renovate no release timestamps, and the default (timestamp-required) then holds the update pending forever with no PR; Unpoller sat that way for two months (#481). Optional keeps the 3-day wait wherever a timestamp exists and skips it only where none does, as Dependabot's cooldown already does.",
+  "minimumReleaseAgeBehaviour": "timestamp-optional"
 }
