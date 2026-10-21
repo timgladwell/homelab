@@ -48,6 +48,12 @@ spec:
           # env or envFrom, so a patch is the only way in. The secret's keys
           # *are* the env var names, which keeps this to one reference rather
           # than one entry per field.
+          #
+          # The chart's liveness probe also runs from second zero with no
+          # startup grace, and on Eastbank's SD card Unpoller can take longer
+          # than its ~30s to open the port, so it was killed on cold starts
+          # (#488). The startupProbe holds liveness off for up to 5 minutes;
+          # readiness is left as the chart sets it.
           - target:
               kind: Deployment
               name: unpoller
@@ -64,6 +70,12 @@ spec:
                         envFrom:
                           - secretRef:
                               name: unpoller-controllers
+                        startupProbe:
+                          httpGet:
+                            path: /
+                            port: tcp
+                          periodSeconds: 10
+                          failureThreshold: 30
   values:
     image:
       # The chart has been parked at appVersion v2.21.0 since Jan 2026 while
