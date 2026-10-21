@@ -620,7 +620,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 30
       },
@@ -683,8 +683,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 8,
         "y": 30
       },
       "targets": [
@@ -694,6 +694,69 @@
             "uid": "${datasource}"
           },
           "expr": "sum by (site) (round(increase(kube_pod_container_status_restarts_total[24h])))",
+          "refId": "A",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{site}}"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "stat",
+      "id": 17,
+      "title": "Failed Jobs",
+      "description": "Jobs whose Failed condition is true: the series KubeJobFailed alerts on. A Job's pod restarts also count under container restarts; this counts Jobs that gave up. It clears when the Job is deleted or replaced.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 30
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (site) (kube_job_failed{condition=\"true\"} == 1) or count by (site) (kube_node_info) * 0",
           "refId": "A",
           "format": "time_series",
           "instant": true,
@@ -746,7 +809,7 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 34
       },
@@ -840,6 +903,74 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "type": "table",
+      "id": 18,
+      "title": "Failed Jobs",
+      "description": "Driven by kube_job_failed, with the reason joined from kube_job_status_failed when kube-state-metrics labels one, so a Job that failed for an unlabelled reason still shows, with an empty reason.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (site, namespace, job_name, reason) ((kube_job_failed{condition=\"true\"} == 1) * on (site, namespace, job_name) group_left (reason) max by (site, namespace, job_name, reason) (kube_job_status_failed{reason!=\"\"} > 0) or on (site, namespace, job_name) (kube_job_failed{condition=\"true\"} == 1))",
+          "refId": "A",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": [
+                "site",
+                "namespace",
+                "job_name",
+                "reason"
+              ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "site": 0,
+              "namespace": 1,
+              "job_name": 2,
+              "reason": 3
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "site"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
       }
     },
     {
