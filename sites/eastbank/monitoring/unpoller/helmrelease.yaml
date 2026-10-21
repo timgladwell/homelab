@@ -73,7 +73,7 @@ spec:
       # path is unchanged in v3. Drop this pin when a 3.x chart appears.
       #
       # renovate: datasource=docker depName=ghcr.io/unpoller/unpoller
-      tag: v3.4.1
+      tag: v5.7.0
 
     # Dashboards are provisioned from ConfigMaps in sites/akron/monitoring/
     # dashboards/. The chart's own provisioning needs the Grafana operator.
