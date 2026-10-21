@@ -35,6 +35,13 @@ here touches a cluster.
      delete `.venv` and repeat both lines. When `requirements-dev.txt` changes,
      repeat the second.
 
+     Installing into the system or Homebrew interpreter instead
+     (`pip install --break-system-packages`, or `--user`) is a last resort.
+     It mixes pip's files with the package manager's, so the next
+     `brew upgrade` can overwrite or orphan them. What the scripts import then
+     depends on that machine's history, not on `requirements-dev.txt`. A venv
+     can always be deleted and rebuilt to a known state.
+
 2. **Install the git hooks**, which refuse a commit or push containing an
    unencrypted secret:
 
