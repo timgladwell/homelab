@@ -22,7 +22,11 @@ VALIDATE_DIR="$SCRIPT_DIR/validate"
 # dir so every sibling worktree shares one. CI has none and uses its own python3.
 VENV="$(dirname "$(git -C "$SCRIPT_DIR" rev-parse --path-format=absolute --git-common-dir)")/.venv"
 [[ -x "$VENV/bin/python3" ]] && export PATH="$VENV/bin:$PATH"
-export K3S_BUILD_DIR="${TMPDIR:-/tmp}"
+# A directory of this run's own. $TMPDIR is shared by every run on the machine
+# (the main checkout, each worktree, each Claude session), and runs that overlap
+# would otherwise read each other's k3s-built-<site>.yaml (#495).
+K3S_BUILD_DIR="$(mktemp -d)" || exit 1
+export K3S_BUILD_DIR
 
 PASS=0
 FAIL=0
