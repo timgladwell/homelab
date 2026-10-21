@@ -85,7 +85,7 @@
       "type": "stat",
       "id": 2,
       "title": "Flux objects not Ready",
-      "description": "Flux objects (sources, Kustomizations, HelmReleases) whose Ready condition is not True. Anything here is what `flux get all` would show as failing.",
+      "description": "Flux objects (sources, Kustomizations, HelmReleases) whose Ready condition is not True, split three ways. Failing is Ready=False for any reason but DependencyNotReady: the last reconcile failed. Waiting on a dependency is Ready=False with reason DependencyNotReady: an object it depends on was not Ready when it checked. It retries every 30s, so it clears on its own once the dependency is Ready; if the dependency is itself failing, it is counted under failing. Reconciling is Ready=Unknown: a reconcile is in progress, which every object does on its interval even with nothing to deploy.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -102,12 +102,36 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count by (site) (gotk_resource_info{ready!=\"True\"}) or count by (site) (gotk_resource_info) * 0",
+          "expr": "count by (site) (gotk_resource_info{ready=\"False\", reason!=\"DependencyNotReady\"}) or count by (site) (gotk_resource_info) * 0",
           "refId": "A",
           "format": "time_series",
           "instant": true,
           "range": false,
-          "legendFormat": "{{site}}"
+          "legendFormat": "{{site}} failing"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (site) (gotk_resource_info{ready=\"False\", reason=\"DependencyNotReady\"}) or count by (site) (gotk_resource_info) * 0",
+          "refId": "B",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{site}} waiting on a dependency"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (site) (gotk_resource_info{ready!~\"True|False\"}) or count by (site) (gotk_resource_info) * 0",
+          "refId": "C",
+          "format": "time_series",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{site}} reconciling"
         }
       ],
       "options": {
@@ -141,7 +165,56 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "blue",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -244,7 +317,8 @@
                 "site",
                 "name",
                 "revision",
-                "ready"
+                "ready",
+                "reason"
               ]
             }
           }
@@ -256,7 +330,8 @@
               "site": 0,
               "name": 1,
               "revision": 2,
-              "ready": 3
+              "ready": 3,
+              "reason": 4
             }
           }
         }
@@ -320,7 +395,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Deploys appear as annotations: a new GitRepository revision at a site.",
+      "description": "Deploys appear as annotations: a new GitRepository revision at a site. Failing, waiting on a dependency and reconciling are split as in the stat above; a one-sample reconciling blip between deploys is a routine interval reconcile, and dependents can wait on it briefly.",
       "gridPos": {
         "h": 7,
         "w": 24,
@@ -333,12 +408,36 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count by (site) (gotk_resource_info{ready!=\"True\"}) or count by (site) (gotk_resource_info) * 0",
+          "expr": "count by (site) (gotk_resource_info{ready=\"False\", reason!=\"DependencyNotReady\"}) or count by (site) (gotk_resource_info) * 0",
           "refId": "A",
           "format": "time_series",
           "instant": false,
           "range": true,
-          "legendFormat": "{{site}}"
+          "legendFormat": "{{site}} failing"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (site) (gotk_resource_info{ready=\"False\", reason=\"DependencyNotReady\"}) or count by (site) (gotk_resource_info) * 0",
+          "refId": "B",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{site}} waiting on a dependency"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (site) (gotk_resource_info{ready!~\"True|False\"}) or count by (site) (gotk_resource_info) * 0",
+          "refId": "C",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{site}} reconciling"
         }
       ],
       "fieldConfig": {
@@ -352,7 +451,52 @@
             "fillOpacity": 10
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dot",
+                  "dash": [
+                    0,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -403,6 +547,7 @@
                 "revision",
                 "attempted_revision",
                 "ready",
+                "reason",
                 "suspended"
               ]
             }
@@ -417,7 +562,8 @@
               "revision": 2,
               "attempted_revision": 3,
               "ready": 4,
-              "suspended": 5
+              "reason": 5,
+              "suspended": 6
             }
           }
         }
@@ -515,6 +661,7 @@
                 "exported_namespace",
                 "site",
                 "ready",
+                "reason",
                 "suspended"
               ]
             }
@@ -532,7 +679,8 @@
               "exported_namespace": 5,
               "site": 6,
               "ready": 7,
-              "suspended": 8
+              "reason": 8,
+              "suspended": 9
             },
             "renameByName": {
               "name": "release",

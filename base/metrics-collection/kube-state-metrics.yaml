@@ -135,6 +135,16 @@ spec:
                   labelsFromPath:
                     exported_namespace: [metadata, namespace]
                     ready: [status, conditions, "[type=Ready]", status]
+                    # Not in upstream, on every kind here. Separates a dependency
+                    # wait (False, DependencyNotReady) from a real failure. Every
+                    # Ready reason the controllers set is a constant or copied from
+                    # another condition's constant (read at Flux v2.9.6), so this
+                    # adds a series only when the reason changes and Ready does
+                    # not. fluxcd/pkg can append " @ Kind/name" to a summarized
+                    # reason, though no controller enables it; check with
+                    # `count by (reason) (count_over_time(gotk_resource_info[7d]))`.
+                    # A free-text `message` would be unbounded; do not add it.
+                    reason: [status, conditions, "[type=Ready]", reason]
                     suspended: [spec, suspend]
                     revision: [status, lastAppliedRevision]
                     # Not in upstream. Differs from `revision` exactly when a
@@ -157,6 +167,7 @@ spec:
                   labelsFromPath:
                     exported_namespace: [metadata, namespace]
                     ready: [status, conditions, "[type=Ready]", status]
+                    reason: [status, conditions, "[type=Ready]", reason]
                     suspended: [spec, suspend]
                     revision: [status, history, "0", chartVersion]
                     chart_name: [status, history, "0", chartName]
@@ -178,6 +189,7 @@ spec:
                   labelsFromPath:
                     exported_namespace: [metadata, namespace]
                     ready: [status, conditions, "[type=Ready]", status]
+                    reason: [status, conditions, "[type=Ready]", reason]
                     suspended: [spec, suspend]
                     revision: [status, artifact, revision]
                     url: [spec, url]
@@ -197,6 +209,7 @@ spec:
                   labelsFromPath:
                     exported_namespace: [metadata, namespace]
                     ready: [status, conditions, "[type=Ready]", status]
+                    reason: [status, conditions, "[type=Ready]", reason]
                     suspended: [spec, suspend]
                     revision: [status, artifact, revision]
                     url: [spec, url]
