@@ -40,3 +40,22 @@ deny contains msg if {
 		[input.metadata.name],
 	)
 }
+
+# Alloy: each process flag appears once in the rendered args. The chart renders
+# several itself from its own values (--stability.level, --disable-reporting,
+# --storage.path, ...), so the same flag in alloy.extraArgs is a second copy
+# that wins only by coming after the chart's, and the values read as one setting
+# while the process runs another. Set the chart's value instead. This is a
+# shape rule rather than a presence rule, but it needs the rendered args too.
+deny contains msg if {
+	input.kind in {"DaemonSet", "StatefulSet", "Deployment"}
+	some c in input.spec.template.spec.containers
+	c.name == "alloy"
+	flags := [split(a, "=")[0] | some a in c.args; startswith(a, "--")]
+	some f in {g | some g in flags}
+	count([x | some x in flags; x == f]) > 1
+	msg := sprintf(
+		"%s %q passes %s more than once — set it through the chart's own value, not alloy.extraArgs",
+		[input.kind, input.metadata.name, f],
+	)
+}
