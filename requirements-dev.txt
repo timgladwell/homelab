@@ -1,0 +1,6 @@
+# Libraries the validation scripts import: scripts/validate/substitute.py and
+# base/pihole-sync's tests. CI and the local .venv (development-environment
+# runbook) both install from this file; Renovate's pip_requirements manager
+# keeps it current. Install with PYYAML_FORCE_LIBYAML=0: pure Python is plenty
+# here and needs no wheel for a newly released Python (#483).
+PyYAML==6.0.3

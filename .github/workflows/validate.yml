@@ -45,13 +45,6 @@ jobs:
       CONFTEST_VERSION: 0.71.1
       # renovate: datasource=pypi depName=yamllint
       YAMLLINT_VERSION: 1.38.0
-      # scripts/validate/substitute.py imports yaml. This was an undeclared
-      # dependency that worked only because the runner image happened to ship
-      # PyYAML — yamllint is installed with pipx, so its own copy is in an
-      # isolated venv and is not what substitute.py imports. A runner image
-      # change would have broken step 3 with an ImportError.
-      # renovate: datasource=pypi depName=PyYAML
-      PYYAML_VERSION: 6.0.3
       # The clusters' Alloy comes from the alloy chart, not this pin. Renovate
       # groups the two into one PR (renovate.json), so CI validates against
       # the version a chart bump is about to deploy.
@@ -132,9 +125,10 @@ jobs:
 
           pipx install "yamllint==${YAMLLINT_VERSION}"
 
-          # A library, not an application, so it goes into the environment
-          # substitute.py actually runs in rather than a pipx venv.
-          pip install "PyYAML==${PYYAML_VERSION}"
+          # Libraries, not applications, so they go into the environment
+          # substitute.py actually runs in rather than a pipx venv. yamllint's
+          # pipx copy of PyYAML is not importable from there.
+          PYYAML_FORCE_LIBYAML=0 pip install -r "$GITHUB_WORKSPACE/requirements-dev.txt"
 
       - name: Tool versions
         run: |

@@ -23,5 +23,8 @@ Thumbs.db
 # of one cluster at one moment; a committed one would later read as current.
 *-reports.json
 
+# Validation's Python libraries (requirements-dev.txt; development-environment runbook)
+.venv/
+
 # Byte-compiled sync.py (running its --self-check locally leaves these)
 __pycache__/
