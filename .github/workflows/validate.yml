@@ -45,13 +45,6 @@ jobs:
       CONFTEST_VERSION: 0.71.1
       # renovate: datasource=pypi depName=yamllint
       YAMLLINT_VERSION: 1.38.0
-      # scripts/validate/substitute.py imports yaml. This was an undeclared
-      # dependency that worked only because the runner image happened to ship
-      # PyYAML — yamllint is installed with pipx, so its own copy is in an
-      # isolated venv and is not what substitute.py imports. A runner image
-      # change would have broken step 3 with an ImportError.
-      # renovate: datasource=pypi depName=PyYAML
-      PYYAML_VERSION: 6.0.3
       # The clusters' Alloy comes from the alloy chart, not this pin. Renovate
       # groups the two into one PR (renovate.json), so CI validates against
       # the version a chart bump is about to deploy.
@@ -62,14 +55,14 @@ jobs:
       - uses: actions/checkout@v7
 
       # Pinned to the minor the clusters run — base/landing/deployment.yaml and
-      # base/pihole-sync/sync-job.yaml both pin python:3.14.x, and step 13's
+      # base/pihole-sync/sync-job.yaml both pin python:3.15.x, and step 13's
       # tests should run on the interpreter the pods will. Also gives pip a
       # writable environment: the runner's system python is PEP 668
       # externally-managed, so installing into it needs --break-system-packages.
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
-          python-version: '3.14'
+          python-version: '3.15'
 
       # Pinned to the version the clusters run (clusters/*/flux-system/), not
       # the newest release: CI should build the way the clusters will. Bump
@@ -132,9 +125,10 @@ jobs:
 
           pipx install "yamllint==${YAMLLINT_VERSION}"
 
-          # A library, not an application, so it goes into the environment
-          # substitute.py actually runs in rather than a pipx venv.
-          pip install "PyYAML==${PYYAML_VERSION}"
+          # Libraries, not applications, so they go into the environment
+          # substitute.py actually runs in rather than a pipx venv. yamllint's
+          # pipx copy of PyYAML is not importable from there.
+          PYYAML_FORCE_LIBYAML=0 pip install -r "$GITHUB_WORKSPACE/requirements-dev.txt"
 
       - name: Tool versions
         run: |

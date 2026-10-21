@@ -20,16 +20,20 @@ here touches a cluster.
      [Flux Upgrades](flux-upgrades.md).
    - `brew install grafana/grafana/alloy` — plain `brew install alloy` is an
      unrelated package.
-   - PyYAML, into the `python3` the scripts run (`substitute.py` and the
-     `pihole-sync` tests import it). Pure Python is plenty for the small files
-     it reads, and needs no wheel for a newly released Python:
+   - The Python libraries the scripts import (`requirements-dev.txt`), into a
+     venv in the main checkout. `validate-k3s.sh` uses it from every worktree,
+     with nothing to activate:
 
      ```bash
-     PYYAML_FORCE_LIBYAML=0 python3 -m pip install --user --break-system-packages "PyYAML==6.0.3"
+     python3 -m venv .venv
+     PYYAML_FORCE_LIBYAML=0 .venv/bin/pip install -r requirements-dev.txt
      ```
 
-     It is per Python minor version, so repeat it after an upgrade moves
-     `python3` to a new one (3.14 → 3.15).
+     `PYYAML_FORCE_LIBYAML=0` builds pure-Python PyYAML, which needs no wheel
+     for a newly released Python. A venv is tied to the interpreter that made
+     it, so after an upgrade moves `python3` to a new minor (3.14 → 3.15),
+     delete `.venv` and repeat both lines. When `requirements-dev.txt` changes,
+     repeat the second.
 
 2. **Install the git hooks**, which refuse a commit or push containing an
    unencrypted secret:

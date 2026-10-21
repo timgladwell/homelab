@@ -4,7 +4,7 @@
     "config:recommended"
   ],
   "labels": ["dependencies"],
-  "enabledManagers": ["flux", "custom.regex"],
+  "enabledManagers": ["flux", "custom.regex", "pip_requirements"],
   "flux": {
     "managerFilePatterns": [
       "/(^|/)clusters/.+\\.ya?ml$/",

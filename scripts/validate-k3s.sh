@@ -17,6 +17,11 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VALIDATE_DIR="$SCRIPT_DIR/validate"
+
+# The main checkout's .venv (requirements-dev.txt), found through the git common
+# dir so every sibling worktree shares one. CI has none and uses its own python3.
+VENV="$(dirname "$(git -C "$SCRIPT_DIR" rev-parse --path-format=absolute --git-common-dir)")/.venv"
+[[ -x "$VENV/bin/python3" ]] && export PATH="$VENV/bin:$PATH"
 export K3S_BUILD_DIR="${TMPDIR:-/tmp}"
 
 PASS=0
