@@ -62,6 +62,11 @@ spec:
               value: "1"
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
+            # Pure-Python PyYAML: safe_load on two small files needs no C
+            # extension. Without a wheel for this Python, building it OOMs at
+            # the memory limit (#483). Ignored when pip installs a wheel.
+            - name: PYYAML_FORCE_LIBYAML
+              value: "0"
           volumeMounts:
             - name: sync
               mountPath: /sync

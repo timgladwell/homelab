@@ -20,6 +20,16 @@ here touches a cluster.
      [Flux Upgrades](flux-upgrades.md).
    - `brew install grafana/grafana/alloy` — plain `brew install alloy` is an
      unrelated package.
+   - PyYAML, into the `python3` the scripts run (`substitute.py` and the
+     `pihole-sync` tests import it). Pure Python is plenty for the small files
+     it reads, and needs no wheel for a newly released Python:
+
+     ```bash
+     PYYAML_FORCE_LIBYAML=0 python3 -m pip install --user --break-system-packages "PyYAML==6.0.3"
+     ```
+
+     It is per Python minor version, so repeat it after an upgrade moves
+     `python3` to a new one (3.14 → 3.15).
 
 2. **Install the git hooks**, which refuse a commit or push containing an
    unencrypted secret:
