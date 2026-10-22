@@ -20,6 +20,10 @@ spec:
   selector:
     matchLabels:
       app: pihole
+  # Never Recreate: it stops the old pod before pulling the new image, and this
+  # pod is the network's DNS, so the pull itself can't resolve the registry.
+  # Only a hostNetwork deployment needs Recreate (two pods can't bind :53), and
+  # that needs a fallback resolver the node can use during the deploy.
   strategy:
     type: RollingUpdate
   template:
