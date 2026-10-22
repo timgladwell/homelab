@@ -141,7 +141,9 @@ spec:
       # not extraArgs: the chart always renders --stability.level=<value>, so a
       # copy in extraArgs is a second flag that takes effect only because it
       # comes last; validation step 12 rejects one. Public-preview is for
-      # otelcol.receiver.syslog (the UniFi CEF listener in alloy.alloy).
+      # otelcol.receiver.syslog (the UniFi CEF listener in alloy.alloy), chosen
+      # over loki.source.syslog's raw format, which is experimental. Where both
+      # levels would do, prefer public-preview; don't lower this to experimental.
       enableReporting: false
       stabilityLevel: public-preview
 

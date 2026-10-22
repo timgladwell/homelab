@@ -63,6 +63,20 @@ here touches a cluster.
 
 ## Working on a change
 
+**Work in a sibling worktree** for anything beyond the main checkout:
+
+```bash
+git worktree add ../homelab.worktrees/<branch-with-slashes-as-dashes> -b <branch> origin/main
+```
+
+Never nest one inside the repo. Validation lints and scans the whole tree and
+`find`s its way around, so a nested copy of `base/`, `sites/` and `clusters/`
+is scanned twice, and the doubled `CHECKED` counts break the coverage
+invariant. A worktree in a temp directory is hard to find when it needs
+signing or review, and a temp purge leaves a registration for
+`git worktree prune`. The main checkout stays an ordinary clone, since
+worktrees share its hooks, config and `.venv`.
+
 **Validate everything** — the same sixteen steps CI runs, per site:
 
 ```bash
