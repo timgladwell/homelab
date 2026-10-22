@@ -24,7 +24,13 @@ deploys. This is the research before that change and the check after it.
 
 1. Write the estimate and the planned drops in the PR.
 2. Add the drops in the collector, not the application, each with a `DROP` tag
-   ([CONTRIBUTING.md](../../CONTRIBUTING.md#dropped-signals)).
+   ([CONTRIBUTING.md](../../CONTRIBUTING.md#dropped-signals)). Silencing a line
+   in the program also removes it from `kubectl logs`, which is the diagnostic
+   surface: probe lines are what tell "the pod is wedged" from "nothing reaches
+   it", and at sites that store no logs they are all there is. Scope each log
+   drop by label to the workload measured to need it, not repo-wide. If the
+   noisy request can be prevented instead (a favicon 404 fixed with an inline
+   icon), do that.
 3. **A new component also needs a scrape pair.** Collection is still an
    allowlist (#456), so a component is collected only if
    `base/metrics-collection/alloy-metrics.alloy` has a `discovery.relabel` and
