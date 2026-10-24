@@ -11,6 +11,7 @@
 | 2026-10-06 | Tim and Claude | Proposed, from CLAUDE.md's observability section and the decisions in `monitoring-tasks.md`, each checked against the code (#413) |
 | 2026-10-16 | Tim and Claude | Outage window stated as a 24-hour target, with what it does not cover (#388) |
 | 2026-10-16 | Tim and Claude | Everything running is collected by default, excluded only for the hardware's sake; formalised after #323 showed what an uncollected component costs (#367) |
+| 2026-10-24 | Tim and Claude | The log window is best effort, after grafana/alloy#7112 showed the log WAL losing entries on a restart mid-outage; a broker and a second collector rejected for now (#517) |
 
 ## Context
 
@@ -67,6 +68,14 @@ Akron, and a longer drain on reconnect (#270).
 
 The collector's WAL settings and Prometheus's `outOfOrderTimeWindow` implement
 the window, and each carries a comment naming this ADR.
+
+**For logs, the window is best effort**, like much else in this design.
+Alloy's only disk buffer for log entries, `loki.write`'s WAL, is experimental
+and can lose unsent entries when the collector restarts mid-outage
+(grafana/alloy#7112). Beyond its components, the design runs on Raspberry Pis
+with SD cards, a single point of failure in power and residential internet. It
+works towards the right concepts, and trades durability in the implementation
+for the reality of a homelab.
 
 **Unpoller runs once, at Eastbank**, polling every site's UniFi controller over
 the VPN and writing back through its local collector (#120). Polling does not need
@@ -146,6 +155,7 @@ matter, and no target is collected twice.
   The collector has to run at the experimental stability level to use it, which
   admits every other experimental component too, and the WAL can still skip
   unsent entries after a hard kill, an OOM kill included (grafana/alloy#7112).
+  That is why the log window is best effort.
 - **More work per change.** Each change to a workload researches its
   observability ahead of time, re-checks production after it ships, and decides
   what is kept and dropped.
@@ -185,3 +195,10 @@ matter, and no target is collected twice.
   binary on K3s; ~51K samples per scrape, of which ~724 series were useful (#51).
 - **Mimir/Thanos for HA metrics, Tempo for traces.** Rejected for their
   footprint on Pi hardware.
+- **A durable broker between collectors and Loki** (Kafka, or Loki's own Kafka
+  ingestion, which is experimental). The scale-out answer to losing logs in
+  transit, rejected because running a replicated broker costs more on this
+  hardware than the bounded loss it prevents.
+- **A second collector for logs only** (Vector or Fluent Bit, for their mature
+  disk buffers). Breaks "Alloy as the only collector" for a guarantee not yet
+  shown to be missing in practice.
