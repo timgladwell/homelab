@@ -326,6 +326,50 @@ prometheus.scrape "unpoller" {
 }
 
 // ---------------------------------------------------------------
+// Loki. Runs only at Akron, so this finds nothing elsewhere, as for
+// Unpoller above. Without it the log store is the one storage layer
+// with no visibility: ingest rate, discarded entries by reason
+// (loki_discarded_samples_total, which #454's late-arrival test
+// reads) and chunk bytes stored, which is how its PVC is sized.
+//
+// SingleBinary serves the API and /metrics on one port; grpc and
+// memberlist are the pod's other named ports.
+// ---------------------------------------------------------------
+discovery.relabel "loki" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    regex         = "monitoring"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    regex         = "loki"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+    regex         = "http-metrics"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "instance"
+  }
+}
+
+prometheus.scrape "loki" {
+  targets         = discovery.relabel.loki.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "loki"
+  scrape_interval = "60s"
+}
+
+// ---------------------------------------------------------------
 // The collector itself. Without this there is no way to see WAL
 // depth, remote-write failure rates, or how close the process is to
 // its memory ceiling — the collector is the one component whose
