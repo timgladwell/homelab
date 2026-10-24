@@ -117,12 +117,14 @@ spec:
           # audit, topology, path analysis, threat intelligence — none of which
           # needs long retention.
           #
-          # Threat collection is turned down in Settings for the same reasons
-          # (#520): poll interval 10 minutes rather than the default 1, retention
-          # 30 days rather than 90. At the default, every minute and for every
-          # site, it writes new events and then re-reads the last six hours of
-          # them for pattern analysis. That re-read is the page cache this
-          # container's limit squeezes out between polls.
+          # Threat collection is turned down in Settings too (#520): poll
+          # interval 30 minutes (the UI's longest) rather than the default 1,
+          # retention 30 days rather than 90. Nothing here alerts on threats,
+          # and a longer interval loses no events: each cycle fetches every
+          # page since the last sync minus two minutes, and skips duplicates.
+          # It cuts the controller API calls and SQLite writes each cycle makes
+          # for every site, and shorter retention shrinks the tables and
+          # indexes every insert maintains.
           #
           # Those settings live in the app's database, not here, so they are
           # invisible to git and will not survive a PVC reset. If the PVC grows
@@ -139,15 +141,14 @@ spec:
               value: "${NODE_IP}"
             - name: TZ
               value: "UTC"
-            # Keep the .NET heap from taking the page cache's room under the
-            # memory limit below (#520). By default, an ASP.NET app runs Server
-            # GC and lets its heap grow to 75% of the container limit before
-            # collecting hard. Nothing the app does needs that, and the
-            # remainder is too small for the files it reads every minute.
+            # A trial against the .NET heap taking the page cache's room under
+            # the memory limit below (#520). Over a day rss grew 228 → 252 MB
+            # while the page cache shrank, and refaults rose to ~20/s. That is
+            # correlation: whether the growth is managed heap wasn't measured.
+            # By default the GC heap may grow to 75% of the limit.
             #
-            # Workstation GC collects little and often, which suits one
-            # replica on a 500m CPU limit. Set explicitly: whether the runtime
-            # already falls back to it on one CPU isn't established.
+            # Workstation GC, which is probably already what one CPU (the 500m
+            # limit) gets. Set so it doesn't depend on that.
             - name: DOTNET_gcServer
               value: "0"
             # A hard cap, unlike GOMEMLIMIT elsewhere in this repo: past it the
