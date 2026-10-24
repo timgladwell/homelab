@@ -163,7 +163,7 @@ matter, and no target is collected twice.
   hardware, and become an incident. The research before it ships is the
   mitigation.
 - **A default only collects what is exposed.** A component with no metrics
-  endpoint, such as Traefik with metrics off or PiHole with no exporter, stays
+  endpoint, such as PiHole with no exporter, stays
   dark; how to handle each is decided when its collection is implemented.
 
 ## Alternatives considered
