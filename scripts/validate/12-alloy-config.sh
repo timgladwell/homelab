@@ -61,7 +61,7 @@ docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
 # `alloy validate` enforces a component's own stability level, but not a gate a
 # component applies to its arguments when it is built: as of 1.21 it accepts
 # loki.write's `wal { enabled = true }` at any level, while `alloy run` refuses
-# it below experimental. A gate of that kind is caught only on the cluster (#498).
+# it below experimental. A gate of that kind is caught only on the cluster.
 #
 # Experimental is process-wide, so validating at it alone would admit any
 # experimental component added later. The WAL is the only thing a release is
