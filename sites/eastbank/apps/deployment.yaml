@@ -117,6 +117,13 @@ spec:
           # audit, topology, path analysis, threat intelligence — none of which
           # needs long retention.
           #
+          # Threat collection is turned down in Settings for the same reasons
+          # (#520): poll interval 10 minutes rather than the default 1, retention
+          # 30 days rather than 90. At the default, every minute and for every
+          # site, it writes new events and then re-reads the last six hours of
+          # them for pattern analysis. That re-read is the page cache this
+          # container's limit squeezes out between polls.
+          #
           # Those settings live in the app's database, not here, so they are
           # invisible to git and will not survive a PVC reset. If the PVC grows
           # steadily over a week, monitoring came back on.
@@ -132,6 +139,25 @@ spec:
               value: "${NODE_IP}"
             - name: TZ
               value: "UTC"
+            # Keep the .NET heap from taking the page cache's room under the
+            # memory limit below (#520). By default, an ASP.NET app runs Server
+            # GC and lets its heap grow to 75% of the container limit before
+            # collecting hard. Nothing the app does needs that, and the
+            # remainder is too small for the files it reads every minute.
+            #
+            # Workstation GC collects little and often, which suits one
+            # replica on a 500m CPU limit. Set explicitly: whether the runtime
+            # already falls back to it on one CPU isn't established.
+            - name: DOTNET_gcServer
+              value: "0"
+            # A hard cap, unlike GOMEMLIMIT elsewhere in this repo: past it the
+            # app throws OutOfMemoryException rather than slowing down. The
+            # value is hexadecimal, as all DOTNET_GC* values are: 0x32 is 50%
+            # of the limit, 256Mi. The whole process measured 272 MB anon
+            # (#378), and the managed heap is only part of that. If it starts
+            # failing with OutOfMemoryException, raise this before the limit.
+            - name: DOTNET_GCHeapHardLimitPercent
+              value: "0x32"
           volumeMounts:
             # /app/data, not the /data this used to mount. Neither image
             # declares a VOLUME or a data-path env var, so the only authority is
@@ -167,7 +193,9 @@ spec:
           # measured with refaults ~0 in #378. #279 kept it from rising to 1Gi:
           # a fifth of the node is the wrong trade for an occasional tool, and
           # the tight limit doubles as leak mitigation. Raise it only on
-          # sustained refaults (container_memory_workingset_refault_file_total).
+          # sustained refaults (container_memory_workingset_refault_file_total),
+          # and only after the GC settings and threat collection settings
+          # above have had their effect measured (#520).
           resources:
             requests:
               cpu: 100m
