@@ -34,7 +34,7 @@ spec:
       # (#531).
       image:
         # renovate: datasource=docker depName=docker.io/grafana/loki
-        tag: 3.6.16
+        tag: 3.7.9
       auth_enabled: false
       # The chart already runs Loki as 10001 with a read-only root and no
       # capabilities; seccomp is the only thing it leaves unset.
