@@ -49,7 +49,7 @@ jobs:
       # groups the two into one PR (renovate.json), so CI validates against
       # the version a chart bump is about to deploy.
       # renovate: datasource=github-releases depName=grafana/alloy extractVersion=^v(?<version>.+)$
-      ALLOY_VERSION: 1.21.0
+      ALLOY_VERSION: 1.21.1
 
     steps:
       - uses: actions/checkout@v7
