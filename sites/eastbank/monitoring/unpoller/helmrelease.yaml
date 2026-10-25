@@ -87,7 +87,7 @@ spec:
       # chart's appVersion reaches the pinned major.
       #
       # renovate: datasource=docker depName=ghcr.io/unpoller/unpoller
-      tag: v5.8.0
+      tag: v5.8.1
 
     # Dashboards are provisioned from ConfigMaps in sites/akron/monitoring/
     # dashboards/. The chart's own provisioning needs the Grafana operator.
