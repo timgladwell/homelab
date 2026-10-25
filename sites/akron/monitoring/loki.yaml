@@ -27,6 +27,14 @@ spec:
       interval: 12h
   values:
     loki:
+      # Since chart 7.0.0 grafana/loki is the Grafana Enterprise Logs chart and
+      # bumps only `enterprise.image.tag`; its OSS default stays at 3.6.11
+      # whatever the chart's appVersion says. Pinned here so Renovate tracks
+      # Loki itself. Drop this when Loki moves to the grafana-community chart
+      # (#531).
+      image:
+        # renovate: datasource=docker depName=docker.io/grafana/loki
+        tag: 3.6.16
       auth_enabled: false
       # The chart already runs Loki as 10001 with a read-only root and no
       # capabilities; seccomp is the only thing it leaves unset.
