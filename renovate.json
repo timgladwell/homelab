@@ -58,11 +58,6 @@
   ],
   "packageRules": [
     {
-      "description": "The alloy chart (flux manager) and the alloy binary CI validates with (custom.regex) move in one PR, so a minor's breaking changes are read together before they deploy.",
-      "matchDepNames": ["alloy", "grafana/alloy"],
-      "groupName": "grafana alloy"
-    },
-    {
       "description": "k3s and the kubectl image system-upgrade-controller drains with move in one PR, so kubectl stays on the server's minor.",
       "matchDepNames": ["k3s-io/k3s", "registry.k8s.io/kubectl"],
       "groupName": "k3s"
