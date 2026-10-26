@@ -1,4 +1,16 @@
 ---
+# OSS Loki's chart. grafana/loki (the `grafana` HelmRepository) has been the
+# Grafana Enterprise Logs chart since 7.0.0, and its bumps no longer move OSS
+# Loki (#531). Here rather than in base/ because only Akron runs Loki.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana-community
+  namespace: monitoring
+spec:
+  interval: 24h
+  url: https://grafana-community.github.io/helm-charts
+---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -19,28 +31,20 @@ spec:
   chart:
     spec:
       chart: loki
-      version: "~7.5.0"
+      # Major versions of this chart mark breaking chart changes; read the
+      # chart README's "Upgrading" section before taking one.
+      version: "~20.0.0"
       sourceRef:
         kind: HelmRepository
-        name: grafana
+        name: grafana-community
         namespace: monitoring
       interval: 12h
   values:
     loki:
-      # Since chart 7.0.0 grafana/loki is the Grafana Enterprise Logs chart and
-      # bumps only `enterprise.image.tag`; its OSS default stays at 3.6.11
-      # whatever the chart's appVersion says. Pinned here so Renovate tracks
-      # Loki itself. Drop this when Loki moves to the grafana-community chart
-      # (#531).
-      image:
-        # renovate: datasource=docker depName=docker.io/grafana/loki
-        tag: 3.7.9
+      # No `image.tag`: this chart's default is its appVersion, so a chart
+      # bump is a Loki bump. The chart also sets seccomp RuntimeDefault, which
+      # the GEL chart left to us.
       auth_enabled: false
-      # The chart already runs Loki as 10001 with a read-only root and no
-      # capabilities; seccomp is the only thing it leaves unset.
-      podSecurityContext:
-        seccompProfile:
-          type: RuntimeDefault
       analytics:
         reporting_enabled: false
       commonConfig:
@@ -106,7 +110,18 @@ spec:
               prefix: loki_index_
               period: 24h
 
-    deploymentMode: SingleBinary
+    # Monolithic was called SingleBinary before chart 12; the values key below
+    # and the rendered component label still use the old name.
+    deploymentMode: Monolithic
+
+    # Loki joins memberlist through this headless Service, which by default
+    # lists only Ready pods; a single pod is not Ready until it has joined, so
+    # it could not find itself and logged join errors until a retry happened
+    # to land after Ready (1m25s on 3.7.9). This chart also aborts after
+    # `max_join_retries`, so the wait is no longer harmless.
+    memberlist:
+      service:
+        publishNotReadyAddresses: true
 
     singleBinary:
       replicas: 1
@@ -135,6 +150,10 @@ spec:
     resultsCache:
       enabled: false
 
+    # Defaults on, and renders a ServiceAccount even with both caches above off.
+    memcached:
+      enabled: false
+
     backend:
       replicas: 0
     read:
@@ -144,7 +163,7 @@ spec:
 
     # The gateway is an nginx reverse proxy whose job is routing Loki API paths
     # across separate components — distributor for writes, query-frontend for
-    # reads. In SingleBinary mode there is one component, so every one of its
+    # reads. In Monolithic mode there is one component, so every one of its
     # ~20 proxy_pass directives targets the same backend this chart already
     # exposes as `loki:3100`. Nothing in the repo addresses it: Alloy, Grafana's
     # datasource and the loki-push IngressRoute all go direct. It is an nginx
