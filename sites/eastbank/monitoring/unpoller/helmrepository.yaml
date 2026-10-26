@@ -5,5 +5,8 @@ metadata:
   name: unpoller
   namespace: monitoring
 spec:
+  # The chart is released only to GHCR since 2.5.0; the old HTTP index
+  # (unpoller.github.io/helm-chart) stopped at 2.4.0 (#534).
+  type: oci
   interval: 24h
-  url: https://unpoller.github.io/helm-chart
+  url: oci://ghcr.io/unpoller/helm-chart
