@@ -72,8 +72,9 @@ the window, and each carries a comment naming this ADR.
 the VPN and writing back through its local collector (#120). Polling does not need
 to sit next to the storage, and Akron's headroom is what is scarce.
 
-**Loki runs in SingleBinary mode with its memcached caches disabled.** The
-scale-out path, if log volume ever justifies it, is SimpleScalable.
+**Loki runs as a single binary (the chart's `Monolithic` mode) with its
+memcached caches disabled.** The scale-out path, if log volume ever justifies
+it, is SimpleScalable.
 
 **Dashboards are ConfigMaps** loaded by the Grafana sidecar, generated from JSON
 in git.
@@ -179,7 +180,7 @@ matter, and no target is collected twice.
 - **Grafana Operator CRs for dashboards** (including the Unpoller chart's own
   dashboards). Adds an operator dependency, and the Unpoller chart's set omitted
   the Client DPI dashboard.
-- **Loki's memcached caches.** Overhead without benefit in SingleBinary mode.
+- **Loki's memcached caches.** Overhead without benefit for a single binary.
 - **Scraping K3s's controller-manager and scheduler.** Embedded in the server
   binary on K3s; ~51K samples per scrape, of which ~724 series were useful (#51).
 - **Mimir/Thanos for HA metrics, Tempo for traces.** Rejected for their

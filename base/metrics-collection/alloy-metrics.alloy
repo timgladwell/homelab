@@ -332,7 +332,7 @@ prometheus.scrape "unpoller" {
 // (loki_discarded_samples_total, which #454's late-arrival test
 // reads) and chunk bytes stored, which is how its PVC is sized.
 //
-// SingleBinary serves the API and /metrics on one port; grpc and
+// Monolithic mode serves the API and /metrics on one port; grpc and
 // memberlist are the pod's other named ports.
 // ---------------------------------------------------------------
 discovery.relabel "loki" {
