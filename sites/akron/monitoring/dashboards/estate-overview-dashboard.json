@@ -85,7 +85,7 @@
       "type": "stat",
       "id": 2,
       "title": "Flux objects not Ready",
-      "description": "Flux objects (sources, Kustomizations, HelmReleases) whose Ready condition is not True, split three ways. Failing is Ready=False for any reason but DependencyNotReady: the last reconcile failed. Waiting on a dependency is Ready=False with reason DependencyNotReady: an object it depends on was not Ready when it checked. It retries every 30s, so it clears on its own once the dependency is Ready; if the dependency is itself failing, it is counted under failing. Reconciling is Ready=Unknown: a reconcile is in progress, which every object does on its interval even with nothing to deploy.",
+      "description": "Flux objects (sources, HelmCharts, Kustomizations, HelmReleases) whose Ready condition is not True, split three ways. Failing is Ready=False for any reason but DependencyNotReady: the last reconcile failed. Waiting on a dependency is Ready=False with reason DependencyNotReady: an object it depends on was not Ready when it checked. It retries every 30s, so it clears on its own once the dependency is Ready; if the dependency is itself failing, it is counted under failing. Reconciling is Ready=Unknown or no Ready condition: a reconcile is in progress, which every object does on its interval even with nothing to deploy. OCI HelmRepositories are left out: source-controller never reconciles that type, so they never report Ready; a failed pull from one shows on its HelmChart instead.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -126,7 +126,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count by (site) (gotk_resource_info{ready!~\"True|False\"}) or count by (site) (gotk_resource_info) * 0",
+          "expr": "count by (site) (gotk_resource_info{ready!~\"True|False\"} unless gotk_resource_info{customresource_kind=\"HelmRepository\", url=~\"oci://.*\"}) or count by (site) (gotk_resource_info) * 0",
           "refId": "C",
           "format": "time_series",
           "instant": true,
@@ -432,7 +432,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count by (site) (gotk_resource_info{ready!~\"True|False\"}) or count by (site) (gotk_resource_info) * 0",
+          "expr": "count by (site) (gotk_resource_info{ready!~\"True|False\"} unless gotk_resource_info{customresource_kind=\"HelmRepository\", url=~\"oci://.*\"}) or count by (site) (gotk_resource_info) * 0",
           "refId": "C",
           "format": "time_series",
           "instant": false,

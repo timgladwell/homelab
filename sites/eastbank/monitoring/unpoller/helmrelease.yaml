@@ -19,7 +19,9 @@ spec:
   chart:
     spec:
       chart: unpoller
-      version: "~2.x"
+      # A patch range like every other chart, so a new minor arrives as a
+      # Renovate PR rather than deploying unreviewed.
+      version: "~2.9.0"
       sourceRef:
         kind: HelmRepository
         name: unpoller

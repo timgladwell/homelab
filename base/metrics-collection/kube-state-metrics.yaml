@@ -99,7 +99,8 @@ spec:
     # Adapted from fluxcd/flux2-monitoring-example's kube-state-metrics-config.yaml,
     # which runs a dedicated kube-state-metrics with --custom-resource-state-only.
     # Here it rides the existing instance and its default collectors, so no
-    # second pod and no second scrape. Only the kinds this repo uses are listed.
+    # second pod and no second scrape. Only the kinds this repo uses are listed,
+    # plus the HelmCharts helm-controller creates for them.
     # `exported_namespace` rather than `namespace` is upstream's label name,
     # kept so Flux's own dashboards work against it unchanged.
     rbac:
@@ -111,6 +112,7 @@ spec:
           resources:
             - gitrepositories
             - helmrepositories
+            - helmcharts
             - kustomizations
             - helmreleases
           verbs: ["list", "watch"]
@@ -213,3 +215,30 @@ spec:
                     suspended: [spec, suspend]
                     revision: [status, artifact, revision]
                     url: [spec, url]
+            # Not in upstream. The HelmChart is the object that fetches a chart,
+            # from an HTTP index or a registry, so a failed pull shows here as
+            # Ready=False. The HelmRelease can stay Ready on its last good chart
+            # meanwhile, and an OCI HelmRepository has no conditions at all
+            # (source-controller does not reconcile that type). helm-controller
+            # creates one per HelmRelease, so it is not declared in this repo.
+            - groupVersionKind:
+                group: source.toolkit.fluxcd.io
+                version: v1
+                kind: HelmChart
+              metricNamePrefix: gotk
+              metrics:
+                - name: resource_info
+                  help: The current state of a Flux HelmChart resource.
+                  each:
+                    type: Info
+                    info:
+                      labelsFromPath:
+                        name: [metadata, name]
+                  labelsFromPath:
+                    exported_namespace: [metadata, namespace]
+                    ready: [status, conditions, "[type=Ready]", status]
+                    reason: [status, conditions, "[type=Ready]", reason]
+                    suspended: [spec, suspend]
+                    revision: [status, artifact, revision]
+                    chart_name: [spec, chart]
+                    source_name: [spec, sourceRef, name]
