@@ -7,6 +7,14 @@ metadata:
 spec:
   # The chart is released only to GHCR since 2.5.0; the old HTTP index
   # (unpoller.github.io/helm-chart) stopped at 2.4.0 (#534).
+  #
+  # source-controller does not reconcile an OCI HelmRepository: it never gets
+  # a Ready condition (`flux get sources helm` prints Ready for it regardless),
+  # and the pull happens on the HelmChart, so that is where a failure shows.
+  # Moving a HelmRepository to OCI in place is not picked up until the
+  # HelmChart's own interval (12h here), because an OCI source publishes no
+  # revision to trigger it. After merging such a move, run
+  # `flux reconcile hr <release> -n <namespace> --with-source`.
   type: oci
   interval: 24h
   url: oci://ghcr.io/unpoller/helm-chart
