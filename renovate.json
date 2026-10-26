@@ -66,6 +66,11 @@
       "description": "k3s and the kubectl image system-upgrade-controller drains with move in one PR, so kubectl stays on the server's minor.",
       "matchDepNames": ["k3s-io/k3s", "registry.k8s.io/kubectl"],
       "groupName": "k3s"
+    },
+    {
+      "description": "Renovate finds a Docker image's release notes through its org.opencontainers.image.source label, which registry.k8s.io/kubectl does not set; without this its PRs carry no changelog (#535).",
+      "matchDepNames": ["registry.k8s.io/kubectl"],
+      "sourceUrl": "https://github.com/kubernetes/kubernetes"
     }
   ],
   "schedule": ["every weekend"],
