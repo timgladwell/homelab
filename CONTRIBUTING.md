@@ -208,6 +208,40 @@ then creating the sub-issues. The label comes off and it becomes an ordinary
 plan. One item can be split out earlier: open it as its own issue and replace
 it in the list with the link.
 
+### Observation issues
+
+A record of a warning or error we can't yet interpret. Some we can judge on
+sight, because we know the situation: requests dropped under high load, network
+calls failing while the internet is down. For many others we lack the
+situational information, technical knowledge or judgement to say what the error
+*means*, or whether it is impactful enough to schedule work for. It might be an
+expected transient during a restart, a normal part of running on this hardware,
+or a real problem. Investigating every one is not a good use of effort, so when
+an error isn't recognised and things appear to work, it is set aside for the
+problems we know matter.
+
+An observation issue keeps that from being lost. It captures data points over
+time, so that either a pattern closes the gap directly, or, when the missing
+knowledge arrives some other way, the data shows whether we are affected. It is
+labelled `observation`. It is not a work item, and a backlog view leaves it out
+with `-label:observation`.
+
+- **The body says what to record and how to find an occurrence**: the metric,
+  the log query, the fields each entry needs. It also keeps a short current
+  state: what has been learned, what has been fixed, and what is still open.
+- **Each occurrence is one comment**, dated, with every claim labelled
+  *measured*, *hypothesis* or *unknown*. Occurrences where the thing *didn't*
+  happen are worth recording too, because a pattern needs something to be
+  compared against.
+- **It turns into work over time.** Nothing is fixed from a single entry, but
+  when entries point at a cause, a fix issue is opened and linked from here.
+  One observation issue may spawn several fix issues, and gather their PRs,
+  while it keeps collecting.
+- **It closes when there is no further reason to capture observations**: a
+  final fix has shipped, the watching has moved to observability tooling (an
+  alert or a dashboard that records occurrences itself), or for some other
+  reason given in the closing comment.
+
 ## Pull requests
 
 The proposed change and nothing else: why it is built this way, the
