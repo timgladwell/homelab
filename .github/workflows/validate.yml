@@ -45,14 +45,32 @@ jobs:
       CONFTEST_VERSION: 0.71.1
       # renovate: datasource=pypi depName=yamllint
       YAMLLINT_VERSION: 1.38.0
-      # The clusters' Alloy comes from the alloy chart, not this pin. Renovate
-      # groups the two into one PR (renovate.json), so CI validates against
-      # the version a chart bump is about to deploy.
-      # renovate: datasource=github-releases depName=grafana/alloy extractVersion=^v(?<version>.+)$
-      ALLOY_VERSION: 1.21.1
+      # No ALLOY_VERSION pin: the next step derives it from the alloy chart.
 
     steps:
       - uses: actions/checkout@v7
+
+      # Step 12 must validate with the Alloy the clusters run, which is the
+      # alloy chart's appVersion. The chart's version is a patch range, so a
+      # pin here lagged every chart patch that floated in without a PR (#537).
+      # Resolving the HelmReleases' range the way Flux does leaves one version
+      # to keep current. It can run ahead of a cluster by up to the chart's
+      # 12h fetch interval, never behind. helm is preinstalled on the runner.
+      - name: Resolve Alloy version from the alloy chart
+        run: |
+          set -euo pipefail
+          ranges=$(grep -h -A3 'chart: alloy$' \
+              base/metrics-collection/alloy-metrics.yaml sites/akron/monitoring/alloy.yaml \
+            | sed -n 's/^ *version: "\(.*\)"$/\1/p' | sort -u)
+          # Two releases, one binary to validate both: they must agree.
+          if [[ $(wc -l <<< "$ranges") -ne 1 || -z "$ranges" ]]; then
+            echo "::error::alloy HelmReleases disagree on chart version: ${ranges//$'\n'/, }"
+            exit 1
+          fi
+          app=$(helm show chart alloy --repo https://grafana.github.io/helm-charts --version "$ranges" \
+            | sed -n 's/^appVersion: v//p')
+          echo "alloy chart $ranges deploys Alloy $app"
+          echo "ALLOY_VERSION=$app" >> "$GITHUB_ENV"
 
       # Pinned to the minor the clusters run — base/landing/deployment.yaml and
       # base/pihole-sync/sync-job.yaml both pin python:3.15.x, and step 13's

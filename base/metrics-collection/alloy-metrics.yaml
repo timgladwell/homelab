@@ -31,7 +31,7 @@ spec:
     spec:
       chart: alloy
       # A patch range like every other chart, so an Alloy minor arrives as a
-      # Renovate PR, grouped with ALLOY_VERSION in .github/workflows/validate.yml.
+      # Renovate PR. CI validates with this range's appVersion (validate.yml).
       version: "~1.14.0"
       sourceRef:
         kind: HelmRepository
