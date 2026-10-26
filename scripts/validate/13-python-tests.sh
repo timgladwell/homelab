@@ -1,9 +1,10 @@
 #!/bin/bash
-# Unit tests for the repo's two Python programs.
+# Unit tests for the repo's Python programs.
 #
 # base/landing/app.py and base/pihole-sync/sync.py are the only executable code
-# here — everything else is declarative and covered by the schema, policy and
-# best-practice steps. Neither is rendered by kustomize in any meaningful sense:
+# that ships to the clusters — everything else there is declarative and covered
+# by the schema, policy and best-practice steps. scripts/chart_sources.py, which
+# step 15 and the weekly audit run, is tested here too. Neither is rendered by kustomize in any meaningful sense:
 # they ship as opaque ConfigMap payloads, so every other step in this pipeline
 # would pass with a syntax error in either file.
 #

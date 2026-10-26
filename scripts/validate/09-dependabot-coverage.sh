@@ -1,6 +1,8 @@
 #!/bin/bash
 # Every directory holding a pinned container image must be covered by a
 # Dependabot docker entry, or that image silently stops receiving update PRs.
+# Every image tag pinned in a HelmRelease's values must carry a `# renovate:`
+# comment Renovate can match, or a `# renovate-skip: <reason>`.
 #
 # This is not hypothetical: the multi-site restructure moved directories out
 # from under .github/dependabot.yml's paths, and Dependabot quietly stopped
@@ -89,11 +91,36 @@ for f in sorted(pathlib.Path(".").rglob("*.y*ml")):
     else:
         print(f"✗ {f}: {declared} '# renovate:' comment(s) but {hits} matched a customManager regex")
         failed = 1
+
+# The other way round: an image tag pinned in a HelmRelease's values with no
+# `# renovate:` comment is invisible to every update tool, and step 15 trusts
+# a pinned tag as deliberate (scripts/chart_sources.py). So each one needs the
+# comment on the line directly above it, or an explicit
+# `# renovate-skip: <reason>` there instead, which is printed on every run so
+# a skip stays visible rather than becoming the default.
+for f in sorted(p for d in ("base", "sites") for p in pathlib.Path(d).rglob("*.y*ml")):
+    lines = f.read_text(errors="replace").splitlines()
+    if not any(re.match(r"kind: HelmRelease\s*$", l) for l in lines):
+        continue
+    for i, line in enumerate(lines):
+        if not re.match(r"\s+tag:\s*\S", line):
+            continue
+        above = next((lines[j].strip() for j in range(i - 1, -1, -1) if lines[j].strip()), "")
+        skip = re.match(r"# renovate-skip:\s*(.*)", above)
+        if above.startswith("# renovate: datasource"):
+            continue  # counted and matched above
+        if skip and skip.group(1).strip():
+            print(f"~ {f}:{i + 1}: pinned without Renovate: {skip.group(1).strip()}")
+        else:
+            print(f"✗ {f}:{i + 1}: '{line.strip()}' has no '# renovate:' comment above it"
+                  + (" (renovate-skip needs a reason)" if skip else "")
+                  + "; add one, or '# renovate-skip: <why>'")
+            failed = 1
 sys.exit(failed)
 PY
 
-renovate_count=$(grep -rl '# renovate: datasource' --include='*.yaml' --include='*.yml' \
-    . 2>/dev/null | grep -v '/\.claude/' | xargs grep -ch '# renovate: datasource' \
+renovate_count=$(grep -rlE '# renovate(: datasource|-skip:)' --include='*.yaml' --include='*.yml' \
+    . 2>/dev/null | grep -v '/\.claude/' | xargs grep -chE '# renovate(: datasource|-skip:)' \
     | awk '{s += $1} END {print s + 0}')
 
 # Zero means a matcher stopped matching — which would otherwise read as

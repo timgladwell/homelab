@@ -15,7 +15,8 @@ here touches a cluster.
 1. **Install the validation tools** at the versions pinned in
    `.github/workflows/validate.yml`, which is what CI runs: `flux`, `kustomize`,
    `kubeconform`, `kube-score`, `trivy`, `conftest`, `yamllint`, `alloy`,
-   `flate` and `python3`, plus `sops` and `age`.
+   `flate`, `helm` and `python3`, plus `sops` and `age`. `helm` is not pinned:
+   step 15 only reads chart metadata with it, and CI uses the runner's.
    - The `flux` pin tracks what the clusters run, not the newest release; see
      [Flux Upgrades](flux-upgrades.md).
    - `brew install grafana/grafana/alloy` — plain `brew install alloy` is an
@@ -88,6 +89,16 @@ flate diff all -p clusters/akron --base origin/main   # what this branch changes
 
 Every PR also gets the `flate diff` as a comment. Use `flate`, not `flux-local`,
 which is deprecated and segfaults on current Flux.
+
+**Review a chart bump by the app it deploys, not the chart.** A chart's release
+notes and Renovate's compare link describe the chart repository, which may
+not be where the app lives: a chart can be published from a repository
+that holds none of its app's code. Find the image tag the bump renders in the
+`flate diff`, then read that project's changelog for the range. A diff that
+changes only the chart's version string means the app did not move; find out
+why before merging. Step 15 fails a chart that renders none of its own
+`appVersion`, and a weekly audit flags sources that redirect or have stopped
+releasing (`scripts/chart_sources.py`).
 
 If `flate diff` fails with
 `core.repositoryformatversion does not support extension: worktreeconfig`,

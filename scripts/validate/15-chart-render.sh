@@ -16,6 +16,10 @@
 #     settings whose silent loss costs something survive into the rendered
 #     objects. That is the only way to catch "the chart stopped reading this
 #     key", which renders cleanly by definition.
+#   - a chart that no longer moves its app: deprecated by its publisher, or
+#     rendering none of its own appVersion without a tag pinned in values
+#     (scripts/chart_sources.py, #535). This also renders cleanly by
+#     definition; grafana/loki 7.x shipped that way (#531).
 #
 # Unlike every other step this one needs the network, to fetch chart indexes
 # and charts. A fetch failure still fails the step, but is labelled as one, so
@@ -37,6 +41,13 @@ if ! command -v flate >/dev/null 2>&1; then
     echo "ERROR: flate not found on PATH." >&2
     echo "  brew install --cask home-operations/tap/flate" >&2
     echo "  CI pins the flate action in .github/workflows/validate.yml; stay at or above it." >&2
+    exit 1
+fi
+
+# chart_sources.py reads chart metadata (appVersion, deprecated) with it. CI
+# uses the runner's preinstalled helm, unpinned: `helm show chart` is stable.
+if ! command -v helm >/dev/null 2>&1; then
+    echo "ERROR: helm not found on PATH. brew install helm" >&2
     exit 1
 fi
 
@@ -135,6 +146,8 @@ for site in $(sites); do
             --namespace homelab.rendered \
             --fail-on-warn \
             --no-color || fail=1
+        # The HelmRepository URLs come from step 3's build of the same site.
+        python3 scripts/chart_sources.py check "${BUILD_DIR}/k3s-built-${site}.yaml" "$rendered" || fail=1
     elif [[ $rc -eq 124 || $rc -eq 137 ]]; then
         fail=1
         echo "  TIMEOUT: flate did not finish within ${render_timeout}s. A re-run usually passes;"
