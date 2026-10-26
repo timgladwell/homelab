@@ -19,6 +19,30 @@ spec:
       containers:
         - name: system-upgrade-controller
           imagePullPolicy: Always
+          env:
+            # The image of the cordon/drain init containers SUC adds to an
+            # upgrade Job. The vendored ConfigMap's default
+            # (rancher/kubectl:v1.30.3) is untracked and frozen: rancher/kubectl
+            # stopped publishing at v1.36, and upstream expects the variable to
+            # be overridden (#536). An explicit env entry wins over the envFrom
+            # that loads that ConfigMap.
+            #
+            # Set here, not in the ConfigMap, so that merging is what applies
+            # it. The controller reads its environment only at start. This
+            # value is part of the pod template, so changing it rolls the
+            # Deployment, and a finished rollout means the change is live. The
+            # ConfigMap keeps a fixed name, so editing it leaves the template
+            # unchanged and the running pod on the old value until something
+            # else restarts it (a reboot, an eviction, a manual restart).
+            #
+            # SUC runs this image only when a Plan sets `cordon: true` or
+            # `drain:`, which plans.yaml does not today. It passes kubectl's
+            # arguments without a command, so the image's entrypoint must be
+            # kubectl; registry.k8s.io/kubectl's is. Renovate moves it with k3s
+            # (renovate.json) to keep kubectl on the server's minor.
+            - name: SYSTEM_UPGRADE_JOB_KUBECTL_IMAGE
+              # renovate: datasource=docker depName=registry.k8s.io/kubectl
+              value: registry.k8s.io/kubectl:v1.37.1
           resources:
             requests:
               cpu: 50m

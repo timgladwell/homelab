@@ -25,6 +25,16 @@
       "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
     },
     {
+      "description": "The kubectl image system-upgrade-controller uses for cordon/drain. It is set as a container env var, not an `image:` field, so neither Dependabot nor the flux manager sees it.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)base/system-upgrade-controller/deployment-patch\\.yaml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+\\S+: [^\\s:]+:(?<currentValue>\\S+)"
+      ]
+    },
+    {
       "description": "Validation tool versions pinned in the CI workflow — env vars and setup-action inputs. Dependabot's github-actions ecosystem only bumps `uses:` refs, so without this the pins go stale silently and CI drifts from what a developer runs locally. The Flux CLI pin is intentionally excluded: it tracks what the clusters run, not the newest release.",
       "customType": "regex",
       "managerFilePatterns": [
@@ -51,6 +61,11 @@
       "description": "The alloy chart (flux manager) and the alloy binary CI validates with (custom.regex) move in one PR, so a minor's breaking changes are read together before they deploy.",
       "matchDepNames": ["alloy", "grafana/alloy"],
       "groupName": "grafana alloy"
+    },
+    {
+      "description": "k3s and the kubectl image system-upgrade-controller drains with move in one PR, so kubectl stays on the server's minor.",
+      "matchDepNames": ["k3s-io/k3s", "registry.k8s.io/kubectl"],
+      "groupName": "k3s"
     }
   ],
   "schedule": ["every weekend"],
