@@ -24,8 +24,11 @@ VENV="$(dirname "$(git -C "$SCRIPT_DIR" rev-parse --path-format=absolute --git-c
 [[ -x "$VENV/bin/python3" ]] && export PATH="$VENV/bin:$PATH"
 # A directory of this run's own. $TMPDIR is shared by every run on the machine
 # (the main checkout, each worktree, each Claude session), and runs that overlap
-# would otherwise read each other's k3s-built-<site>.yaml (#495).
-K3S_BUILD_DIR="$(mktemp -d)" || exit 1
+# would otherwise read each other's k3s-built-<site>.yaml (#495). A caller that
+# sets it owns it: the weekly chart-source audit in validate.yml reads the
+# built and rendered output afterwards.
+K3S_BUILD_DIR="${K3S_BUILD_DIR:-$(mktemp -d)}" || exit 1
+mkdir -p "$K3S_BUILD_DIR" || exit 1
 export K3S_BUILD_DIR
 
 PASS=0

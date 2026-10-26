@@ -7,10 +7,17 @@ on:  # yamllint disable-line rule:truthy
   pull_request:
   push:
     branches: [main, stable]
+  # Weekly, for the chart-source audit at the end of the job (#535): upstream
+  # moves without a PR here, so nothing else would run it. Monday, after
+  # Renovate's weekend run.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
-# A newer push to the same branch makes an in-flight run irrelevant.
+# A newer push to the same branch makes an in-flight run irrelevant. The event
+# is in the key so a push to main never cancels the weekly audit.
 concurrency:
-  group: validate-${{ github.ref }}
+  group: validate-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:
@@ -169,4 +176,20 @@ jobs:
       # starts needing a secret, that is a bug in the step, not a missing
       # repository secret here.
       - name: Validate
+        env:
+          K3S_BUILD_DIR: ${{ runner.temp }}/k3s-build
         run: ./scripts/validate-k3s.sh
+
+      # Whether each chart source still moves its app: redirects, frozen
+      # sources, deprecated charts, Renovate pins without release notes. See
+      # scripts/chart_sources.py. Weekly rather than per PR, because what it
+      # finds changes upstream, not in a diff. Runs even when Validate failed,
+      # and fails itself if Validate left nothing to read. A failure here
+      # emails the repo owner, which is the alert; each finding becomes an
+      # issue, as #531 and #534 did.
+      - name: Audit chart sources
+        if: >-
+          always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        env:
+          K3S_BUILD_DIR: ${{ runner.temp }}/k3s-build
+        run: python3 scripts/chart_sources.py audit "$K3S_BUILD_DIR"
