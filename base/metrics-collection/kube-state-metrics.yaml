@@ -99,7 +99,8 @@ spec:
     # Adapted from fluxcd/flux2-monitoring-example's kube-state-metrics-config.yaml,
     # which runs a dedicated kube-state-metrics with --custom-resource-state-only.
     # Here it rides the existing instance and its default collectors, so no
-    # second pod and no second scrape. Only the kinds this repo uses are listed, plus the HelmCharts helm-controller creates for them.
+    # second pod and no second scrape. Only the kinds this repo uses are listed,
+    # plus the HelmCharts helm-controller creates for them.
     # `exported_namespace` rather than `namespace` is upstream's label name,
     # kept so Flux's own dashboards work against it unchanged.
     rbac:
