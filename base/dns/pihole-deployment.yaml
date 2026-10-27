@@ -174,7 +174,7 @@ spec:
           # Ready throughout when measured. No limit that fits the node holds a
           # 1.1 GB rewrite, so raising this would only shorten the thrash and
           # reserve more node memory (request equals limit, above). The lever
-          # is the database's size, ~78% of it NRD blocklists: #468.
+          # is the database's size, ~78% of it NRD blocklists.
           #
           # Before revisiting this number, read refaults
           # (container_memory_workingset_refault_file_total), not working set:

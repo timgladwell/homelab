@@ -208,6 +208,9 @@ then creating the sub-issues. The label comes off and it becomes an ordinary
 plan. One item can be split out earlier: open it as its own issue and replace
 it in the list with the link.
 
+Nothing in source control links an exploratory issue. It isn't planned, so it
+says nothing about the current state.
+
 ### Observation issues
 
 A record of a warning or error we can't yet interpret. Some we can judge on
