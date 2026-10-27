@@ -33,7 +33,7 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    ./scripts/secrets-helper.sh edit sites/<site>/infrastructure/pihole-secret.sops.yaml
    ./scripts/secrets-helper.sh edit sites/<site>/apps/pihole-secret.sops.yaml
    ```
-   Requires Eastbank's private key locally to decrypt each copy once. Confirm no copy still names Eastbank's key — validation only checks that secrets are encrypted, not to whom, so a miss surfaces as a Flux decryption failure on the new cluster:
+   Requires Eastbank's private key locally to decrypt each copy once. A real `updatekeys` always changes each file's `sops.lastmodified` and `mac`; a file whose `git diff` leaves both untouched was not re-keyed, however plausible its recipient stanzas look (a hand-written stanza once passed the hook and review and failed only on the new cluster). Confirm no copy still names Eastbank's key — validation only checks that secrets are encrypted, not to whom, so a miss surfaces as a Flux decryption failure on the new cluster:
    ```bash
    grep -l "$(grep -A1 'sites/eastbank' .sops.yaml | awk '/age:/{print $2}')" -r sites/<site>   # expect no output
    ```

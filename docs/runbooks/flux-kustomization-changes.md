@@ -39,11 +39,18 @@ Changing a Flux Kustomization's `spec.path` is safe and does not need this page.
    A `Namespace` or anything PVC-backed means data loss unless you choose
    otherwise below.
 
+3. **Data loss needs an explicit yes.** Prometheus and Loki history, Pi-hole
+   state and any other PVC contents are preserved by default. Say up front that
+   the change puts them at risk, lead with a preserving option, and lose them
+   only on Tim's explicit go-ahead for this specific change. Silence, or
+   approval of the PR as a whole, is not a yes. (#228 accepted data loss as part
+   of an educational phase; that acceptance ended with it.)
+
 ## Steps
 
 **Rename or move with stateful resources** — pick one, in the PR description:
 
-- **Accept the loss** explicitly, if the data is stateless or not valuable.
+- **Accept the loss**, only with the yes from pre-check 3.
 - **Disable pruning for the move:** set `prune: false` on the source
   Kustomization in the PR that moves the resource; restore `prune: true` in a
   follow-up once the source has reconciled without the resource (its inventory

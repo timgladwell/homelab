@@ -34,7 +34,7 @@ carries a [`TEMPORARY` tag](#temporary-things) saying why and until when.
 | [Issues](#issues) | Plans and their structure, tasks, findings, decisions, history | — |
 | [Pull requests](#pull-requests) | Why this change is built this way | Analysis results, discovered work |
 | [`README.md`](#readme) | Purpose, scope, getting started, licence | Everything else |
-| Claude's memory | How the user prefers to work | Any technical fact |
+| [Claude's memory](#claudes-memory) | How Tim prefers to work with Claude | Any decision, convention or technical fact |
 
 Across all of them: describe what is true now, do not restate what `git log`
 and `git blame` already answer, and never add a "TODO", "Next steps" or
@@ -79,6 +79,19 @@ only what applies at the system level:
 
 Anything tied to specific code is a comment on that code instead. Incident
 stories are issues.
+
+## Claude's memory
+
+Claude Code keeps a per-project memory outside the repo. It is not
+version-controlled and nobody reading the repo can see it, so **a decision has
+to be visible**: memory holds only how Tim prefers to work with Claude (when to
+confirm, what to hand back to him rather than run). A convention people would
+also follow, a design rule or a technical fact goes to its home in the table
+above, even when it was learned in a Claude session. A memory that would record
+one is a proposed change to the repo instead.
+
+A project hook (`.claude/hooks/memory-guard.sh`) asks before any write to a
+memory file, with this rule as the prompt, so a new memory is never silent.
 
 ## Current-state docs
 
@@ -147,6 +160,36 @@ evolution of the answer, so its history reads at a glance.
 
 Format and numbering are in [`docs/adr/README.md`](docs/adr/README.md).
 
+### Weighing the alternatives
+
+How options are compared, for an ADR and for any smaller design choice in a PR:
+
+- **Current state is not precedent.** An existing shortcut is one step of an
+  iterative implementation, not a floor. "The UDR already holds a zone-wide
+  token, so a zone-wide DDNS token adds no exposure" is not an argument: new
+  work meets the target from the start, an existing shortcut it would rely on
+  is named as a gap to close, and an option that only works with that shortcut
+  is rejected.
+- **Zero upkeep over enforced manual values.** When something has to be kept in
+  step (a hash, a revision, a copied value), look first for a mechanism that
+  computes it: a kustomize generator's hash suffix, a chart's own option. A
+  hand-kept value guarded by a policy comes last, and its per-edit cost is
+  stated plainly. #414 rejected a `checksum/` annotation plus a conftest rule
+  (a hash typed on every edit, and a policy that could pass silently) for the
+  chart's existing-secret option fed by a `secretGenerator`.
+- **Fix maintenance noise with process, not config.** A failure that appears
+  only during a deliberate maintenance action (a CRD apply plus a chart
+  upgrade restarting kube-state-metrics, #362) is fixed by sequencing the steps,
+  letting each settle, and recording the expected noise in the runbook. Config
+  tuned so nothing ever fails hides real problems. Change config only when the
+  failure also happens outside maintenance, and check that first against merge
+  and apply times.
+- **Ask what the next instance would need.** List what adding another site,
+  device or collector would touch outside its own directory; each item is a
+  hidden assumption worth removing. It finds assumptions, it does not justify
+  building for the future, and a one-off special case (Lottage on docker) is not
+  a target to design for.
+
 ## Runbooks
 
 A procedure for a specific outcome: **pre-checks** confirming scope and
@@ -162,6 +205,13 @@ with its kind:
 
 A runbook may be temporary — written because a process will repeat a few times
 during a long investigation. It carries a `TEMPORARY` tag at the top.
+
+**A runbook or current-state doc is not incident-specific.** Its body describes
+the procedure and how to read its output in general, so it reads cleanly for
+work unrelated to the incident that prompted it. One investigation's numbers,
+dates and versions belong in its issue; an example worth keeping goes in an
+`## Appendix: examples` section at the end. The exception is a document that is
+entirely about one incident.
 
 **Retiring a runbook** deletes the file and moves its row to the *Retired*
 table in `docs/runbooks.md`, with a one-line summary and a link to the last
@@ -182,12 +232,46 @@ were taken.
 A plan is a tree of GitHub sub-issues. The parent's body is the current plan,
 edited in place as it changes; each child is a smaller area of the work, and
 may have children of its own. Discussion goes in comments. A leaf is closed by
-the PR that ships it, or by a decision recorded in it.
+the PR that ships it, or by a decision recorded in it. **Work that changes the
+design**, rather than working within it, starts as one such parent, scoped in
+discussion before its plan is written. The small issues that piled up from
+specific circumstances are its inputs: everything actionable in each moves into
+the parent or a child, and each closes with a forward link (#420).
+
+**Title an issue by the gap it owns**, not by the artefact that revealed it. A
+title is what gets scanned in a list months later, and one naming a document
+defect reads as housekeeping. "docs/backup-plan.md describes CronJobs that do
+not exist" became "Nothing backs up Prometheus, Grafana, Loki or Pi-hole: decide
+which need a backup". When the resolution is a choice, the title says so; the
+triggering artefact is named in the body.
 
 **An issue records what was understood when it was written**, not settled fact.
 New information, new capabilities or more skill can overturn a conclusion. An
 issue that does so names the premise the old conclusion rested on, and the
 earlier issue gets a comment linking forward.
+
+**In an investigation, every claim is labelled** *measured*, *hypothesis* or
+*unknown*, and an observation is recorded apart from the theory about it. "X
+shipped, then Y broke" is correlation, not a measurement: several manual changes
+(UniFi UI, device settings, DNS) often land in one sitting, and checks either
+side can be hours apart. Name the cheap check that would isolate a cause (a log
+query, a `dig` from the device), and flag an unisolated attribution where the
+chain of inference starts, not in a closing caveat. #316 nearly priced a tool on
+a precedence rule that may not exist.
+
+**Progress is posted as it lands**, not batched to the end, so nothing is lost
+if the session is. One investigation keeps one running comment, edited in place
+and marked as running while it is live. A new comment is for a new phase, an
+event that changes how later results must be read (a reboot mid-measurement), or
+a conclusion. Steps handed over from a closing issue are appended to an existing
+comment on the receiving issue, and the closing comment says where each loose
+end went.
+
+<!-- TEMPORARY(until: 2027-01-31, issue: #214): retires when Alertmanager has a real receiver. -->
+**An alerting or dashboard gap goes in #221** while nothing can alert (#214), so
+the gaps keep their ranking in one place. An alert that a change depends on is
+part of that change and ships with it. Once alerts notify, a gap an incident
+exposes is closed with the rest of that incident's work instead.
 
 ### Exploratory issues
 
@@ -251,6 +335,38 @@ The proposed change and nothing else: why it is built this way, the
 alternatives rejected, and what a reviewer needs. When a finding drives the
 change, the finding goes in an issue and the PR links it. Review replies answer
 the review point.
+
+**A fix links back to the PRs behind it**, with a short comment on each: the PR
+that caused the regression (what broke, and where the fix is), every earlier PR
+that attacked the same root cause (a partial fix, and why it recurred), and any
+PR the change reverts or invalidates, so nobody reapplies it. The Flux v2.9.4
+strict-substitution outage links #172 (cause), #90 and #107 (partial fixes),
+#226 (fix) and #224 (the runbook check that keeps it from recurring).
+
+## Commits
+
+Changes are reviewed commit by commit, so each commit is whole on its own and
+describes the change, not the session that produced it.
+
+- **Move, then change.** A file move is its own rename-only commit (`git mv`
+  and nothing else), with content edits in the next. Git detects renames by
+  similarity, and a move with edits can log as a delete plus an add, breaking
+  `git log --follow` and blame.
+- **A change and the docs it makes true are one commit**, so neither can be
+  cherry-picked without the other. The test: would this doc edit be needed if
+  the change were reverted? If not, it belongs with the change. A doc found
+  wrong for an unrelated reason is fixed at once, in its own commit, even when
+  the edit has a side effect (a config comment that restarts a pod); say what it
+  triggers. A doc that turns out to be a record of past work is stale history,
+  not stale state, and is retired or moved to an issue.
+- **Regroup an investigative branch before review.** One commit per discovery,
+  reversals included, makes a reviewer read conclusions a later commit
+  overturns. Rebuild it by the role each file plays (a new page and its index
+  entry, then its wiring into existing docs), and confirm `git diff <old-tip>
+  HEAD` is empty. How it was figured out goes in the PR body and the issue.
+- **A fixup is squashed into the commit it belongs to**: `--amend` for an
+  unpushed tip, otherwise `git commit --fixup=<sha>`, folded in with
+  `--autosquash` at the next re-sign.
 
 ## README
 
