@@ -26,7 +26,7 @@ deploys. This is the research before that change and the check after it.
 2. Add the drops in the collector, not the application, each with a `DROP` tag
    ([CONTRIBUTING.md](../../CONTRIBUTING.md#dropped-signals)).
 3. **A new component also needs a scrape pair.** Collection is still an
-   allowlist (#456), so a component is collected only if
+   allowlist (#516), so a component is collected only if
    `base/metrics-collection/alloy-metrics.alloy` has a `discovery.relabel` and
    `prometheus.scrape` pair for it. Add one in the pattern of `cert_manager`:
    keep by namespace and metrics port name, and set any labels the component

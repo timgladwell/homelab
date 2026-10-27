@@ -329,7 +329,7 @@ prometheus.scrape "unpoller" {
 // Loki. Runs only at Akron, so this finds nothing elsewhere, as for
 // Unpoller above. Without it the log store is the one storage layer
 // with no visibility: ingest rate, discarded entries by reason
-// (loki_discarded_samples_total, which #454's late-arrival test
+// (loki_discarded_samples_total, which #517's outage test
 // reads) and chunk bytes stored, which is how its PVC is sized.
 //
 // Monolithic mode serves the API and /metrics on one port; grpc and
