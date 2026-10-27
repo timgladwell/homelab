@@ -13,6 +13,7 @@
 | 2026-10-16 | Tim and Claude | Everything running is collected by default, excluded only for the hardware's sake; formalised after #323 showed what an uncollected component costs (#367) |
 | 2026-10-24 | Tim and Claude | The log window is best effort, after grafana/alloy#7112 showed the log WAL losing entries on a restart mid-outage; a broker and a second collector rejected for now (#517) |
 | 2026-10-25 | Tim and Claude | The collector is defined by its contract, not its processes, as the interface of one observability domain; LAN devices reach it through Traefik by default, the cluster through an internal service; buffering starts at a collector; mobile senders; a sending and a forwarding site, and names standardised alongside drops (#524) |
+| 2026-10-27 | Tim and Claude | Each site's ingest points, the two processes behind them, receivers opted into per site, and a lenient UDP syslog ingest on its own address. Mobile senders use the site they are at, and one site label set by the ingest point replaces the sending and forwarding pair (#512) |
 
 ## Context
 
@@ -118,16 +119,20 @@ collector, unbuffered, and what it loses before arriving there is accepted.
 That covers a device at a site, a site whose server this repo doesn't manage
 (Lottage), and mobile equipment.
 
-**Mobile senders send to one fixed collector**, Akron's, because that is where
-mobile equipment spends most of its time. Off the network, its telemetry is
-dropped. **A mobile sender stops itself on a metered or slow link.** The
-collector cannot stop a sender from using a link, so that duty is the
-sender's.
+**Mobile senders send to the collector of the site they are at**, through a
+site-local name that each site's PiHole answers with its own Traefik address.
+The sender needs no idea of where it is: the ingest point that receives its
+data supplies the site. Off the network, its telemetry is dropped. **A mobile
+sender stops itself on a metered or slow link.** The collector cannot stop a
+sender from using a link, so that duty is the sender's.
 
-**Every signal carries two sites: the one that sent it and the one that
-forwarded it.** For a cluster's own signals they are the same. They differ for
-a device relayed through another site's collector and for a mobile sender, and
-both are diagnostic: where the data came from, and which path it took.
+**Every signal carries the site whose ingest point received it**, set by the
+collector rather than trusted from the sender. For the cluster's own signals,
+devices on the site's LAN and mobile senders, that is where the signal came
+from. The one exception is a device at a site with no collector of its own,
+whose receiving collector stamps the device's site explicitly. Which site
+*forwarded* a signal isn't recorded: every collector forwards to Akron, so it
+would only repeat the site.
 
 **Names and key values are standardised in the collector, alongside drops.**
 A sender's names reach storage only after the collector has translated them to
@@ -216,6 +221,91 @@ The procedure is [Planning a Workload's Observability](../runbooks/workload-obse
 `instance` set to the node name. Transformations follow collection where labels
 matter, and no target is collected twice.
 
+### The site collector
+
+**Every site publishes these ingest points.** Their names are in the [naming
+convention](../current-state/naming-convention.md).
+
+| Ingest point | Protocol | Reached through | Sent by |
+| --- | --- | --- | --- |
+| The site's collector hostname, and the site-local collector name: `/v1/logs`, `/v1/metrics`, `/loki/api/v1/push` | OTLP and Loki push, over HTTPS | Traefik, `websecure` | devices on the site's LAN, by either name; mobile senders, by the site-local name |
+| The internal collector Service: the same paths | OTLP and Loki push, over HTTP inside the node | cluster DNS | the cluster's own workloads, such as our software and Unpoller |
+| The site's syslog address, one UDP port per stream | syslog, plaintext | its own LAN address | devices: the UDR, printers, phones |
+| — | Prometheus scrape | in-cluster discovery | every workload that exposes metrics |
+
+The LAN and cluster ingest points serve the same receivers, so a sender gets
+the same behaviour either way. Every signal leaves the collector carrying its
+site, a host label for off-cluster senders, and a `job` naming the stream. The
+collector writes metrics and logs to Akron's storage. OTLP is served at every
+site, not only Akron's, because our own software pushes it wherever it runs,
+and that is what lets a mobile sender use whichever site it is at.
+
+**Behind the contract, two processes**, at every site that runs this repo's
+cluster, Akron included. Akron's forwarder writes to storage inside its own
+cluster, and every other site's writes over the VPN.
+
+- *The forwarder* runs without root and holds the WAL. It scrapes, serves
+  every push receiver (syslog included), applies the standardising relabels
+  and drops, and runs both writers to Akron.
+- *The node log reader* runs as root, because it reads pod logs and the
+  journal from the host, and does nothing else. It forwards what it reads to
+  the forwarder over the in-cluster Loki push API, rather than writing to
+  storage itself, so every signal passes one set of relabels and one buffer.
+  It runs as a DaemonSet at every site. It holds no state worth a volume, and a
+  DaemonSet is right on any number of nodes.
+
+Root stays on the smallest surface it can: a file reader with no network
+listener. A burst of pod logs still lands in the forwarder's CPU and memory,
+but it arrives through a push API that can be rate-limited.
+
+**Push receivers run in the forwarder.** That's one hop, and everything goes
+into the WAL. The cost is that a push burst shares CPU and memory with
+scraping (#270). It sits behind the contract, so moving receivers into a
+process of their own later doesn't touch any sender.
+
+**UDP syslog gets its own LAN address at each site**, a LoadBalancer Service
+selecting the forwarder, and a DNS record. This is an exception to reaching
+the collector through Traefik. Traefik can carry UDP on its existing address,
+but it proxies the datagram, so the collector would see Traefik as the sender
+and lose the device's address. For devices that leave the syslog hostname
+empty, that address is the only host label there is. With
+`externalTrafficPolicy: Local` on its own Service, the address reaches the
+collector. TLS syslog is added beside it if a sender turns out to support it.
+
+**The syslog ingest is lenient: a line is never dropped for failing to
+parse.** UniFi is loose with the format. One stream mixes standard syslog
+lines, applications' own log formats and kernel debug dumps, and another omits
+the syslog priority header. A strict RFC 3164 parser discards whatever it
+can't read: Akron's dropped 145 of about 352,000 lines in a week. So the
+receiver takes each line raw, and parsing the header is a best-effort step
+after it. A line that doesn't parse is kept whole and labelled as unparsed,
+and counted, so the formats it misses show up instead of disappearing.
+
+**Sites opt into receivers; base never knows which.** Each reusable receiver,
+such as UniFi's syslog parsing, is a Kustomize Component in `base/`. It adds
+one Alloy file to the forwarder's configuration and the Service that exposes
+it, and a site lists the Components it runs. The forwarder loads its
+configuration as a directory, so a receiver's file joins the base file without
+editing it. A receiver depends on a stable entry point that the base file
+always defines, and the base file depends on no receiver, which keeps the
+layering direction [ADR 0004](0004-repository-layering.md) requires. A
+receiver's file isn't valid on its own, so validation checks each site's
+assembled configuration, not the files one at a time.
+
+**Until Lottage runs a collector of its own, every site with a collector
+serves a set of Lottage-only ingest points.** They're separate ports on the
+site's existing addresses, one per stream Lottage's UniFi equipment sends (the
+UDR alone sends syslog and CEF), and the collector stamps `lottage` on
+everything arriving on them. Lottage's equipment sends to either site, and
+which one is a UniFi setting rather than repo state. It can move without a
+change here, if one site's path is better or the other is down. Serving them at
+both sites costs a few idle listeners. Both sites list the same receiver, and
+the site it stamps comes from an estate-wide variable, so `base/` never names
+Lottage. Ports, not source-address matching, because a port is declared in one
+place and doesn't drift with the network. The ingest points stand in for
+Lottage's own collector and are removed when it exists. At that point
+Lottage's equipment sends locally, like every other site's.
+
 ## Consequences
 
 **Positive**
@@ -227,8 +317,8 @@ matter, and no target is collected twice.
   answered by the cluster rather than by reading the collector's configuration.
 - The collector's implementation can be reshaped (merged, split, replaced)
   without touching any sender or storage, as long as the contract holds.
-- A relayed or mobile sender's data says both where it came from and which
-  path it took.
+- A signal's site comes from the ingest point, so a mobile sender's data says
+  where it was without the sender knowing.
 
 **Negative and risks**
 
@@ -247,8 +337,18 @@ matter, and no target is collected twice.
   collector is unreachable. Lottage's devices reach theirs across the VPN, so
   any VPN outage loses their data.
 - **A mobile sender's data depends on the sender.** It's lost off the network
-  and wherever the sender has stopped itself, and its sending site is only as
-  accurate as what it reports.
+  and wherever the sender has stopped itself.
+- **Every site runs every mobile sender's receivers.** They're the same OTLP
+  receivers its own software uses, so this costs nothing until a mobile sender
+  needs a protocol nothing else at the site does.
+- **A site without a collector needs its site declared by hand**, as a set of
+  ingest points of its own on every other site's addresses. Each stream it
+  adds needs another port at every site, until it has a collector.
+- **Every site spends a LAN address on syslog**, and keeps a DNS record for it,
+  because the device's address only survives without a proxy.
+- **A receiver's configuration can't be validated on its own**, only as part of
+  a site's assembled configuration.
+- **Push bursts and scraping share the forwarder's CPU and memory.**
 - `loki.write`'s WAL is experimental upstream, unlike `prometheus.remote_write`'s.
   The collector has to run at the experimental stability level to use it, which
   admits every other experimental component too, and the WAL can still skip
@@ -284,12 +384,13 @@ matter, and no target is collected twice.
   argument above is weaker for a sender whose loss off the network is accepted
   anyway, but its data would skip the collector, where all trimming and
   labelling live.
-- **A mobile sender using its current site's collector**, through a site-local
-  name that each site's PiHole answers with its own Traefik address. It works,
-  and every site's certificate already covers such names. Not chosen yet: one
-  fixed collector is simpler to start with, but nothing yet shows that running
-  a mobile sender's receivers at every site is costly. Observability endpoints
-  with DNS names standardised across sites would make it cheap, and reopen it.
+- **A mobile sender always using Akron's collector.** It puts a site into the
+  sender's configuration, and then either the sender has to report where it is
+  or the data says Akron wherever it came from. The site-local name costs
+  nothing, because every site already serves the receivers.
+- **A forwarding-site label beside the site.** Every collector forwards to
+  Akron, so it would repeat the site on almost every signal. Revisit it if
+  forwarding becomes dynamic, for example with failover between collectors.
 - **Defining the collector by its processes** (one process, or one release).
   It would tie senders to choices that should stay free to change: running as
   root to read host logs, and isolating push traffic from scraping.
@@ -323,6 +424,21 @@ matter, and no target is collected twice.
 - **A second collector for logs only** (Vector or Fluent Bit, for their mature
   disk buffers). Breaks "Alloy as the only collector" for a guarantee not yet
   shown to be missing in practice.
+- **One collector process for everything.** A simpler model, but root would
+  extend to the WAL and every network listener, and a log flood would share
+  the reader's CPU with the WAL drain (#270).
+- **A separate process for push receivers.** It keeps push traffic apart from
+  scraping, but adds a second hop that needs a buffer of its own.
+- **Syslog through a Traefik UDP entry point.** No extra address and no DNS
+  record, but the proxy hides the device's address from the collector.
+- **Sharing Traefik's address for syslog** (MetalLB `allow-shared-ip`). It ties
+  the syslog Service to Traefik's Service and traffic policy, and gains nothing
+  over an address of its own.
+- **Moving the node log reader to a StatefulSet.** Only worth it for a single
+  merged process with a WAL. The reader has nothing to persist.
+- **Receivers enabled by flags in one base configuration.** Every site's
+  receivers would live in `base/`, which is the site-specific knowledge base
+  must not hold.
 
 ## Appendix: naming conventions
 
@@ -331,8 +447,7 @@ standardised in the collector*). The names chosen for each label, and the
 lists of accepted values, are kept in the
 [naming convention](../current-state/naming-convention.md).
 
-- **Two site labels on every signal:** the sending site and the forwarding
-  site.
+- **One site label on every signal:** the site whose ingest point received it.
 - **Key values are lowercase**, site names included (`akron`, not `Akron`),
   because lowercase keeps queries simple. The exception is a value that has to
   be camel case.
