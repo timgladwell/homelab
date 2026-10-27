@@ -189,6 +189,100 @@ Same name across two kinds is deliberate, and preferable to `lan-pool` /
 `lan-l2`: the kind is already printed beside the name, so a suffix restating it
 is noise (rule 5 — there is no sibling to disambiguate from).
 
+## Observability names
+
+**These are the target names, not yet deployed.** #514 and #515 apply them,
+and this project is the deliberate exception to "do not mass-rename". Each name
+says what the thing does, not which vendor runs it, and has to stay true with a
+second collector, a fourth site or a different backend. The collector's
+published contract is in [ADR 0003](../adr/0003-observability-collection-and-storage.md).
+
+### Labels on every signal
+
+| Label | Meaning | Set by |
+| --- | --- | --- |
+| `site` | The site whose ingest point received the signal | the collector, never the sender |
+| `host` | The sending device, off-cluster senders only | the collector, from the syslog hostname or the connection address |
+| `job` | The stream (below) | the collector |
+
+- **`site` keeps its name and its meaning**, so dashboards and alerts that
+  filter on it keep working. For a mobile sender it's the site the sender was
+  at. Lottage's UniFi equipment, which has no collector at its own site, is
+  stamped `lottage` by the Lottage-only ingest points it sends to (ADR 0003).
+- **The network the data *describes* is a separate fact, `network_site`.**
+  Unpoller at Eastbank polling Akron's controller sends `site="eastbank"`,
+  `network_site="akron"`. Unpoller's `site_name` and UniFi CEF's `Site` are
+  both renamed to `network_site` at collection, so one label names what was
+  polled or reported on. Having both `site` and `site_name` in storage is
+  confusing, so Unpoller's dashboards are translated to the new name in the
+  same PR that renames it.
+- **Values are lowercase**, and the collector lowercases values that arrive
+  otherwise (Unpoller's `Akron` becomes `akron`).
+
+### Accepted values
+
+A reference for planning transformations, not a filter. A value that isn't
+listed gets checked against this convention and added here.
+
+| Label | Values |
+| --- | --- |
+| `site` | `akron`, `eastbank`, `lottage` |
+| `network_site` | `akron`, `eastbank`, `lottage` |
+
+**Unpoller's WAN metrics report `Default (default)`.** Since Unpoller v5
+(2026-10-21), every `unpoller_wan_*` series carries `site_name="Default
+(default)"` for every controller, while its device metrics carry the real
+site. Before v5 those series had no `site_name` at all. The collector sets
+`network_site` on them from `source`, the controller URL, which identifies the
+site. That map sits beside Unpoller's list of controllers, where a new
+controller is added anyway.
+
+### Endpoints and variables
+
+| Thing | Name | Replaces |
+| --- | --- | --- |
+| Akron's metrics ingest | `metrics.akron.internal.zerpzorp.com` | `prometheus.akron…` |
+| Akron's logs ingest | `logs.akron.internal.zerpzorp.com` | `loki.akron…` |
+| Each site's collector push hostname (OTLP, Loki push) | `collector.<site>.internal.zerpzorp.com` | — (new) |
+| The same, [site-local](#site-local-names), for mobile senders | `collector.internal.zerpzorp.com` | — (new; no record needed, the per-site answer and the certificate already cover it) |
+| Each site's syslog address | `syslog.<site>.internal.zerpzorp.com`, `METALLB_SYSLOG_IP` | Akron's only `syslog.akron…` |
+| Variables for the ingest URLs | `METRICS_INGEST_URL`, `LOGS_INGEST_URL` | `PROMETHEUS_REMOTE_WRITE_URL`, `LOKI_PUSH_URL` |
+
+`collector.` is what senders push to, and `metrics.` and `logs.` are what
+collectors write to. Keeping the two apart stops a sender from skipping the
+collector by accident. `syslog.` names a protocol, and survived the last
+backend swap (#151). What arrives there is syslog-framed UDP, though UniFi is
+loose about it: the payloads range from standard syslog lines to embedded
+application logs and kernel debug dumps, and CEF is a format carried inside
+the same framing. It's also the name of the field every device asks for:
+"syslog server".
+
+### Streams (`job`)
+
+| Stream | Name | Replaces |
+| --- | --- | --- |
+| UniFi OS system log | `unifi-os-log` | `unifi-siem` |
+| UniFi events (CEF) | `unifi-events` | `unifi-cef` |
+| Pod logs | `pod-logs` | `loki.source.kubernetes.pods` |
+| Node journal | `systemd-journal` | unchanged |
+
+An old name is never reused for the other stream (#411). Queries that span the
+cutover use `job=~"old|new"` until the old data ages out.
+
+### Behind the contract
+
+These are free to change with the collector's shape.
+
+| Thing | Name | Replaces |
+| --- | --- | --- |
+| The forwarder | HelmRelease `collector`; volume claim template `wal` (PVC `wal-collector-0`) | `alloy-metrics`, `alloy-data-alloy-metrics-0` |
+| Its configuration | ConfigMap `collector-config` | `alloy-metrics-config` |
+| The node log reader | HelmRelease `node-log-reader` | `alloy` (Akron only) |
+
+Renaming the forwarder drops its PVC and its WAL. The loss is accepted, but
+the rename goes in the same change as the ingest URLs, so the WAL is orphaned
+once rather than twice (#522).
+
 ## Why `internal.`, not the apex
 
 A DNS-01 ACME token must be able to write to whatever zone holds
