@@ -41,6 +41,15 @@ namespace: monitoring
 # still selects its datasource through a `datasource` template variable rather
 # than naming a uid: the Prometheus datasource's uid is a kube-prometheus-stack
 # chart default that nothing in this repo pins, so a chart bump could change it.
+#
+# Why tokens are never renamed or $$-escaped: with substitution disabled
+# nothing unescapes `$$`, so `$${__series.name}` reaches Grafana as a literal
+# `$$`. Renaming `${DS_*}` to `${datasource}` only hid it from step 7's old
+# uppercase-only pattern; it was still an undefined variable to Flux. And
+# `flux build` (step 2) is lenient about undefined variables where
+# kustomize-controller is strict, so step 7 is the only check. A dashboard
+# ConfigMap made outside this directory needs the same annotation, or step 7
+# fails it.
 generatorOptions:
   disableNameSuffixHash: true
   labels:

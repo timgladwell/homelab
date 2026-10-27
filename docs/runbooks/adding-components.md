@@ -60,6 +60,15 @@ the site needs — never a patch over another site's. Only actual secrets: confi
 that merely feels private (records, hostnames, ranges) belongs in a ConfigMap or
 `cluster-vars`, where it can be reviewed and policy-checked.
 
+A credential is encrypted whole: endpoint URL, username and password together,
+never split across the Secret and a plaintext file. A username without its
+password still says what to attack, and an address says where. Operational
+settings (what a tool collects, intervals, in-cluster endpoints) stay in plain
+text, readable in a PR diff. When a chart takes one opaque config blob, lift
+the credential fields into env vars from the Secret (`envFrom: secretRef`)
+rather than encrypting the whole blob; `sites/eastbank/monitoring/unpoller/` is
+the pattern.
+
 **A per-site config file merged into a base ConfigMap** (as `pihole-sync` does
 for its client list): keep the global part in `base/`, and merge the site's part
 from the site layer, because a `configMapGenerator` cannot read files outside its

@@ -17,6 +17,13 @@ updates:
   # fails if any directory gains a pinned image without being listed. That check
   # exists because this config silently went stale once when directories moved,
   # and nobody noticed Dependabot had stopped covering most of the repo.
+  #
+  # Python's beta tags (`3.15.0b4`, no separator before the `b`) don't parse as
+  # prereleases here, so each one arrives as an ordinary bump during CPython's
+  # May–October beta season. Close those PRs by hand (as #202 was). There is no
+  # prerelease syntax for docker in `ignore`, and blocking python minor bumps
+  # would also block the stable release. Upstream: dependabot-core #15154,
+  # #9496, #2692.
   - package-ecosystem: docker
     directories:
       - "/base/dns"
