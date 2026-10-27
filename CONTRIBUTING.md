@@ -34,7 +34,7 @@ carries a [`TEMPORARY` tag](#temporary-things) saying why and until when.
 | [Issues](#issues) | Plans and their structure, tasks, findings, decisions, history | — |
 | [Pull requests](#pull-requests) | Why this change is built this way | Analysis results, discovered work |
 | [`README.md`](#readme) | Purpose, scope, getting started, licence | Everything else |
-| Claude's memory | How the user prefers to work | Any technical fact |
+| [Claude's memory](#claudes-memory) | How Tim prefers to work with Claude | Any decision, convention or technical fact |
 
 Across all of them: describe what is true now, do not restate what `git log`
 and `git blame` already answer, and never add a "TODO", "Next steps" or
@@ -79,6 +79,19 @@ only what applies at the system level:
 
 Anything tied to specific code is a comment on that code instead. Incident
 stories are issues.
+
+## Claude's memory
+
+Claude Code keeps a per-project memory outside the repo. It is not
+version-controlled and nobody reading the repo can see it, so **a decision has
+to be visible**: memory holds only how Tim prefers to work with Claude (when to
+confirm, what to hand back to him rather than run). A convention people would
+also follow, a design rule or a technical fact goes to its home in the table
+above, even when it was learned in a Claude session. A memory that would record
+one is a proposed change to the repo instead.
+
+A project hook (`.claude/hooks/memory-guard.sh`) asks before any write to a
+memory file, with this rule as the prompt, so a new memory is never silent.
 
 ## Current-state docs
 
