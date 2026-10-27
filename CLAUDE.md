@@ -78,6 +78,7 @@ monorepo pattern):
 | Akron first; `stable` only fast-forwarded by the *Promote to stable* workflow | [0002](docs/adr/0002-rollout-across-sites.md) |
 | Collect at every site, store at Akron; what gets collected | [0003](docs/adr/0003-observability-collection-and-storage.md) |
 | PostgreSQL as a platform service | [0001](docs/adr/0001-postgresql-platform-service.md) |
+| A product's own integration before glue; improvements to third-party tools tracked here, not upstream | [0005](docs/adr/0005-third-party-integration.md) |
 
 **`base/` never contains anything site-specific.** A site opts into a component
 by listing it; a `$patch: delete` against `base/` means the layering is wrong.
