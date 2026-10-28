@@ -172,7 +172,13 @@ spec:
       # validate` and `alloy fmt` expect to be pointed at, and it keeps a
       # 400-line river config out of a YAML string. Flux still substitutes
       # ${VAR} in the generated ConfigMap like any other manifest.
+      #
+      # key "." makes the chart run `alloy run /etc/alloy/.`, loading every
+      # *.alloy key in the ConfigMap as one configuration. That is how a site's
+      # receiver Components add a file without editing this one (ADR 0003, *Sites
+      # opt into receivers*). The configReloader already watches the whole
+      # directory. Validation step 12 checks the assembled directory per site.
       configMap:
         create: false
         name: alloy-metrics-config
-        key: config.alloy
+        key: "."
