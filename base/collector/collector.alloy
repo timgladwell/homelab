@@ -38,7 +38,8 @@ prometheus.remote_write "default" {
 // this pushes onward, rather than every app dialling across the WAN
 // on its own. Its senders are the node log reader (pod logs and the
 // journal, at every site) and Unpoller (UniFi events, IDS records and
-// system log, at Eastbank).
+// system log, at Eastbank), both over the collector Service. It isn't
+// published on the LAN (collector-ingressroute.yaml).
 //
 // loki.source.api serves Loki's own push API, so a sender needs no
 // knowledge that Alloy is in the path — it is pointed at this
@@ -55,7 +56,65 @@ loki.source.api "push" {
   // reader replays at startup and Unpoller's polled events.
   use_incoming_timestamp = true
 
+  forward_to = [loki.relabel.push.receiver]
+}
+
+// ---------------------------------------------------------------
+// OTLP over HTTP, for logs and metrics (ADR 0003, *The site
+// collector*). Served at every site, because our own software pushes
+// OTLP wherever it runs, and a mobile sender uses whichever site it is
+// at. The cluster reaches it on the collector Service, and the LAN
+// through Traefik (collector-ingressroute.yaml). Both get the same
+// receivers.
+//
+// Metric names are translated here, not in Prometheus (ADR 0003,
+// *Appendix: naming conventions*). `claude_code.token.usage` with unit
+// `tokens` arrives as `claude_code_token_usage_tokens_total`, and
+// service.name becomes `job`. The other resource attributes go only on
+// `target_info` (measured on Alloy v1.21.0, #514). Everything here is
+// generally available, so it adds nothing to --stability.level.
+// ---------------------------------------------------------------
+otelcol.receiver.otlp "push" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    metrics = [otelcol.exporter.prometheus.push.input]
+    logs    = [otelcol.exporter.loki.push.input]
+  }
+}
+
+otelcol.exporter.prometheus "push" {
+  forward_to = [prometheus.relabel.push.receiver]
+}
+
+otelcol.exporter.loki "push" {
+  forward_to = [loki.relabel.push.receiver]
+}
+
+// Every signal a sender pushes gets this site, whatever the sender
+// set: the site comes from the ingest point, never from the sender
+// (ADR 0003). external_labels on the writers can't do it, because it
+// never overwrites a label (#514). A receiver that stamps another
+// site, such as a Lottage-only ingest point (#515), must not route
+// through these.
+prometheus.relabel "push" {
+  forward_to = [prometheus.remote_write.default.receiver]
+
+  rule {
+    target_label = "site"
+    replacement  = "${SITE_NAME}"
+  }
+}
+
+loki.relabel "push" {
   forward_to = [loki.write.default.receiver]
+
+  rule {
+    target_label = "site"
+    replacement  = "${SITE_NAME}"
+  }
 }
 
 loki.write "default" {
