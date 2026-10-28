@@ -25,6 +25,12 @@ discovery.relabel "pod_logs" {
     source_labels = ["__meta_kubernetes_pod_name"]
     target_label  = "pod"
   }
+  // The Kubernetes node, not the machine: see `node` and `host` in the
+  // naming convention.
+  rule {
+    source_labels = ["__meta_kubernetes_pod_node_name"]
+    target_label  = "node"
+  }
   rule {
     source_labels = ["__meta_kubernetes_pod_container_name"]
     target_label  = "container"
