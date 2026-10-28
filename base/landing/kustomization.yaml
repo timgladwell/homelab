@@ -30,7 +30,7 @@ configMapGenerator:
   # fails to match the Deployment in landing/ — leaving the volume pointed at
   # the unhashed name of a ConfigMap that is in the wrong namespace anyway.
   #
-  # The name suffix hash is deliberately left on, unlike base/metrics-collection's
+  # The name suffix hash is deliberately left on, unlike base/collector's
   # Alloy ConfigMaps: kustomize does rewrite a Deployment's volume reference, so
   # the name stays correct, and the hash change is what makes an edit to
   # index.html or app.py actually reach a running pod.

@@ -124,8 +124,8 @@ unaffected.
 local check fail; validation step 12 checks the hydrated config properly.
 
 ```bash
-alloy fmt base/metrics-collection/collector.alloy
-alloy validate base/metrics-collection/collector.alloy
+alloy fmt base/collector/collector.alloy
+alloy validate base/collector/collector.alloy
 ```
 
 **Run the Python tests** for `base/landing/app.py` and `base/pihole-sync/sync.py`:

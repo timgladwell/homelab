@@ -76,7 +76,7 @@ before Flux can do anything useful.
 | DHCP DNS servers | UniFi, per network | All VLANs hand out the site PiHole only. The public fallback is per-node static config, deliberately — see [Why the resolver fallback is not in DHCP](#why-the-resolver-fallback-is-not-in-dhcp). |
 | DHCP search domain | UniFi, per network | Set to `<site>.internal.zerpzorp.com`, which resolves for real since #233. Single-label lookups on those VLANs land on the site's Traefik via the `${SITE_DOMAIN}` wildcard — but **only usefully for `ssh` / `ping` / `dig`**, never a browser: TLS validates the single label as typed, and no certificate can cover it. See [naming convention](naming-convention.md). This covers DHCP clients on those VLANs only; VPN clients are the *VPN client search domain* row. |
 | VPN client search domain | Each VPN client's own WireGuard config | **Per device, not estate state.** A `DNS =` line carrying `akron.internal.zerpzorp.com` alongside the resolver. The tunnel hands out `10.6.1.53` on its own; the search domain is not pushed, so every client that has not been edited by hand lacks it. Set on one laptop today — do not read a single-label name working there as evidence it works anywhere else. Configuring it server-side on the console would push it to every client and make this row unnecessary; nobody has. |
-| Syslog targets | UniFi → Settings → Cybersecure → Traffic Logging (`:1514`), and Settings → System Logging (`:1515`) | Both point at `10.6.1.81`, Akron's `alloy-syslog` LoadBalancer, **by IP**. A name works only if the console can resolve it, and today nothing guarantees that: the old `syslog.homelab.home.arpa` target stopped resolving without any error, and the gap in the logs was only noticed later. A name becomes usable again once something keeps it resolvable, such as an A record in the console's table synced from git, or a known resolver path for the console's own lookups. Both are #316. Every site targets Akron across the WAN today; receiving at each site's own collector instead is #420. |
+| Syslog targets | UniFi → Settings → Cybersecure → Traffic Logging (`:1514`), and Settings → System Logging (`:1515`) | Both point at `10.6.1.81` (`METALLB_SYSLOG_IP`), **by IP**. **Nothing listens there**: Akron's syslog receivers were removed with its old log collector, and every UDR's syslog is dropped until #515 adds a receiver back on the same address. A name works only if the console can resolve it, and today nothing guarantees that: the old `syslog.homelab.home.arpa` target stopped resolving without any error, and the gap in the logs was only noticed later. A name becomes usable again once something keeps it resolvable, such as an A record in the console's table synced from git, or a known resolver path for the console's own lookups. Both are #316. Every site targets Akron across the WAN; receiving at each site's own collector instead is #515. |
 | IDS/IPS mode and engine | UniFi → Settings → CyberSecure → Intrusion Prevention, per console | **Notify and Block** on all three UDRs, running Suricata 8.0.6. **Turning IDS/IPS off and back on brings it back in Notify (detection only)**, not the previous mode, with no warning. Check the mode after any off/on. Engine upgrades are offered by an "Update now" card in the same page. The UI enables it only below 80% memory utilization, measured as `1 − MemAvailable/MemTotal`. The automatic hourly attempt is stricter and was refused on every box for weeks, logged as `EVT_GW_UpgradeSuricata status:INSUFFICIENT_MEMORY`, so in practice the card is the only route. Suricata 8 holds noticeably more RAM than 6 did on these 2 GB boxes. Measurements and the upgrade procedure are in #412. |
 | UDR DNS records | UniFi → Policy Table → DNS Records | Per-console A records and Forward Domain rules. `syslog.homelab.home.arpa` stopped resolving somewhere around #303, and was attributed to it — but that window held several manual changes and the checks either side were hours apart, so even "PiHole was in the answer path" is inference, not measurement. How this table ranks against the console's own resolver is untested, as is whether it consults PiHole at all (#316). Do not assume an internal name resolves on the device. Nothing in the repo reconciles this table. |
 | UniFi read-only user | Each controller | Consumed by Unpoller (via SOPS) and NetworkOptimizer (via its own UI). |
@@ -89,20 +89,19 @@ before Flux can do anything useful.
 
 ### UniFi syslog: which setting sends which format
 
-Two UniFi settings feed Loki through Akron's `alloy-syslog` LoadBalancer
-(`sites/akron/monitoring/alloy-syslog-service.yaml`), each on its own port
-because they send different formats:
+Two UniFi settings send syslog, each to its own port because they send
+different formats. Nothing receives either until #515; Loki holds what arrived
+before, under the stream names in the last column:
 
-| UniFi setting | Sends | Port | Loki stream |
+| UniFi setting | Sends | Port | Stored in Loki as |
 |---|---|---|---|
 | Settings → Cybersecure → Traffic Logging | Plain RFC 3164 syslog with a `<PRI>` header: device system logs (`systemd`, `dbus-daemon`, `ubios-udapi-server`, `earlyoom`) | UDP `1514` | `{job="unifi-siem"}` |
 | Settings → System Logging (`/network/default/integrations`) | CEF (`CEF:0\|Ubiquiti\|UniFi OS\|…`) with **no** `<PRI>` header: admin activity, config changes, detections | UDP `1515` | `{job="unifi-cef"}` |
 
 **The names are the reverse of what they sound like** — *Cybersecure* sends
 plain system syslog and *System Logging* sends CEF (measured 2026-08-27).
-Port 1515's receiver sets `allow_skip_pri_header = true`; port 1514's is strict,
-so CEF sent there is dropped silently — UDP has no handshake to fail and no
-retry. Both settings offer overlapping categories (Devices, Critical, Admin
+A receiver on port 1515 has to accept a missing `<PRI>` header, and a strict
+one drops CEF silently — UDP has no handshake to fail and no retry. Both settings offer overlapping categories (Devices, Critical, Admin
 Activity, Updates, VPN, Firewall Default Policy), so the same event can arrive
 twice in two formats; enable categories deliberately rather than everything in
 both.
@@ -140,12 +139,14 @@ down in order to fix PiHole. Every client, on every VLAN, gets PiHole alone.
 
 ## Container logs are not state, and not durable either
 
-Worth knowing because it changes how you debug. The log-shipping Alloy
-DaemonSet runs at **Akron only**; other sites run only the `collector`, which ships
-metrics and accepts pushes from applications, but does not collect pod logs.
+Worth knowing because it changes how you debug. Every site runs the
+`node-log-reader` DaemonSet, which ships pod logs and the node's journal
+through the site's collector to Akron's Loki, so Loki is the durable copy.
 
-So at a remote site a pod's logs die with the pod. `kubectl logs --previous`
+On the node itself, a pod's logs die with the pod. `kubectl logs --previous`
 reaches exactly one generation back, and a crashlooping pod destroys its own
-evidence. Capture with `kubectl logs -f` while it happens, or lose it — this is
-how the first generated NetworkOptimizer admin password became unrecoverable
-during #230.
+evidence. What Loki has is best effort (ADR 0003): lines written while the
+reader or the collector is restarting can be missed. Query Loki first, and
+capture with `kubectl logs -f` while it happens when a line must not be lost.
+The first generated NetworkOptimizer admin password became unrecoverable
+during #230, when nothing at Eastbank shipped pod logs.

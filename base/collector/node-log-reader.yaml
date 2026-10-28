@@ -1,12 +1,13 @@
 ---
+# The site collector's node log reader (ADR 0003, *Behind the contract, two
+# processes*). It reads pod logs and the node's journal from the host, which
+# needs root, and does nothing else: no listener, no WAL. It forwards to the
+# collector beside it, which buffers and writes to Akron. A DaemonSet at every
+# site, because it reads the node it runs on.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  # Load-bearing beyond the usual Helm-release-name sense: alloy-syslog-service
-  # selects these pods by `app.kubernetes.io/instance`, which is this name.
-  # Renaming it silently detaches the syslog LoadBalancer from its only
-  # listener, and UDP gives no error when that happens.
-  name: alloy
+  name: node-log-reader
   namespace: monitoring
 spec:
   interval: 30m
@@ -17,7 +18,7 @@ spec:
     remediation:
       retries: 3
   # Report drift, never correct it — see the reasoning in
-  # base/metrics-collection/kube-state-metrics.yaml.
+  # base/collector/kube-state-metrics.yaml.
   driftDetection:
     mode: warn
   chart:
@@ -32,6 +33,10 @@ spec:
         namespace: monitoring
       interval: 12h
   values:
+    # The chart names everything <release>-alloy unless the release name
+    # contains "alloy"; see the same override in collector.yaml.
+    fullnameOverride: node-log-reader
+
     # NOTE ON NESTING: mounts, resources and volumes must sit under `alloy.*`
     # and `controller.volumes.extra`. They previously sat at the root of
     # `values:`, where the chart never reads them — Helm ignores unknown keys
@@ -61,7 +66,7 @@ spec:
     # Only what this config uses: discovery.kubernetes and
     # loki.source.kubernetes. The chart's default `rules` also grant cluster-wide
     # read on Secrets, for components this collector does not run. See the same
-    # block in base/metrics-collection/collector.yaml.
+    # block in collector.yaml.
     rbac:
       rules:
         - apiGroups: ["", "discovery.k8s.io", "networking.k8s.io"]
@@ -137,19 +142,14 @@ spec:
         - name: GOMEMLIMIT
           value: 230MiB
 
-      # Process flags go through the chart's own values, as in the collector,
-      # not extraArgs: the chart always renders --stability.level=<value>, so a
-      # copy in extraArgs is a second flag that takes effect only because it
-      # comes last; validation step 12 rejects one. Public-preview is for
-      # otelcol.receiver.syslog (the UniFi CEF listener in alloy.alloy), chosen
-      # over loki.source.syslog's raw format, which is experimental. Where both
-      # levels would do, prefer public-preview; don't lower this to experimental.
+      # No stabilityLevel: everything this config uses is generally available.
+      # A component that needs more sets it here through the chart's own value,
+      # never extraArgs (validation step 12 rejects a second flag).
       enableReporting: false
-      stabilityLevel: public-preview
 
-      # Config lives beside this file as alloy.alloy — see the note in
-      # base/metrics-collection/collector.yaml.
+      # Config lives beside this file as node-log-reader.alloy — see the note
+      # in collector.yaml.
       configMap:
         create: false
-        name: alloy-logs-config
+        name: node-log-reader-config
         key: config.alloy

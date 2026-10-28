@@ -2,9 +2,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # Namespace, HelmRepositories and the metrics collector are shared with every
+  # Namespace, HelmRepositories and the site collector are shared with every
   # other site. Akron additionally stores what it collects.
-  - ../../../base/metrics-collection
+  - ../../../base/collector
   - resourcequota.yaml
   - kube-prometheus-stack.yaml
   - grafana-secret.sops.yaml
@@ -12,17 +12,6 @@ resources:
   - metrics-ingest-service.yaml
   - metrics-ingest-ingressroute.yaml
   - loki.yaml
-  - alloy.yaml
   - logs-ingest-service.yaml
   - logs-ingest-ingressroute.yaml
-  - alloy-syslog-service.yaml
   - ./dashboards
-
-# See base/metrics-collection/kustomization.yaml for why the hash is disabled.
-configMapGenerator:
-  - name: alloy-logs-config
-    namespace: monitoring
-    options:
-      disableNameSuffixHash: true
-    files:
-      - config.alloy=alloy.alloy

@@ -191,21 +191,36 @@ is noise (rule 5 — there is no sibling to disambiguate from).
 
 ## Observability names
 
-**Deployed in part.** Akron's ingest endpoints, their variables, and the
-forwarder's release, volume claim and ConfigMap are live. Everything else here
+**Deployed in part.** Akron's ingest endpoints, their variables, the
+forwarder's release, volume claim and ConfigMap, the node log reader, and the
+`pod-logs` stream are live. Everything else here
 is a target name that #514 and #515 apply, and this project is the deliberate
 exception to "do not mass-rename". Each name
 says what the thing does, not which vendor runs it, and has to stay true with a
 second collector, a fourth site or a different backend. The collector's
 published contract is in [ADR 0003](../adr/0003-observability-collection-and-storage.md).
 
-### Labels on every signal
+### Labels
+
+`site` and `job` are on every signal. `host` and `node` say which machine or
+cluster node a log came from, where that applies.
 
 | Label | Meaning | Set by |
 | --- | --- | --- |
 | `site` | The site whose ingest point received the signal | the collector, never the sender |
-| `host` | The sending device, off-cluster senders only | the collector, from the syslog hostname or the connection address |
 | `job` | The stream (below) | the collector |
+| `host` | The machine that produced a log, by its network name: an off-cluster device, or a node for its own journal | the collector, from the syslog hostname or the connection address; the node log reader, from the journal |
+| `node` | The Kubernetes node a pod's logs came from | the node log reader, from pod discovery |
+
+- **`node` and `host` are different facts that share a value here.** A node is
+  a cluster object and a host is a machine on the network. This repo names the
+  K3s node after the Linux hostname ([DNS names](#dns-names)), so today both
+  read `k3s01.<site>.internal.zerpzorp.com`, but either can change without the
+  other. Pod logs carry `node`, because they come from the cluster. The journal
+  carries `host`, because it describes the machine.
+- **Kubernetes metrics carry the node as `instance`** (node-exporter, kubelet,
+  cAdvisor), not `node`. That's Prometheus's convention, and the dashboards
+  select on it.
 
 - **`site` keeps its name and its meaning**, so dashboards and alerts that
   filter on it keep working. For a mobile sender it's the site the sender was

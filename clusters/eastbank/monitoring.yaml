@@ -1,7 +1,7 @@
 ---
 # Metrics collection only — Eastbank ships to Akron's Prometheus rather than
 # running its own, because it boots from an SD card and a Prometheus TSDB would
-# wear it out. See base/metrics-collection/.
+# wear it out. See base/collector/.
 #
 # dependsOn infrastructure so the DNS pods (and their unbound-exporter sidecar)
 # exist before the collector goes looking for them. Nothing here needs a CRD
