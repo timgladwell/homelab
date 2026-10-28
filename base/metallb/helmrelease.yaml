@@ -7,7 +7,7 @@ metadata:
 spec:
   interval: 30m
   # Report drift, never correct it — see the reasoning in
-  # base/metrics-collection/kube-state-metrics.yaml.
+  # base/collector/kube-state-metrics.yaml.
   driftDetection:
     mode: warn
   chart:

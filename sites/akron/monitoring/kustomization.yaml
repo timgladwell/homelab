@@ -4,7 +4,7 @@ kind: Kustomization
 resources:
   # Namespace, HelmRepositories and the site collector are shared with every
   # other site. Akron additionally stores what it collects.
-  - ../../../base/metrics-collection
+  - ../../../base/collector
   - resourcequota.yaml
   - kube-prometheus-stack.yaml
   - grafana-secret.sops.yaml

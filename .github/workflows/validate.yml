@@ -67,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           ranges=$(grep -h -A3 'chart: alloy$' \
-              base/metrics-collection/collector.yaml base/metrics-collection/node-log-reader.yaml \
+              base/collector/collector.yaml base/collector/node-log-reader.yaml \
             | sed -n 's/^ *version: "\(.*\)"$/\1/p' | sort -u)
           # Two releases, one binary to validate both: they must agree.
           if [[ $(wc -l <<< "$ranges") -ne 1 || -z "$ranges" ]]; then

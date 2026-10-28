@@ -31,7 +31,7 @@ deny contains msg if {
 
 # Prometheus: without the out-of-order window, samples replayed from a remote
 # site's collector WAL after an outage are rejected as out of bounds. Must stay
-# in sync with the collectors' wal.max_keepalive_time (base/metrics-collection/collector.alloy).
+# in sync with the collectors' wal.max_keepalive_time (base/collector/collector.alloy).
 deny contains msg if {
 	input.kind == "Prometheus"
 	not input.spec.tsdb.outOfOrderTimeWindow

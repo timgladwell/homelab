@@ -1,5 +1,5 @@
 ---
-# Eastbank stores nothing — base/metrics-collection/ plus Unpoller, which
+# Eastbank stores nothing — base/collector/ plus Unpoller, which
 # polls every UniFi controller and ships the result to Akron. Far smaller than
 # Akron's; see sites/akron/monitoring/resourcequota.yaml.
 #

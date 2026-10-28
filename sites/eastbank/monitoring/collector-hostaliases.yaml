@@ -10,7 +10,7 @@
 # collector resolves Akron without asking anything. Same guarantee, and now
 # with a certificate to prove what it reached.
 #
-# Lives here rather than in base/metrics-collection/ because only a remote site
+# Lives here rather than in base/collector/ because only a remote site
 # dials these names at all. Akron's own collector writes to in-cluster Services,
 # so an alias there would pin two names it never looks up. Neither the IP nor
 # the domain is the obstacle any more — both are estate-wide in
