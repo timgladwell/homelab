@@ -191,8 +191,9 @@ is noise (rule 5 — there is no sibling to disambiguate from).
 
 ## Observability names
 
-**Deployed in part.** Akron's ingest endpoints, their variables, and the
-forwarder's release, volume claim and ConfigMap are live. Everything else here
+**Deployed in part.** Akron's ingest endpoints, their variables, the
+forwarder's release, volume claim and ConfigMap, the node log reader, and the
+`pod-logs` stream are live. Everything else here
 is a target name that #514 and #515 apply, and this project is the deliberate
 exception to "do not mass-rename". Each name
 says what the thing does, not which vendor runs it, and has to stay true with a

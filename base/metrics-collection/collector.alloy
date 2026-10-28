@@ -36,8 +36,9 @@ prometheus.remote_write "default" {
 // The same idea for logs. This collector is the only process at a
 // site that talks to Akron, for either signal: apps push here and
 // this pushes onward, rather than every app dialling across the WAN
-// on its own. Today the only sender is Unpoller, whose UniFi events,
-// IDS records and system log are Loki-only outputs.
+// on its own. Its senders are the node log reader (pod logs and the
+// journal, at every site) and Unpoller (UniFi events, IDS records and
+// system log, at Eastbank).
 //
 // loki.source.api serves Loki's own push API, so a sender needs no
 // knowledge that Alloy is in the path — it is pointed at this
@@ -48,6 +49,11 @@ loki.source.api "push" {
     listen_address = "0.0.0.0"
     listen_port    = 3100
   }
+
+  // Keep the sender's timestamps. The default stamps each entry when it
+  // arrives here, which would misdate the journal entries the node log
+  // reader replays at startup and Unpoller's polled events.
+  use_incoming_timestamp = true
 
   forward_to = [loki.write.default.receiver]
 }

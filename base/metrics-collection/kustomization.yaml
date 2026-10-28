@@ -1,5 +1,6 @@
 ---
-# Site-agnostic metrics collection. Every site runs this; only
+# Site-agnostic collection: the site collector's forwarder and node log
+# reader, and the exporters they scrape. Every site runs this; only
 # METRICS_INGEST_URL, LOGS_INGEST_URL and SITE_NAME differ, from cluster-vars.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -9,8 +10,9 @@ resources:
   - node-exporter.yaml
   - kube-state-metrics.yaml
   - collector.yaml
+  - node-log-reader.yaml
 
-# The collector's river config, as a real file. disableNameSuffixHash is
+# Each release's river config, as a real file. disableNameSuffixHash is
 # required: kustomize's nameReference transformer does not know about
 # HelmRelease.spec.values.alloy.configMap.name, so a hashed name would leave
 # the release pointing at a ConfigMap that does not exist. No reload is lost —
@@ -22,3 +24,9 @@ configMapGenerator:
       disableNameSuffixHash: true
     files:
       - config.alloy=collector.alloy
+  - name: node-log-reader-config
+    namespace: monitoring
+    options:
+      disableNameSuffixHash: true
+    files:
+      - config.alloy=node-log-reader.alloy

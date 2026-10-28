@@ -51,9 +51,9 @@ docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
 #
 # Alloy refuses to run a component below the process's stability level, so a
 # release that has not opted in must not validate as though it had. Each release
-# sets the chart's alloy.stabilityLevel: Akron's log collector to public-preview,
-# for otelcol.receiver.syslog, and the metrics collector to experimental, for
-# loki.write's WAL alone. The chart always renders
+# that needs one sets the chart's alloy.stabilityLevel: the collector runs at
+# experimental, for loki.write's WAL alone, and the node log reader at the
+# default. The chart always renders
 # --stability.level=<alloy.stabilityLevel>, so that value is the only one read
 # here. A copy in extraArgs would be a second flag that wins only by coming
 # last; step 15's policy (policy/rendered_chart_settings.rego) rejects it.
