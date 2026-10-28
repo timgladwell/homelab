@@ -10,3 +10,29 @@ resources:
   - ./unpoller
 patches:
   - path: collector-hostaliases.yaml
+  # Unpoller's own push listener (unpoller/unpoller.alloy) on the collector's
+  # Service. Appended rather than restated, so base/'s ports stay in base/.
+  - target:
+      kind: HelmRelease
+      name: collector
+    patch: |
+      - op: add
+        path: /spec/values/alloy/extraPorts/-
+        value:
+          name: unpoller-push
+          port: 3101
+          targetPort: 3101
+          protocol: TCP
+
+# Eastbank's additions to the collector's configuration, loaded with the base
+# file as one directory (base/collector/collector.yaml, configMap.key ".").
+# disableNameSuffixHash must match base/'s generator, or the merge produces a
+# second ConfigMap instead.
+configMapGenerator:
+  - name: collector-config
+    namespace: monitoring
+    behavior: merge
+    options:
+      disableNameSuffixHash: true
+    files:
+      - unpoller.alloy=unpoller/unpoller.alloy
