@@ -1257,7 +1257,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "Page cache + RSS against the container's memory limit. A full cache is normal: the kernel fills spare room with cached files. It is only a problem when the refault graph beside it rises too, which means the container is re-reading files it just evicted. See #378. Grouped by pod as well as container: two pods can run a container with the same name (Akron's alloy-metrics and log-collecting alloy are both \"alloy\"), and grouping by name alone divides one pod's usage by the other's limit.",
+      "description": "Page cache + RSS against the container's memory limit. A full cache is normal: the kernel fills spare room with cached files. It is only a problem when the refault graph beside it rises too, which means the container is re-reading files it just evicted. See #378. Grouped by pod as well as container: two pods can run a container with the same name (Akron's collector and log-collecting alloy are both \"alloy\"), and grouping by name alone divides one pod's usage by the other's limit.",
       "gridPos": {
         "h": 8,
         "w": 10,

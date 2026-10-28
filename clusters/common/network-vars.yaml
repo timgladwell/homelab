@@ -50,14 +50,14 @@ data:
   # the override wins. That ordering is the mechanism, not an accident.
   #
   # Path-scoped IngressRoutes at the far end publish only these two paths, not
-  # the query APIs — sites/akron/monitoring/{prometheus-remotewrite,loki-push}
-  # -ingressroute.yaml. The /loki/ prefix is Loki's own API path, not a
+  # the query APIs — sites/akron/monitoring/{metrics,logs}-ingest-ingressroute
+  # .yaml. The /loki/ prefix is Loki's own API path, not a
   # namespacing scheme of ours; Prometheus simply does not use one.
   #
   # HTTPS on a hostname, not a bare IP, because Traefik picks the certificate
   # from SNI and an IP carries none. The no-resolver property is preserved by
-  # sites/<site>/monitoring/alloy-metrics-hostaliases.yaml pinning these names
+  # sites/<site>/monitoring/collector-hostaliases.yaml pinning these names
   # into the collector's own /etc/hosts — the host part of these URLs and the
   # hostnames in that patch must agree, and nothing checks that they do.
-  PROMETHEUS_REMOTE_WRITE_URL: "https://prometheus.akron.internal.zerpzorp.com/api/v1/write"
-  LOKI_PUSH_URL: "https://loki.akron.internal.zerpzorp.com/loki/api/v1/push"
+  METRICS_INGEST_URL: "https://metrics.akron.internal.zerpzorp.com/api/v1/write"
+  LOGS_INGEST_URL: "https://logs.akron.internal.zerpzorp.com/loki/api/v1/push"

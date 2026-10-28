@@ -2,9 +2,16 @@
 // protobuf batches: a site of this size is well under 1 kbit/s.
 prometheus.remote_write "default" {
   endpoint {
-    url = "${PROMETHEUS_REMOTE_WRITE_URL}"
+    url = "${METRICS_INGEST_URL}"
   }
 
+  // external_labels only fills a label the signal doesn't already carry; it
+  // never overwrites one (measured locally on Alloy v1.21.0, #514). So this
+  // is the fallback for everything this site collects, and a receiver that
+  // stamps another site, such as a Lottage-only ingest point, keeps its value.
+  // It does not stop a push sender choosing its own site: overwriting that
+  // belongs at the push receiver (ADR 0003: set by the collector, never the
+  // sender).
   external_labels = {
     site = "${SITE_NAME}",
   }
@@ -47,9 +54,10 @@ loki.source.api "push" {
 
 loki.write "default" {
   endpoint {
-    url = "${LOKI_PUSH_URL}"
+    url = "${LOGS_INGEST_URL}"
   }
 
+  // Fills a missing site only; see the note on prometheus.remote_write above.
   external_labels = {
     site = "${SITE_NAME}",
   }
@@ -66,7 +74,7 @@ loki.write "default" {
   // prometheus.remote_write's, which is stable. That one cannot stand
   // in: it buffers metric samples only, and this is the only disk
   // buffer Alloy has for log entries. It is the only reason
-  // alloy-metrics.yaml runs the collector at
+  // collector.yaml runs the collector at
   // --stability.level=experimental, without which it does not load.
   // A breaking change to it would fail the collector at every site,
   // so it is the first thing to check if an alloy chart bump

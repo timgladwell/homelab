@@ -9,7 +9,7 @@
 #
 # Nothing in the metrics path depends on cross-site DNS all the same. The
 # remote collector pins this name into its own /etc/hosts — see
-# sites/eastbank/monitoring/alloy-metrics-hostaliases.yaml — so PiHole, which
+# sites/eastbank/monitoring/collector-hostaliases.yaml — so PiHole, which
 # is both the resolver and one of the things being monitored, is never in the
 # path of the telemetry that would show it failing.
 #
@@ -30,15 +30,15 @@
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: prometheus-remote-write
+  name: metrics-ingest
   namespace: monitoring
 spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`prometheus.${SITE_DOMAIN}`) && PathPrefix(`/api/v1/write`)
+    - match: Host(`metrics.${SITE_DOMAIN}`) && PathPrefix(`/api/v1/write`)
       kind: Rule
       services:
-        - name: kube-prometheus-stack-prometheus
+        - name: metrics-ingest
           port: 9090
   tls: {}

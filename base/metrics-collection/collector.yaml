@@ -1,10 +1,11 @@
 ---
-# The metrics collector. Both sites run this identically; only the destination
-# and the site label differ, via each cluster's cluster-vars.yaml. Akron writes
-# to its own in-cluster Prometheus, Eastbank writes to Akron over the Site Magic
-# VPN. Akron is the only site with storage that tolerates a Prometheus TSDB
-# (USB3 NVMe); every other site boots from an SD card, so they collect and ship
-# rather than store.
+# The site collector's forwarder (ADR 0003, *The site collector*). Both sites
+# run this identically; only the destination and the site label differ, via
+# each cluster's cluster-vars.yaml. Akron writes to its own in-cluster
+# Prometheus and Loki, Eastbank writes to Akron over the Site Magic VPN. Akron
+# is the only site with storage that tolerates a Prometheus TSDB (USB3 NVMe);
+# every other site boots from an SD card, so they collect and ship rather than
+# store.
 #
 # Separate from the `alloy` release in sites/akron/monitoring/alloy.yaml, which
 # collects logs: that one is a DaemonSet with hostPath mounts and syslog
@@ -13,7 +14,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: alloy-metrics
+  name: collector
   namespace: monitoring
 spec:
   interval: 30m
@@ -39,6 +40,13 @@ spec:
         namespace: monitoring
       interval: 12h
   values:
+    # The chart names everything <release>-alloy unless the release name
+    # contains "alloy". This keeps the StatefulSet, its PVC (wal-collector-0)
+    # and the Service at the names in the naming convention. The Service name
+    # is a contract: in-cluster senders push to collector.monitoring (Unpoller's
+    # up.conf).
+    fullnameOverride: collector
+
     # This collector scrapes HTTP endpoints and writes a WAL to its PVC. It has
     # no reason to be root, and the chart leaves it root by default. 473 is the
     # UID the upstream alloy image is built with; fsGroup makes the existing
@@ -89,7 +97,7 @@ spec:
       # this claim and the matching mount below are required.
       volumeClaimTemplates:
         - metadata:
-            name: alloy-data
+            name: wal
           spec:
             accessModes: [ReadWriteOnce]
             resources:
@@ -111,7 +119,7 @@ spec:
 
       mounts:
         extra:
-          - name: alloy-data
+          - name: wal
             mountPath: /var/lib/alloy
 
       # Sized for the largest site, not the smallest. Akron carries roughly three
@@ -159,7 +167,7 @@ spec:
 
       # The log push endpoint (loki.source.api below). Adding it here is what
       # puts it on the chart's Service, so in-cluster senders can reach it at
-      # alloy-metrics:3100. The scrape job for Alloy itself filters on the
+      # collector:3100. The scrape job for Alloy itself filters on the
       # http-metrics port name, so this second port adds no duplicate target.
       extraPorts:
         - name: loki-push
@@ -167,7 +175,7 @@ spec:
           targetPort: 3100
           protocol: TCP
 
-      # The config lives beside this file as alloy-metrics.alloy, generated
+      # The config lives beside this file as collector.alloy, generated
       # into a ConfigMap by kustomize. A real .alloy file is what `alloy
       # validate` and `alloy fmt` expect to be pointed at, and it keeps a
       # 400-line river config out of a YAML string. Flux still substitutes
@@ -180,5 +188,5 @@ spec:
       # directory. Validation step 12 checks the assembled directory per site.
       configMap:
         create: false
-        name: alloy-metrics-config
+        name: collector-config
         key: "."

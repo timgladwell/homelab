@@ -141,7 +141,7 @@ down in order to fix PiHole. Every client, on every VLAN, gets PiHole alone.
 ## Container logs are not state, and not durable either
 
 Worth knowing because it changes how you debug. The log-shipping Alloy
-DaemonSet runs at **Akron only**; other sites run `alloy-metrics`, which ships
+DaemonSet runs at **Akron only**; other sites run only the `collector`, which ships
 metrics and accepts pushes from applications, but does not collect pod logs.
 
 So at a remote site a pod's logs die with the pod. `kubectl logs --previous`

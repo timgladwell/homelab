@@ -34,8 +34,8 @@ carries its own label.
 | Server / K3s node | `k3s01.akron.internal.zerpzorp.com` | Linux hostname *and* K3s node name |
 | Apps | `pihole.akron.internal.zerpzorp.com` | via Traefik `IngressRoute` |
 | | `grafana.akron.internal.zerpzorp.com` | |
-| Telemetry ingress | `prometheus.akron.internal.zerpzorp.com` | remote-write only; path-scoped |
-| | `loki.akron.internal.zerpzorp.com` | push only; path-scoped |
+| Telemetry ingress | `metrics.akron.internal.zerpzorp.com` | remote-write only; path-scoped |
+| | `logs.akron.internal.zerpzorp.com` | push only; path-scoped |
 | Non-Traefik Services | `syslog.akron.internal.zerpzorp.com` | its own MetalLB IP — see below |
 | Site index | `akron.internal.zerpzorp.com` | zone apex → that site's Traefik |
 | Global index | `internal.zerpzorp.com` → local Traefik | |
@@ -191,8 +191,10 @@ is noise (rule 5 — there is no sibling to disambiguate from).
 
 ## Observability names
 
-**These are the target names, not yet deployed.** #514 and #515 apply them,
-and this project is the deliberate exception to "do not mass-rename". Each name
+**Deployed in part.** Akron's ingest endpoints, their variables, and the
+forwarder's release, volume claim and ConfigMap are live. Everything else here
+is a target name that #514 and #515 apply, and this project is the deliberate
+exception to "do not mass-rename". Each name
 says what the thing does, not which vendor runs it, and has to stay true with a
 second collector, a fourth site or a different backend. The collector's
 published contract is in [ADR 0003](../adr/0003-observability-collection-and-storage.md).
@@ -279,9 +281,9 @@ These are free to change with the collector's shape.
 | Its configuration | ConfigMap `collector-config` | `alloy-metrics-config` |
 | The node log reader | HelmRelease `node-log-reader` | `alloy` (Akron only) |
 
-Renaming the forwarder drops its PVC and its WAL. The loss is accepted, but
-the rename goes in the same change as the ingest URLs, so the WAL is orphaned
-once rather than twice (#522).
+Renaming the forwarder drops its PVC and its WAL, and changing an ingest URL
+orphans the remote-write queue held for the old one (#306). Make both in one
+change, so the WAL is lost once (#522).
 
 ## Why `internal.`, not the apex
 
@@ -311,7 +313,7 @@ Future mTLS uses **SPIFFE URI SANs** issued by a private cert-manager CA:
 spiffe://zerpzorp.com/site/<site>/ns/<namespace>/sa/<serviceaccount>
 ```
 
-e.g. `spiffe://zerpzorp.com/site/eastbank/ns/monitoring/sa/alloy-metrics`.
+e.g. `spiffe://zerpzorp.com/site/eastbank/ns/monitoring/sa/collector`.
 
 URI SANs and DNS SANs are disjoint namespaces, so a private CA can never
 collide with or shadow a Let's Encrypt name. Nothing needs reserving in DNS —

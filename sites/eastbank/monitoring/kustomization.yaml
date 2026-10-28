@@ -9,4 +9,4 @@ resources:
   - resourcequota.yaml
   - ./unpoller
 patches:
-  - path: alloy-metrics-hostaliases.yaml
+  - path: collector-hostaliases.yaml

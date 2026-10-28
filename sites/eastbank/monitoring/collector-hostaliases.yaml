@@ -17,9 +17,9 @@
 # clusters/common/network-vars.yaml — but "every site except the one being
 # named" is not something base/ should try to express.
 #
-# The host parts must match PROMETHEUS_REMOTE_WRITE_URL and LOKI_PUSH_URL in
+# The host parts must match METRICS_INGEST_URL and LOGS_INGEST_URL in
 # clusters/common/network-vars.yaml exactly. ${AKRON_SITE_DOMAIN} closes most
-# of that gap, but the `prometheus.` and `loki.` labels are still written out
+# of that gap, but the `metrics.` and `logs.` labels are still written out
 # in both places — Flux substitution is a flat string replace and cannot build
 # one variable from another, so a URL cannot be assembled from parts.
 #
@@ -30,7 +30,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: alloy-metrics
+  name: collector
   namespace: monitoring
 spec:
   values:
@@ -38,5 +38,5 @@ spec:
       hostAliases:
         - ip: "${AKRON_TRAEFIK_IP}"
           hostnames:
-            - prometheus.${AKRON_SITE_DOMAIN}
-            - loki.${AKRON_SITE_DOMAIN}
+            - metrics.${AKRON_SITE_DOMAIN}
+            - logs.${AKRON_SITE_DOMAIN}

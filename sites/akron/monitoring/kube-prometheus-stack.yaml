@@ -201,7 +201,7 @@ spec:
           # than its head block's min-valid-time (~2h) as "out of bounds" —
           # without this window the buffer is decorative. Kept equal to the
           # collector's wal.max_keepalive_time in
-          # base/metrics-collection/alloy-metrics.alloy; both implement ADR
+          # base/metrics-collection/collector.alloy; both implement ADR
           # 0003's outage window.
           outOfOrderTimeWindow: 24h
         storageSpec:
@@ -243,7 +243,7 @@ spec:
     # double-collect on Akron, and the cardinality-trimming rules that used to
     # live here would have needed a second copy in the collector's config —
     # which is exactly the drift the shared component exists to prevent. The
-    # rules moved verbatim; they are now in alloy-metrics.yaml only.
+    # rules moved verbatim; they are now in collector.alloy only.
     #
     # node-exporter and kube-state-metrics are still deployed, just from
     # base/metrics-collection/ so that both sites get the identical version.
@@ -309,7 +309,7 @@ spec:
     # collector, so Prometheus was scraping coredns directly while Alloy did
     # not, and the kubelet Service existed for a ServiceMonitor already
     # disabled above. Alloy now scrapes coredns at every site instead
-    # (base/metrics-collection/alloy-metrics.alloy), which is where all
+    # (base/metrics-collection/collector.alloy), which is where all
     # collection belongs and which Eastbank never had.
     coreDns:
       enabled: false

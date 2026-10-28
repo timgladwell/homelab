@@ -120,7 +120,7 @@ done
 # it, a values change did, or trivy renamed or retired the check. An
 # object/check pair is stale when its object renders at some site and the check
 # fires on it at none: per site would be wrong, since a finding can fire at one
-# site only (alloy-metrics' hostAliases are Eastbank's).
+# site only (the collector's hostAliases are Eastbank's).
 #
 # Only pairs are checked, and only for objects this step renders. A bare check
 # ID, a "namespace/" prefix, or an object that exists only live (a manifest

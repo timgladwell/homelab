@@ -10,7 +10,7 @@ metadata:
 spec:
   # Both halves are required. The chart labels every pod it creates
   # `app.kubernetes.io/name: alloy` regardless of release, so the name alone
-  # also matches alloy-metrics — a different release, on a different controller
+  # also matches the collector — a different release, on a different controller
   # type, that listens on neither of these ports. With it in the selector this
   # Service had two endpoints and kube-proxy spread inbound syslog across both,
   # so roughly half of every UDM's log stream was delivered to a pod with

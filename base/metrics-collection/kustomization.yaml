@@ -1,6 +1,6 @@
 ---
 # Site-agnostic metrics collection. Every site runs this; only
-# PROMETHEUS_REMOTE_WRITE_URL and SITE_NAME differ, from cluster-vars.
+# METRICS_INGEST_URL, LOGS_INGEST_URL and SITE_NAME differ, from cluster-vars.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -8,7 +8,7 @@ resources:
   - helmrepositories.yaml
   - node-exporter.yaml
   - kube-state-metrics.yaml
-  - alloy-metrics.yaml
+  - collector.yaml
 
 # The collector's river config, as a real file. disableNameSuffixHash is
 # required: kustomize's nameReference transformer does not know about
@@ -16,9 +16,9 @@ resources:
 # the release pointing at a ConfigMap that does not exist. No reload is lost —
 # the chart's configReloader sidecar watches the mounted file.
 configMapGenerator:
-  - name: alloy-metrics-config
+  - name: collector-config
     namespace: monitoring
     options:
       disableNameSuffixHash: true
     files:
-      - config.alloy=alloy-metrics.alloy
+      - config.alloy=collector.alloy

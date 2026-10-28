@@ -61,7 +61,7 @@ spec:
     # Only what this config uses: discovery.kubernetes and
     # loki.source.kubernetes. The chart's default `rules` also grant cluster-wide
     # read on Secrets, for components this collector does not run. See the same
-    # block in base/metrics-collection/alloy-metrics.yaml.
+    # block in base/metrics-collection/collector.yaml.
     rbac:
       rules:
         - apiGroups: ["", "discovery.k8s.io", "networking.k8s.io"]
@@ -137,7 +137,7 @@ spec:
         - name: GOMEMLIMIT
           value: 230MiB
 
-      # Process flags go through the chart's own values, as in alloy-metrics,
+      # Process flags go through the chart's own values, as in the collector,
       # not extraArgs: the chart always renders --stability.level=<value>, so a
       # copy in extraArgs is a second flag that takes effect only because it
       # comes last; validation step 12 rejects one. Public-preview is for
@@ -148,7 +148,7 @@ spec:
       stabilityLevel: public-preview
 
       # Config lives beside this file as alloy.alloy — see the note in
-      # base/metrics-collection/alloy-metrics.yaml.
+      # base/metrics-collection/collector.yaml.
       configMap:
         create: false
         name: alloy-logs-config

@@ -1,0 +1,22 @@
+---
+# Akron's logs ingest point inside the cluster, and the sibling of
+# metrics-ingest-service.yaml: read that file for why it's ours rather than
+# the chart's `loki` Service. Its selector is copied from that Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: logs-ingest
+  namespace: monitoring
+  annotations:
+    # The pods are created by the Loki chart's StatefulSet, rendered by Helm.
+    kube-score/ignore: service-targets-pod
+spec:
+  selector:
+    app.kubernetes.io/component: single-binary
+    app.kubernetes.io/instance: loki
+    app.kubernetes.io/name: loki
+  ports:
+    - name: http
+      port: 3100
+      targetPort: http-metrics
+      protocol: TCP
