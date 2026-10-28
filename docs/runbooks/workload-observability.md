@@ -33,7 +33,7 @@ deploys. This is the research before that change and the check after it.
    icon), do that.
 3. **A new component also needs a scrape pair.** Collection is still an
    allowlist (#516), so a component is collected only if
-   `base/metrics-collection/alloy-metrics.alloy` has a `discovery.relabel` and
+   `base/metrics-collection/collector.alloy` has a `discovery.relabel` and
    `prometheus.scrape` pair for it. Add one in the pattern of `cert_manager`:
    keep by namespace and metrics port name, and set any labels the component
    needs.

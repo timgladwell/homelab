@@ -35,7 +35,7 @@ spec:
           # name, which is the "single instance assumed" behaviour behind #120.
           # Eastbank has no Prometheus operator, so leaving it in would fail the
           # install with `no matches for kind "PodMonitor"`. Alloy scrapes this
-          # pod instead; see base/metrics-collection/alloy-metrics.yaml.
+          # pod instead; see base/metrics-collection/collector.alloy.
           - target:
               kind: PodMonitor
               name: unifi-poller

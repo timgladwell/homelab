@@ -4,7 +4,7 @@
 # operator, and Akron's stack no longer scrapes anything itself.
 #
 # serviceMonitor is off deliberately: Eastbank has no ServiceMonitor CRD, and on
-# Akron the collector discovers this DaemonSet directly. See alloy-metrics.yaml.
+# Akron the collector discovers this DaemonSet directly. See collector.alloy.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:

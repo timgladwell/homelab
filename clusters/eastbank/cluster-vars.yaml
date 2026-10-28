@@ -31,7 +31,7 @@ data:
   LAN_CIDR: "10.4.0.0/16"
   LAN_GATEWAY: "10.4.1.1"
   SITE_NAME: eastbank
-  # No PROMETHEUS_REMOTE_WRITE_URL or LOKI_PUSH_URL here, deliberately. This
+  # No METRICS_INGEST_URL or LOGS_INGEST_URL here, deliberately. This
   # site has no Prometheus or Loki of its own and takes the estate defaults
   # from clusters/common/network-vars.yaml, which point at Akron. Only Akron
   # overrides them, because only Akron has something local to write to.

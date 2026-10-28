@@ -42,5 +42,5 @@ data:
   # This works because network-vars is substituted first and cluster-vars
   # second. Deleting these two lines would not break the build; it would
   # silently route Akron's own telemetry out through Traefik.
-  PROMETHEUS_REMOTE_WRITE_URL: "http://kube-prometheus-stack-prometheus.monitoring:9090/api/v1/write"
-  LOKI_PUSH_URL: "http://loki.monitoring:3100/loki/api/v1/push"
+  METRICS_INGEST_URL: "http://kube-prometheus-stack-prometheus.monitoring:9090/api/v1/write"
+  LOGS_INGEST_URL: "http://loki.monitoring:3100/loki/api/v1/push"

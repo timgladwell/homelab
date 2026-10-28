@@ -1,6 +1,6 @@
 ---
 # The entry point for remote sites' logs, and the sibling of
-# prometheus-remotewrite-ingressroute.yaml — read that file for why this is
+# metrics-ingest-ingressroute.yaml — read that file for why this is
 # path-scoped, why the match is on a hostname rather than this Traefik's
 # LoadBalancer IP, and why it is unauthenticated. Every word of it applies
 # here, including the hostAlias that keeps the resolver out of the path.
@@ -9,19 +9,19 @@
 # records and system-log entries go to Loki, which stays at Akron. Only
 # /loki/api/v1/push is published; Loki's query API is not.
 #
-# Its one client is a remote site's alloy-metrics, never an application: apps
+# Its one client is a remote site's collector, never an application: apps
 # push to the collector beside them and it pushes here, so each site has a
 # single process crossing the VPN and a single disk buffer in front of it.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: loki-push
+  name: logs-ingest
   namespace: monitoring
 spec:
   entryPoints:
     - websecure
   routes:
-    - match: Host(`loki.${SITE_DOMAIN}`) && PathPrefix(`/loki/api/v1/push`)
+    - match: Host(`logs.${SITE_DOMAIN}`) && PathPrefix(`/loki/api/v1/push`)
       kind: Rule
       services:
         - name: loki
