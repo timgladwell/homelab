@@ -110,11 +110,22 @@ for doc in docs:
     if not entry:
         continue
     name, key, flags = entry
-    (outdir / f"{name}.alloy").write_text(doc["data"][key])
+    # key "." is the chart's `run /etc/alloy/.`: Alloy loads every *.alloy key
+    # as one configuration, so the assembled directory is what gets validated
+    # (ADR 0003: a receiver's file isn't valid on its own).
+    files = ({k: v for k, v in doc["data"].items() if k.endswith(".alloy")}
+             if key == "." else {"config.alloy": doc["data"][key]})
+    if not files:
+        sys.exit(f"ERROR: {name} loads ConfigMap {doc['metadata']['name']} as a "
+                 "directory, but it has no *.alloy keys.")
     (outdir / f"{name}.args").write_text(" ".join(flags))
-    if flags and flags[-1] == "--stability.level=experimental":
-        (outdir / "ga").mkdir(exist_ok=True)
-        (outdir / "ga" / f"{name}.alloy").write_text(strip_wal(doc["data"][key]))
+    ga = flags and flags[-1] == "--stability.level=experimental"
+    for k, v in files.items():
+        (outdir / name).mkdir(exist_ok=True)
+        (outdir / name / k).write_text(v)
+        if ga:
+            (outdir / "ga" / name).mkdir(parents=True, exist_ok=True)
+            (outdir / "ga" / name / k).write_text(strip_wal(v))
 
 # A release pointing at a ConfigMap nothing generates would otherwise vanish
 # from this step silently, and CrashLoop on the cluster.
@@ -122,10 +133,10 @@ if releases:
     sys.exit("ERROR: no ConfigMap in the built output for: " + ", ".join(releases))
 PY
 
-    for config in "$WORK/$site"/*.alloy; do
-        [[ -f "$config" ]] || continue
+    for config in "$WORK/$site"/*/; do
+        name="$(basename "$config")"
+        [[ -d "$config" && "$name" != ga ]] || continue
         checked=$((checked + 1))
-        name="$(basename "$config" .alloy)"
         # `read` returns non-zero on a final line with no newline, having
         # populated the array — so this must not treat that as failure.
         args=()
@@ -136,8 +147,8 @@ PY
             echo "✗ $name"
             fail=1
         fi
-        stripped="$WORK/$site/ga/$name.alloy"
-        [[ -f "$stripped" ]] || continue
+        stripped="$WORK/$site/ga/$name"
+        [[ -d "$stripped" ]] || continue
         if alloy validate "$stripped"; then
             echo "✓ $name without its wal blocks, at generally-available"
         else
