@@ -39,6 +39,6 @@ spec:
     - match: Host(`metrics.${SITE_DOMAIN}`) && PathPrefix(`/api/v1/write`)
       kind: Rule
       services:
-        - name: kube-prometheus-stack-prometheus
+        - name: metrics-ingest
           port: 9090
   tls: {}

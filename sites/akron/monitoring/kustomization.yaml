@@ -9,9 +9,11 @@ resources:
   - kube-prometheus-stack.yaml
   - grafana-secret.sops.yaml
   - grafana-ingressroute.yaml
+  - metrics-ingest-service.yaml
   - metrics-ingest-ingressroute.yaml
   - loki.yaml
   - alloy.yaml
+  - logs-ingest-service.yaml
   - logs-ingest-ingressroute.yaml
   - alloy-syslog-service.yaml
   - ./dashboards

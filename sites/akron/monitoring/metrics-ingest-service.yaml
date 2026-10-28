@@ -1,0 +1,33 @@
+---
+# Akron's metrics ingest point inside the cluster: what the collector at this
+# site writes to (METRICS_INGEST_URL in clusters/akron/cluster-vars.yaml) and
+# what metrics-ingest-ingressroute.yaml routes remote sites to.
+#
+# Ours rather than the chart's kube-prometheus-stack-prometheus, so the
+# collector's URL and the route name a function, not a chart. The selector is
+# copied from the chart's own Prometheus Service, and it is the one place that
+# knows which chart serves metrics. Replacing the chart means changing this
+# selector. A selector that matches nothing fails silently: remote write gets
+# connection refused, and the collector buffers to its WAL until the window in
+# ADR 0003 runs out.
+#
+# 9090 serves Prometheus's query API as well as /api/v1/write. A Service can't
+# scope paths, so in-cluster callers can query through it, exactly as through
+# the chart's Service. The IngressRoute is what keeps the LAN to the write path.
+apiVersion: v1
+kind: Service
+metadata:
+  name: metrics-ingest
+  namespace: monitoring
+  annotations:
+    # The pods are created by the Prometheus operator, not by a manifest here.
+    kube-score/ignore: service-targets-pod
+spec:
+  selector:
+    app.kubernetes.io/name: prometheus
+    operator.prometheus.io/name: kube-prometheus-stack-prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090
+      protocol: TCP

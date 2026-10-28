@@ -24,6 +24,6 @@ spec:
     - match: Host(`logs.${SITE_DOMAIN}`) && PathPrefix(`/loki/api/v1/push`)
       kind: Rule
       services:
-        - name: loki
+        - name: logs-ingest
           port: 3100
   tls: {}

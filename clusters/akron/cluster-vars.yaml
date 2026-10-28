@@ -37,10 +37,12 @@ data:
   # as everywhere else but writes to the Prometheus and Loki sitting next to
   # it, rather than leaving the cluster to come back in through its own
   # ingress — fewer moving parts in the path, and it keeps working while
-  # Traefik or the certificate is broken.
+  # Traefik or the certificate is broken. The hosts are Akron's own ingest
+  # Services (sites/akron/monitoring/{metrics,logs}-ingest-service.yaml), not
+  # the charts', so nothing here names the chart that stores the data.
   #
   # This works because network-vars is substituted first and cluster-vars
   # second. Deleting these two lines would not break the build; it would
   # silently route Akron's own telemetry out through Traefik.
-  METRICS_INGEST_URL: "http://kube-prometheus-stack-prometheus.monitoring:9090/api/v1/write"
-  LOGS_INGEST_URL: "http://loki.monitoring:3100/loki/api/v1/push"
+  METRICS_INGEST_URL: "http://metrics-ingest.monitoring:9090/api/v1/write"
+  LOGS_INGEST_URL: "http://logs-ingest.monitoring:3100/loki/api/v1/push"
