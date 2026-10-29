@@ -48,9 +48,12 @@ so an app needs an `IngressRoute` and no DNS record at all. Anything *not*
 behind Traefik needs an explicit override, or the wildcard swallows it and SSH
 lands on the ingress controller.
 
-The two every site has — the node and the gateway — are in
-`base/dns/dnsmasq-base.conf`, because both records are entirely variables
-(`${NODE_IP}`, `${LAN_GATEWAY}`) and a new site gets them by defining those.
+The ones every site has (the node, the gateway and the syslog address) are in
+`base/dns/dnsmasq-base.conf`, because the records are entirely variables
+(`${NODE_IP}`, `${LAN_GATEWAY}`, `${METALLB_SYSLOG_IP}`) and a new site gets them
+by defining those. Another site's syslog name needs a record in each
+`site.conf`, because that site's subtree is forwarded to its Traefik by
+wildcard; the addresses are `AKRON_SYSLOG_IP` and `EASTBANK_SYSLOG_IP`.
 Anything else, such as a Service with its own MetalLB IP, is site-specific and
 goes in `sites/<site>/infrastructure/site.conf`.
 
@@ -267,7 +270,7 @@ configuration, and a new controller needs a rule there.
 | Akron's logs ingest | `logs.akron.internal.zerpzorp.com` | `loki.akron…` |
 | Each site's collector push hostname (OTLP, Loki push) | `collector.<site>.internal.zerpzorp.com` | — (new) |
 | The same, [site-local](#site-local-names), for mobile senders | `collector.internal.zerpzorp.com` | — (new; no record needed, the per-site answer and the certificate already cover it) |
-| Each site's syslog address | `syslog.<site>.internal.zerpzorp.com`, `METALLB_SYSLOG_IP` | Akron's only `syslog.akron…` |
+| Each site's syslog address | `syslog.<site>.internal.zerpzorp.com`, `METALLB_SYSLOG_IP`; another site's is `<SITE>_SYSLOG_IP` | Akron's only `syslog.akron…` |
 | Variables for the ingest URLs | `METRICS_INGEST_URL`, `LOGS_INGEST_URL` | `PROMETHEUS_REMOTE_WRITE_URL`, `LOKI_PUSH_URL` |
 
 `collector.` is what senders push to, and `metrics.` and `logs.` are what
