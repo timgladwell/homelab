@@ -5,7 +5,18 @@
 #
 # Headroom above the sum of requests is deliberate: a Deployment's rolling
 # update briefly runs old and new pods together, and a quota sized to exactly
-# fit steady state fails that rollout. Akron learned this the hard way.
+# fit steady state fails that rollout. Akron learned this the hard way, and
+# Eastbank did again when the node log reader arrived (#558): Unpoller's next
+# rollout was refused, and the monitoring Kustomization hung on it (#561).
+#
+# Sizing (2026-10-29): steady state is collector 306Mi (with its config
+# reloader), node-log-reader 178Mi, unpoller 128Mi, kube-state-metrics 64Mi
+# and node-exporter 32Mi of memory requests, 708Mi in all. Only the
+# Deployments surge on a rollout (the StatefulSet and DaemonSets replace in
+# place), and the largest is Unpoller, so a rollout needs 836Mi of requests,
+# 1928Mi of limits and 410m of CPU requests. Any workload added here, or any
+# request raised, means redoing this sum (docs/runbooks/memory-sizing.md,
+# step 5).
 apiVersion: v1
 kind: ResourceQuota
 metadata:
@@ -14,6 +25,6 @@ metadata:
 spec:
   hard:
     requests.cpu: 500m
-    requests.memory: 768Mi
+    requests.memory: 1Gi
     limits.cpu: "2"
-    limits.memory: 2Gi
+    limits.memory: 2560Mi
