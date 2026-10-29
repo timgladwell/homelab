@@ -271,6 +271,7 @@ configuration, and a new controller needs a rule there.
 | Each site's collector push hostname (OTLP, Loki push) | `collector.<site>.internal.zerpzorp.com` | — (new) |
 | The same, [site-local](#site-local-names), for mobile senders | `collector.internal.zerpzorp.com` | — (new; no record needed, the per-site answer and the certificate already cover it) |
 | Each site's syslog address | `syslog.<site>.internal.zerpzorp.com`, `METALLB_SYSLOG_IP`; another site's is `<SITE>_SYSLOG_IP` | Akron's only `syslog.akron…` |
+| The same, [site-local](#site-local-names) | `syslog.internal.zerpzorp.com` | — (new; unlike `collector.`, it needs a record, because the wildcard's answer is Traefik) |
 | Variables for the ingest URLs | `METRICS_INGEST_URL`, `LOGS_INGEST_URL` | `PROMETHEUS_REMOTE_WRITE_URL`, `LOKI_PUSH_URL` |
 
 `collector.` is what senders push to, and `metrics.` and `logs.` are what
