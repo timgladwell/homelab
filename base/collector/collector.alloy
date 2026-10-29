@@ -165,281 +165,209 @@ discovery.kubernetes "endpoints" {
 }
 
 // ---------------------------------------------------------------
-// Host metrics
+// Every pod's metrics, collected by default (ADR 0003). Every metric a
+// target serves is kept; tuning is dropping what measurement shows isn't
+// useful, each with a DROP tag, never listing what to keep.
+//
+// Finding the targets is a separate question, answered two ways:
+//
+// - By default, a container port whose name is one of the common
+//   conventions: metrics, http-metrics, http-prom (Flux), metricshttps
+//   (MetalLB, behind kube-rbac-proxy). That needs no per-workload setup.
+// - A straggler, whose port is named anything else, is declared with
+//   the prometheus.io/scrape, prometheus.io/port and optional
+//   prometheus.io/path pod annotations.
+//
+// Don't widen the name list to catch a straggler: a looser pattern
+// starts catching ports that aren't metrics. Add a name only when it is
+// a convention many charts share. Anything kube-prometheus-stack's own
+// ServiceMonitors already scrape at Akron (Grafana, Prometheus,
+// Alertmanager, the operator) must not be annotated, or it is collected
+// twice.
+//
+// job is the pod's app.kubernetes.io/name, else its `app` label, else
+// the container name; instance is the pod name. The exceptions below
+// keep the job and instance the dashboards already select on. Unpoller
+// names its port `tcp`, so its site's own stanza is the only one that
+// scrapes it (sites/eastbank/monitoring/unpoller/unpoller.alloy).
+//
+// Useful collector series: prometheus_remote_storage_samples_pending,
+// prometheus_remote_storage_samples_failed_total and
+// go_memstats_heap_inuse_bytes. The collector's failure hides every
+// other signal, so it must not be the one component nobody watches.
 // ---------------------------------------------------------------
-discovery.relabel "node_exporter" {
+discovery.relabel "named_metrics_ports" {
+  targets = discovery.kubernetes.pods.targets
+
+  // kube-state-metrics serves the cluster's object state on `http`, and
+  // only its own telemetry on `metrics`. This regex is repeated in
+  // annotated_metrics_ports, so no port is collected by both.
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_container_port_name"]
+    regex         = "kube-state-metrics;http|[^;]*;(metrics|http-metrics|http-prom|metricshttps)"
+    action        = "keep"
+  }
+}
+
+// shortcut: the annotated port must be declared in the pod spec, and is
+// scraped over plain HTTP. Read prometheus.io/scheme, or rewrite
+// __address__ from the annotation, when a straggler needs either.
+discovery.relabel "annotated_metrics_ports" {
   targets = discovery.kubernetes.pods.targets
 
   rule {
-    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
-    regex         = "prometheus-node-exporter"
-    action        = "keep"
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_container_port_name"]
+    regex         = "kube-state-metrics;http|[^;]*;(metrics|http-metrics|http-prom|metricshttps)"
+    action        = "drop"
   }
 
   rule {
-    source_labels = ["__meta_kubernetes_pod_container_port_name"]
-    regex         = "metrics"
+    source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+    regex         = "true"
     action        = "keep"
   }
 
-  // Node name, not pod IP — matches what Akron's ServiceMonitor used
-  // to produce, so the node-exporter-full dashboard keeps working.
+  // One target per declared port, so keep only the annotated one.
   rule {
-    source_labels = ["__meta_kubernetes_pod_node_name"]
-    target_label  = "instance"
+    source_labels = ["__meta_kubernetes_pod_container_port_number"]
+    target_label  = "__meta_kubernetes_pod_annotation_prometheus_io_port"
+    action        = "keepequal"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+    regex         = "(.+)"
+    target_label  = "__metrics_path__"
   }
 }
 
-prometheus.scrape "node_exporter" {
-  targets         = discovery.relabel.node_exporter.output
-  forward_to      = [prometheus.remote_write.default.receiver]
-  job_name        = "node-exporter"
-  scrape_interval = "60s"
-}
+discovery.relabel "pod_metrics" {
+  targets = array.concat(discovery.relabel.named_metrics_ports.output, discovery.relabel.annotated_metrics_ports.output)
 
-// ---------------------------------------------------------------
-// Cluster object state
-// ---------------------------------------------------------------
-discovery.relabel "kube_state_metrics" {
-  targets = discovery.kubernetes.pods.targets
-
+  // A completed Job's pod keeps its ports but serves nothing.
   rule {
-    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
-    regex         = "kube-state-metrics"
-    action        = "keep"
+    source_labels = ["__meta_kubernetes_pod_phase"]
+    regex         = "Succeeded|Failed"
+    action        = "drop"
   }
 
+  // Lowest precedence first: each later rule overwrites only if its
+  // label is set.
   rule {
-    source_labels = ["__meta_kubernetes_pod_container_port_name"]
-    regex         = "http"
-    action        = "keep"
-  }
-
-  rule {
-    target_label = "instance"
-    replacement  = "kube-state-metrics"
-  }
-}
-
-prometheus.scrape "kube_state_metrics" {
-  targets         = discovery.relabel.kube_state_metrics.output
-  forward_to      = [prometheus.remote_write.default.receiver]
-  job_name        = "kube-state-metrics"
-  scrape_interval = "60s"
-}
-
-// ---------------------------------------------------------------
-// k3s CoreDNS. Previously scraped only at Akron, by a Service and
-// ServiceMonitor kube-prometheus-stack created in kube-system — the one
-// piece of chart-side collection that outlived the move to this file.
-// Scraping it here covers every site and puts no objects in a namespace
-// k3s owns.
-// ---------------------------------------------------------------
-discovery.relabel "coredns" {
-  targets = discovery.kubernetes.pods.targets
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_label_k8s_app"]
-    regex         = "kube-dns"
-    action        = "keep"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_container_port_name"]
-    regex         = "metrics"
-    action        = "keep"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_name"]
-    target_label  = "instance"
-  }
-}
-
-prometheus.scrape "coredns" {
-  targets         = discovery.relabel.coredns.output
-  forward_to      = [prometheus.remote_write.default.receiver]
-  job_name        = "coredns"
-  scrape_interval = "60s"
-}
-
-// ---------------------------------------------------------------
-// Unbound. The exporter sidecar already runs at every site as part of
-// base/dns; before this component existed, only Akron scraped it.
-// ---------------------------------------------------------------
-discovery.relabel "unbound" {
-  targets = discovery.kubernetes.pods.targets
-
-  rule {
-    source_labels = ["__meta_kubernetes_namespace"]
-    regex         = "dns"
-    action        = "keep"
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label  = "job"
   }
 
   rule {
     source_labels = ["__meta_kubernetes_pod_label_app"]
-    regex         = "unbound"
-    action        = "keep"
+    regex         = "(.+)"
+    target_label  = "job"
   }
 
   rule {
-    source_labels = ["__meta_kubernetes_pod_container_port_name"]
-    regex         = "metrics"
-    action        = "keep"
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    regex         = "(.+)"
+    target_label  = "job"
   }
 
   rule {
-    target_label = "instance"
-    replacement  = "unbound"
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "instance"
   }
-}
 
-prometheus.scrape "unbound" {
-  targets         = discovery.relabel.unbound.output
-  forward_to      = [prometheus.remote_write.default.receiver]
-  job_name        = "unbound"
-  scrape_interval = "60s"
-}
+  // Node name, not pod name, so the node-exporter-full dashboard keeps
+  // working across pod restarts.
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    regex         = "prometheus-node-exporter"
+    target_label  = "job"
+    replacement   = "node-exporter"
+  }
 
-// ---------------------------------------------------------------
-// cert-manager. Added because its absence blocked a diagnosis: the
-// webhook at Akron was restarting every ten minutes with a heap that
-// grew monotonically while it logged nothing, and the leak that
-// implies could not be confirmed without go_goroutines or
-// go_memstats_heap_inuse_bytes. The numbers available instead came
-// from cAdvisor, which sees a container's memory but nothing about
-// what is in it. See #323.
-//
-// Scraping here is an allowlist — a target with no stanza is not
-// collected anywhere — so this was never dropped from a general
-// mechanism, it simply had none. All three Deployments serve
-// http-metrics on 9402, and only the webhook has other named ports,
-// so keeping on the port name is enough to get exactly one target
-// each.
-//
-// instance is the component rather than the pod, because these are
-// three distinct programs and a pod name would make a restart look
-// like a new series. cert-manager also emits certmanager_* metrics
-// (certificate_expiration_timestamp_seconds, and the ready-status
-// gauge) which are the basis of any future expiry alert.
-// ---------------------------------------------------------------
-discovery.relabel "cert_manager" {
-  targets = discovery.kubernetes.pods.targets
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_node_name"]
+    regex         = "prometheus-node-exporter;(.+)"
+    target_label  = "instance"
+  }
 
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_container_port_name"]
+    regex         = "kube-state-metrics;http"
+    target_label  = "instance"
+    replacement   = "kube-state-metrics"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_label_app"]
+    regex         = "dns;unbound"
+    target_label  = "instance"
+    replacement   = "unbound"
+  }
+
+  // cert-manager is three programs under one job. instance is the
+  // component, because a pod name would make a restart look like a new
+  // series (#323).
   rule {
     source_labels = ["__meta_kubernetes_namespace"]
     regex         = "cert-manager"
-    action        = "keep"
+    target_label  = "job"
+    replacement   = "cert-manager"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_label_app_kubernetes_io_component"]
+    regex         = "cert-manager;(.+)"
+    target_label  = "instance"
   }
 
   rule {
     source_labels = ["__meta_kubernetes_pod_container_port_name"]
-    regex         = "http-metrics"
-    action        = "keep"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_component"]
-    target_label  = "instance"
+    regex         = "metricshttps"
+    target_label  = "__scheme__"
+    replacement   = "https"
   }
 }
 
-prometheus.scrape "cert_manager" {
-  targets         = discovery.relabel.cert_manager.output
+// Split by scheme so the ServiceAccount token goes only to HTTPS
+// endpoints that ask for it, never in plaintext to every pod.
+discovery.relabel "pod_metrics_http" {
+  targets = discovery.relabel.pod_metrics.output
+
+  rule {
+    source_labels = ["__scheme__"]
+    regex         = "https"
+    action        = "drop"
+  }
+}
+
+discovery.relabel "pod_metrics_https" {
+  targets = discovery.relabel.pod_metrics.output
+
+  rule {
+    source_labels = ["__scheme__"]
+    regex         = "https"
+    action        = "keep"
+  }
+}
+
+prometheus.scrape "pods" {
+  targets         = discovery.relabel.pod_metrics_http.output
   forward_to      = [prometheus.remote_write.default.receiver]
-  job_name        = "cert-manager"
   scrape_interval = "60s"
 }
 
-// ---------------------------------------------------------------
-// Loki. Runs only at Akron, so this finds nothing elsewhere. Without it the log store is the one storage layer
-// with no visibility: ingest rate, discarded entries by reason
-// (loki_discarded_samples_total, which #517's outage test
-// reads) and chunk bytes stored, which is how its PVC is sized.
-//
-// Monolithic mode serves the API and /metrics on one port; grpc and
-// memberlist are the pod's other named ports.
-// ---------------------------------------------------------------
-discovery.relabel "loki" {
-  targets = discovery.kubernetes.pods.targets
+// MetalLB's kube-rbac-proxy accepts the collector's token, and serves a
+// self-signed certificate.
+prometheus.scrape "pods_https" {
+  targets           = discovery.relabel.pod_metrics_https.output
+  forward_to        = [prometheus.remote_write.default.receiver]
+  scrape_interval   = "60s"
+  scheme            = "https"
+  bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
-  rule {
-    source_labels = ["__meta_kubernetes_namespace"]
-    regex         = "monitoring"
-    action        = "keep"
+  tls_config {
+    insecure_skip_verify = true
   }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
-    regex         = "loki"
-    action        = "keep"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_container_port_name"]
-    regex         = "http-metrics"
-    action        = "keep"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_name"]
-    target_label  = "instance"
-  }
-}
-
-prometheus.scrape "loki" {
-  targets         = discovery.relabel.loki.output
-  forward_to      = [prometheus.remote_write.default.receiver]
-  job_name        = "loki"
-  scrape_interval = "60s"
-}
-
-// ---------------------------------------------------------------
-// The collector itself. Without this there is no way to see WAL
-// depth, remote-write failure rates, or how close the process is to
-// its memory ceiling — the collector is the one component whose
-// failure hides every other signal, so it must not be the one
-// component nobody watches. Also picks up the log-collecting Alloy
-// DaemonSet at sites that run one; both share the chart's app name.
-//
-// Useful series once this lands:
-//   prometheus_remote_storage_samples_pending
-//   prometheus_remote_storage_samples_failed_total
-//   prometheus_remote_storage_highest_timestamp_in_seconds
-//   go_memstats_heap_inuse_bytes
-// ---------------------------------------------------------------
-discovery.relabel "alloy" {
-  targets = discovery.kubernetes.pods.targets
-
-  rule {
-    source_labels = ["__meta_kubernetes_namespace"]
-    regex         = "monitoring"
-    action        = "keep"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
-    regex         = "alloy"
-    action        = "keep"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_container_port_name"]
-    regex         = "http-metrics"
-    action        = "keep"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_name"]
-    target_label  = "instance"
-  }
-}
-
-prometheus.scrape "alloy" {
-  targets         = discovery.relabel.alloy.output
-  forward_to      = [prometheus.remote_write.default.receiver]
-  job_name        = "alloy"
-  scrape_interval = "60s"
 }
 
 // ---------------------------------------------------------------

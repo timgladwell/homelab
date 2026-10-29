@@ -31,12 +31,15 @@ deploys. This is the research before that change and the check after it.
    drop by label to the workload measured to need it, not repo-wide. If the
    noisy request can be prevented instead (a favicon 404 fixed with an inline
    icon), do that.
-3. **A new component also needs a scrape pair.** Collection is still an
-   allowlist (#516), so a component is collected only if
-   `base/collector/collector.alloy` has a `discovery.relabel` and
-   `prometheus.scrape` pair for it. Add one in the pattern of `cert_manager`:
-   keep by namespace and metrics port name, and set any labels the component
-   needs.
+3. **Check that its metrics port is found.** The collector scrapes a pod's
+   port if its name is one of the common conventions in `discovery.relabel
+   "named_metrics_ports"` in `base/collector/collector.alloy`. That file's
+   comment explains how targets are found and how `job` and `instance` are
+   derived. A port named anything else is a straggler: set the
+   `prometheus.io/scrape`, `prometheus.io/port` and, if needed,
+   `prometheus.io/path` annotations on its pod, rather than widening the name
+   list. If a dashboard needs a different `job` or `instance`, add a rule
+   beside the existing exceptions.
 
 ## Post-checks
 

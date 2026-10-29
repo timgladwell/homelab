@@ -97,7 +97,7 @@ Back it with a conftest policy asserting the merged key exists
 
 **Collecting its signals:** the steps in
 [Planning a Workload's Observability](workload-observability.md#steps),
-including its scrape pair.
+including its metrics port name.
 
 **A web UI:** an `IngressRoute` in the pattern of
 `base/traefik-routes/pihole-ingressroute.yaml` is the whole job — TLS and DNS
