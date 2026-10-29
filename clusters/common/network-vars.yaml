@@ -33,6 +33,11 @@ data:
   # and are what a *different* site dials.
   AKRON_TRAEFIK_IP: "10.6.1.80"
   EASTBANK_TRAEFIK_IP: "10.4.1.80"
+  # Each site's syslog address, for the other site's PiHole to answer
+  # syslog.<site>. The same relationship to METALLB_SYSLOG_IP as the Traefik
+  # IPs above have to METALLB_TRAEFIK_IP.
+  AKRON_SYSLOG_IP: "10.6.1.81"
+  EASTBANK_SYSLOG_IP: "10.4.1.81"
   # Each site's own subtree, as named by the others. Same relationship to
   # SITE_DOMAIN that the IPs above have to METALLB_TRAEFIK_IP: SITE_DOMAIN is
   # "my subtree", this is "Akron's subtree" and is what another site writes.
