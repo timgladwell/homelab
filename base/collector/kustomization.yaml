@@ -11,6 +11,7 @@ resources:
   - kube-state-metrics.yaml
   - collector.yaml
   - node-log-reader.yaml
+  - collector-ingressroute.yaml
 
 # Each release's river config, as a real file. disableNameSuffixHash is
 # required: kustomize's nameReference transformer does not know about

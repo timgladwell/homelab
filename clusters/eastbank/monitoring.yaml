@@ -1,11 +1,11 @@
 ---
-# Metrics collection only — Eastbank ships to Akron's Prometheus rather than
+# Collection only: Eastbank ships to Akron's Prometheus and Loki rather than
 # running its own, because it boots from an SD card and a Prometheus TSDB would
 # wear it out. See base/collector/.
 #
 # dependsOn infrastructure so the DNS pods (and their unbound-exporter sidecar)
-# exist before the collector goes looking for them. Nothing here needs a CRD
-# beyond Flux's own.
+# exist before the collector goes looking for them, and so Traefik's
+# IngressRoute CRD exists before the collector's route applies.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

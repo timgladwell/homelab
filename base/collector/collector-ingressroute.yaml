@@ -1,0 +1,39 @@
+---
+# The site collector's LAN ingest point (ADR 0003, *The site collector*):
+# devices on this site's LAN push OTLP here, over HTTPS, and reach the same
+# receiver the cluster reaches on the collector Service.
+#
+# OTLP only, for now. ADR 0003 also lists Loki push on the LAN, but nothing on
+# a LAN sends it: the UDRs speak syslog (#515), and every Loki sender is in the
+# cluster, using the collector Service. A second route, `/loki/api/v1/push` to
+# the collector's port 3100, adds it when a LAN sender needs it (#514).
+#
+# Two names, one router. collector.${SITE_DOMAIN} is this site explicitly.
+# collector.${BASE_DOMAIN} is the site-local name: every site's PiHole answers
+# it with its own Traefik, which is how a mobile sender reaches the site it is
+# at without knowing which one that is. Neither needs a DNS record (the
+# wildcards answer), and the wildcard certificate covers both.
+#
+# Path-scoped, so only the push APIs are published: the collector's UI and
+# /metrics on :12345 stay off the LAN. Unauthenticated, like the storage ingest
+# routes at Akron; reachable only from the LAN and the VPN (ADR 0003, *Ingest is
+# internal only*).
+#
+# `Host(a) || Host(b)`, never `Host(a, b)`: see base/landing/ingressroute.yaml.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: collector
+  namespace: monitoring
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: >-
+        (Host(`collector.${SITE_DOMAIN}`) || Host(`collector.${BASE_DOMAIN}`))
+        && (Path(`/v1/logs`) || Path(`/v1/metrics`))
+      kind: Rule
+      services:
+        - name: collector
+          port: 4318
+  tls: {}

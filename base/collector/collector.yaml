@@ -175,6 +175,13 @@ spec:
           port: 3100
           targetPort: 3100
           protocol: TCP
+        # OTLP over HTTP (otelcol.receiver.otlp in collector.alloy). No gRPC:
+        # every sender planned for here speaks HTTP, and HTTP is what Traefik
+        # routes by path.
+        - name: otlp-http
+          port: 4318
+          targetPort: 4318
+          protocol: TCP
 
       # The config lives beside this file as collector.alloy, generated
       # into a ConfigMap by kustomize. A real .alloy file is what `alloy
