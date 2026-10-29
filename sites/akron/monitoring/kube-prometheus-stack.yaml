@@ -26,6 +26,12 @@ spec:
         namespace: monitoring
       interval: 12h
   values:
+    # Prometheus stores every site, so a default rule aggregating without
+    # `site` merges them: cluster:node_cpu:ratio_rate5m was one number for
+    # Akron and Eastbank together.
+    defaultRules:
+      additionalAggregationLabels: [site]
+
     grafana:
       enabled: true
       adminPassword: ""
@@ -153,6 +159,20 @@ spec:
       prometheusSpec:
         scrapeInterval: 60s
         evaluationInterval: 60s
+        # Everything Prometheus scrapes itself, through this chart's own
+        # ServiceMonitors (Grafana, Prometheus, Alertmanager, the operator),
+        # gets this site's label, as every signal through the collector does
+        # (ADR 0003). The default class applies to every ServiceMonitor and
+        # PodMonitor without naming them, so a new one needs nothing here.
+        # These stay with the chart rather than moving to the collector:
+        # they're the chart's own integration (ADR 0005), and its default
+        # rules select on the job names they produce.
+        scrapeClasses:
+          - name: site
+            default: true
+            relabelings:
+              - targetLabel: site
+                replacement: ${SITE_NAME}
         # Kept aligned with Loki's `retention_period` in loki.yaml. Metrics are
         # usually what tells you where in the logs to dig, so a window where
         # one has data and the other does not is the window where that stops
