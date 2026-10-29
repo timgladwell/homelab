@@ -1,0 +1,187 @@
+// Eastbank's Unpoller, collected by this site's collector. Kustomize merges
+// this file into the collector's ConfigMap (kustomization.yaml), and the
+// collector loads its configuration as a directory, so it joins
+// base/collector/collector.alloy without editing it (ADR 0003, *Sites opt into
+// receivers*). It lives here, beside up.conf, because only Eastbank runs
+// Unpoller (#120) and the controller map below is site knowledge base/ must
+// not hold.
+//
+// Unpoller polls every site's UniFi controller, so what it reports describes
+// a network that is often not Eastbank's. `site` stays the ingest point's
+// (eastbank); the network a signal describes is `network_site`, set by the
+// same rules for metrics and logs. The UniFi dashboards select on it.
+
+// ---------------------------------------------------------------
+// Metrics. A PodMonitor isn't an option: the Prometheus operator that
+// would honour it only exists at Akron, which is not where Unpoller runs.
+// ---------------------------------------------------------------
+discovery.relabel "unpoller" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    regex         = "monitoring"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+    regex         = "unpoller"
+    action        = "keep"
+  }
+
+  // The container declares TCP and UDP on the same port number, so
+  // discovery returns two identical targets without this.
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_port_name"]
+    regex         = "tcp"
+    action        = "keep"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "unpoller"
+  }
+}
+
+prometheus.scrape "unpoller" {
+  targets         = discovery.relabel.unpoller.output
+  forward_to      = [prometheus.relabel.unpoller.receiver]
+  job_name        = "unpoller"
+  scrape_interval = "60s"
+}
+
+prometheus.relabel "unpoller" {
+  forward_to = [prometheus.remote_write.default.receiver]
+
+  // Unpoller's own site label becomes network_site: the network a signal
+  // describes, not the site that collected it (naming convention, *Labels*).
+  rule {
+    source_labels = ["site_name"]
+    regex         = "(.+)"
+    target_label  = "network_site"
+  }
+
+  // Since Unpoller v5, every unpoller_wan_* series says "Default (default)"
+  // whatever the controller, and Protect logs carry no site at all. Both
+  // carry `source`, the controller's URL, which is the map below.
+  rule {
+    source_labels = ["network_site"]
+    regex         = "Default \\(default\\)"
+    target_label  = "network_site"
+    replacement   = ""
+  }
+
+  // One rule per controller in secret.sops.yaml. Adding a controller means
+  // adding a rule here; without one, its WAN series and Protect logs arrive
+  // with no network_site. The addresses are each site's LAN_GATEWAY.
+  rule {
+    source_labels = ["network_site", "source"]
+    regex         = ";https://10\\.6\\.1\\.1"
+    target_label  = "network_site"
+    replacement   = "akron"
+  }
+
+  rule {
+    source_labels = ["network_site", "source"]
+    regex         = ";https://10\\.4\\.1\\.1"
+    target_label  = "network_site"
+    replacement   = "eastbank"
+  }
+
+  rule {
+    source_labels = ["network_site", "source"]
+    regex         = ";https://10\\.2\\.1\\.1"
+    target_label  = "network_site"
+    replacement   = "lottage"
+  }
+
+  // Values are lowercase (ADR 0003, *Appendix: naming conventions*).
+  rule {
+    source_labels = ["network_site"]
+    target_label  = "network_site"
+    action        = "lowercase"
+  }
+
+  rule {
+    regex  = "site_name"
+    action = "labeldrop"
+  }
+}
+
+// ---------------------------------------------------------------
+// Logs. Unpoller pushes its events, system log and Protect logs to this
+// listener rather than the shared one on :3100, so the same rules reach its
+// logs (up.conf). The port is added to the collector's Service by
+// kustomization.yaml. Logs then join the base push stage, which sets `site`.
+// ---------------------------------------------------------------
+loki.source.api "unpoller" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3101
+  }
+
+  // Keep Unpoller's own event times; see loki.source.api "push" in
+  // base/collector/collector.alloy.
+  use_incoming_timestamp = true
+
+  forward_to = [loki.relabel.unpoller.receiver]
+}
+
+loki.relabel "unpoller" {
+  forward_to = [loki.relabel.push.receiver]
+
+  // Unpoller's own site label becomes network_site: the network a signal
+  // describes, not the site that collected it (naming convention, *Labels*).
+  rule {
+    source_labels = ["site_name"]
+    regex         = "(.+)"
+    target_label  = "network_site"
+  }
+
+  // Since Unpoller v5, every unpoller_wan_* series says "Default (default)"
+  // whatever the controller, and Protect logs carry no site at all. Both
+  // carry `source`, the controller's URL, which is the map below.
+  rule {
+    source_labels = ["network_site"]
+    regex         = "Default \\(default\\)"
+    target_label  = "network_site"
+    replacement   = ""
+  }
+
+  // One rule per controller in secret.sops.yaml. Adding a controller means
+  // adding a rule here; without one, its WAN series and Protect logs arrive
+  // with no network_site. The addresses are each site's LAN_GATEWAY.
+  rule {
+    source_labels = ["network_site", "source"]
+    regex         = ";https://10\\.6\\.1\\.1"
+    target_label  = "network_site"
+    replacement   = "akron"
+  }
+
+  rule {
+    source_labels = ["network_site", "source"]
+    regex         = ";https://10\\.4\\.1\\.1"
+    target_label  = "network_site"
+    replacement   = "eastbank"
+  }
+
+  rule {
+    source_labels = ["network_site", "source"]
+    regex         = ";https://10\\.2\\.1\\.1"
+    target_label  = "network_site"
+    replacement   = "lottage"
+  }
+
+  // Values are lowercase (ADR 0003, *Appendix: naming conventions*).
+  rule {
+    source_labels = ["network_site"]
+    target_label  = "network_site"
+    action        = "lowercase"
+  }
+
+  rule {
+    regex  = "site_name"
+    action = "labeldrop"
+  }
+}

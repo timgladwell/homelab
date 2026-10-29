@@ -193,7 +193,8 @@ is noise (rule 5 — there is no sibling to disambiguate from).
 
 **Deployed in part.** Akron's ingest endpoints, their variables, each site's
 collector push hostnames, the forwarder's release, volume claim and ConfigMap,
-the node log reader, and the `pod-logs` stream are live. Everything else here
+the node log reader, the `pod-logs` stream, and `network_site` on Unpoller's
+signals are live. Everything else here
 is a target name that #514 and #515 apply, and this project is the deliberate
 exception to "do not mass-rename". Each name
 says what the thing does, not which vendor runs it, and has to stay true with a
@@ -228,11 +229,11 @@ cluster node a log came from, where that applies.
   stamped `lottage` by the Lottage-only ingest points it sends to (ADR 0003).
 - **The network the data *describes* is a separate fact, `network_site`.**
   Unpoller at Eastbank polling Akron's controller sends `site="eastbank"`,
-  `network_site="akron"`. Unpoller's `site_name` and UniFi CEF's `Site` are
-  both renamed to `network_site` at collection, so one label names what was
-  polled or reported on. Having both `site` and `site_name` in storage is
-  confusing, so Unpoller's dashboards are translated to the new name in the
-  same PR that renames it.
+  `network_site="akron"`. Unpoller's `site_name` is renamed to `network_site`
+  at collection, metrics and logs alike, and the UniFi dashboards select on
+  it. UniFi CEF's `Site` gets the same treatment when #515 brings that stream
+  back. Data from before the rename carries only `site_name`, so the
+  dashboards show nothing for it.
 - **Values are lowercase**, and the collector lowercases values that arrive
   otherwise (Unpoller's `Akron` becomes `akron`).
 
@@ -249,10 +250,11 @@ listed gets checked against this convention and added here.
 **Unpoller's WAN metrics report `Default (default)`.** Since Unpoller v5
 (2026-10-21), every `unpoller_wan_*` series carries `site_name="Default
 (default)"` for every controller, while its device metrics carry the real
-site. Before v5 those series had no `site_name` at all. The collector sets
-`network_site` on them from `source`, the controller URL, which identifies the
-site. That map sits beside Unpoller's list of controllers, where a new
-controller is added anyway.
+site. Before v5 those series had no `site_name` at all, and Unpoller's Protect
+logs still have none. The collector sets `network_site` on all of them from
+`source`, the controller URL, which identifies the site. That map is in
+`sites/eastbank/monitoring/unpoller/unpoller.alloy`, beside Unpoller's own
+configuration, and a new controller needs a rule there.
 
 ### Endpoints and variables
 

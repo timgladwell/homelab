@@ -36,9 +36,10 @@ prometheus.remote_write "default" {
 // The same idea for logs. This collector is the only process at a
 // site that talks to Akron, for either signal: apps push here and
 // this pushes onward, rather than every app dialling across the WAN
-// on its own. Its senders are the node log reader (pod logs and the
-// journal, at every site) and Unpoller (UniFi events, IDS records and
-// system log, at Eastbank), both over the collector Service. It isn't
+// on its own. Its sender is the node log reader (pod logs and the
+// journal, at every site), over the collector Service. Unpoller
+// pushes to a listener of its own, added by Eastbank
+// (sites/eastbank/monitoring/unpoller/unpoller.alloy). Neither is
 // published on the LAN (collector-ingressroute.yaml).
 //
 // loki.source.api serves Loki's own push API, so a sender needs no
@@ -351,56 +352,7 @@ prometheus.scrape "cert_manager" {
 }
 
 // ---------------------------------------------------------------
-// Unpoller. Runs at exactly one site (Eastbank) but polls every
-// UniFi controller, so this finds nothing anywhere else and that is
-// fine — the alternative is a PodMonitor, and the Prometheus
-// operator that would honour it only exists at Akron, which is not
-// where Unpoller runs.
-//
-// The `site` label here is Eastbank's, from remote_write's external
-// labels — it says where the poller runs, not which network a series
-// describes. Unpoller stamps its own `site_name` and `source` on
-// every metric, and that is what the UniFi dashboards select on.
-// ---------------------------------------------------------------
-discovery.relabel "unpoller" {
-  targets = discovery.kubernetes.pods.targets
-
-  rule {
-    source_labels = ["__meta_kubernetes_namespace"]
-    regex         = "monitoring"
-    action        = "keep"
-  }
-
-  rule {
-    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
-    regex         = "unpoller"
-    action        = "keep"
-  }
-
-  // The container declares TCP and UDP on the same port number, so
-  // discovery returns two identical targets without this.
-  rule {
-    source_labels = ["__meta_kubernetes_pod_container_port_name"]
-    regex         = "tcp"
-    action        = "keep"
-  }
-
-  rule {
-    target_label = "instance"
-    replacement  = "unpoller"
-  }
-}
-
-prometheus.scrape "unpoller" {
-  targets         = discovery.relabel.unpoller.output
-  forward_to      = [prometheus.remote_write.default.receiver]
-  job_name        = "unpoller"
-  scrape_interval = "60s"
-}
-
-// ---------------------------------------------------------------
-// Loki. Runs only at Akron, so this finds nothing elsewhere, as for
-// Unpoller above. Without it the log store is the one storage layer
+// Loki. Runs only at Akron, so this finds nothing elsewhere. Without it the log store is the one storage layer
 // with no visibility: ingest rate, discarded entries by reason
 // (loki_discarded_samples_total, which #517's outage test
 // reads) and chunk bytes stored, which is how its PVC is sized.
