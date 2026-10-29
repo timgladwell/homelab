@@ -31,6 +31,15 @@ spec:
     # Akron and Eastbank together.
     defaultRules:
       additionalAggregationLabels: [site]
+      rules:
+        # additionalAggregationLabels only extends an existing `by (…)`, and
+        # two rules in this group aggregate with a bare sum(), so they still
+        # merge the sites. The chart can't disable a recording rule alone,
+        # and nothing reads any of the six (#511). They're saved queries over
+        # node_cpu_seconds_total and node_network_*_bytes_total, so run them
+        # ad hoc when needed, e.g. busy cores per site:
+        #   sum by (site) (rate(node_cpu_seconds_total{mode!="idle",mode!="iowait",mode!="steal"}[5m]))
+        kubePrometheusNodeRecording: false
 
     grafana:
       enabled: true
