@@ -15,3 +15,5 @@ resources:
   - logs-ingest-service.yaml
   - logs-ingest-ingressroute.yaml
   - ./dashboards
+components:
+  - ../../../base/unifi-syslog

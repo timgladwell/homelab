@@ -153,14 +153,16 @@ spec:
         - name: GOMEMLIMIT
           value: 690MiB
 
-      # For loki.write's WAL alone, the one experimental feature this config
-      # uses (see the note on its wal block). From Alloy 1.21 a WAL-enabled
-      # loki.write fails to load below this level, at public-preview too, and
-      # the collector crash-loops at every site.
+      # For loki.write's WAL (see the note on its wal block) and, at sites that
+      # list base/unifi-syslog, syslog_format = "raw". Both are gates on a
+      # component's arguments: below this level `alloy run` refuses them while
+      # `alloy validate` passes them (#498), so lowering this crash-loops the
+      # collector at every site with nothing in CI to warn of it.
       #
       # The flag is process-wide, so it would also admit any experimental
-      # component added later. Step 12 catches that: it validates this config a
-      # second time with its wal blocks stripped, at generally-available.
+      # component added later. Step 12 catches a component, not an argument: it
+      # validates this config a second time with its wal blocks stripped, at
+      # generally-available.
       # Upstream has no plan to promote the WAL yet, and it can still skip
       # unsent entries after a SIGKILL (grafana/alloy#7112). An OOM kill is a
       # SIGKILL, so GOMEMLIMIT above also protects the WAL.

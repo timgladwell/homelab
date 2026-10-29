@@ -1,0 +1,159 @@
+// UniFi's syslog, received at the site's syslog address (service.yaml) and
+// forwarded through the collector's buffered loki.write. This file joins
+// base/collector/collector.alloy as one directory (ADR 0003, *Sites opt into
+// receivers*) and depends only on its loki.write "default".
+//
+// One port per stream, because UniFi sends two formats from two settings
+// (docs/current-state/host-state.md, *UniFi syslog: which setting sends which
+// format*). Ports 1516 and 1517 are the same two streams for the site named by
+// RELAYED_SITE_NAME, which has no collector of its own yet (ADR 0003). Each
+// listener stamps its own `site`, so these bypass loki.relabel "push", which
+// would overwrite it with this site's.
+//
+// Lenient by design (ADR 0003): every line is received raw and kept, and the
+// header is parsed best-effort afterwards. A line whose header doesn't parse
+// gets unparsed="true" and is counted in
+// loki_process_custom_syslog_unparsed_lines_total.
+//
+// NOTE: syslog_format = "raw" needs --stability.level=experimental, which the
+// collector already runs at for loki.write's WAL. `alloy validate` doesn't
+// check it (#498), so step 12 passes it at every level; only `alloy run`
+// refuses it. Dropping the collector to a lower level fails this file at
+// startup, not in CI.
+loki.source.syslog "unifi" {
+  listener {
+    address       = "0.0.0.0:1514"
+    protocol      = "udp"
+    syslog_format = "raw"
+    labels        = { job = "unifi-os-log", site = "${SITE_NAME}" }
+  }
+
+  listener {
+    address       = "0.0.0.0:1515"
+    protocol      = "udp"
+    syslog_format = "raw"
+    labels        = { job = "unifi-events", site = "${SITE_NAME}" }
+  }
+
+  listener {
+    address       = "0.0.0.0:1516"
+    protocol      = "udp"
+    syslog_format = "raw"
+    labels        = { job = "unifi-os-log", site = "${RELAYED_SITE_NAME}" }
+  }
+
+  listener {
+    address       = "0.0.0.0:1517"
+    protocol      = "udp"
+    syslog_format = "raw"
+    labels        = { job = "unifi-events", site = "${RELAYED_SITE_NAME}" }
+  }
+
+  relabel_rules = loki.relabel.unifi_syslog.rules
+  forward_to    = [loki.process.unifi_syslog.receiver]
+}
+
+// The sender's address is the fallback `host`. APs and switches send no
+// hostname, so for them it is the only one (naming convention, *Labels*). It
+// survives because service.yaml keeps externalTrafficPolicy: Local.
+loki.relabel "unifi_syslog" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__syslog_connection_ip_address"]
+    target_label  = "host"
+  }
+}
+
+loki.process "unifi_syslog" {
+  forward_to = [loki.write.default.receiver]
+
+  // Raw mode strips <PRI>; what's left is an RFC 3164 timestamp, sometimes an
+  // ISO one after it (UniFi OS's CEF), then a hostname unless the sender left
+  // it out. A token followed by `[` or `:` is the program, not a hostname, so
+  // "hostapd[4051]: …" and "kernel: …" leave hostname empty. Measured against
+  // Loki samples from 2026-10-28, not against captured datagrams.
+  stage.regex {
+    expression = `^(?P<syslog_timestamp>[A-Z][a-z]{2} [ \d]\d \d\d:\d\d:\d\d) (?:\d{4}-\d\d-\d\dT\S+ )?(?:(?P<hostname>[^\s\[\]:]+) )?`
+  }
+
+  // An empty value leaves the label alone, so the address above stays.
+  stage.template {
+    source   = "hostname"
+    template = `{{ ToLower .Value }}`
+  }
+
+  stage.labels {
+    values = { host = "hostname" }
+  }
+
+  stage.template {
+    source   = "unparsed"
+    template = `{{ if not .syslog_timestamp }}true{{ end }}`
+  }
+
+  stage.labels {
+    values = { unparsed = "" }
+  }
+
+  stage.metrics {
+    metric.counter {
+      name        = "syslog_unparsed_lines_total"
+      description = "Syslog lines kept whole because their header didn't parse."
+      source      = "unparsed"
+      value       = "true"
+      action      = "inc"
+    }
+  }
+
+  // Credentials UniFi writes in plaintext (#420 step 1). The line is kept,
+  // because config saves and daemon starts are useful. Treat these as a
+  // sample, not a list: new firmware can add another.
+  stage.replace {
+    expression = `authkey: ([0-9a-fA-F]+)`
+    replace    = "<redacted>"
+  }
+
+  stage.replace {
+    expression = `"token":"([0-9a-fA-F]+)"`
+    replace    = "<redacted>"
+  }
+
+  // CEF: CEF:Version|Vendor|Product|ProductVersion|SignatureID|Name|Severity|Extension.
+  // The header goes to structured metadata and `level`, and the line becomes
+  // the extension. The hostname before CEF: is the console's device name,
+  // which is `host` above; it used to be a `Site` label.
+  stage.match {
+    selector = "{job=\"unifi-events\"}"
+
+    stage.regex {
+      expression = `CEF:\d+\|(?P<Vendor>[^|]*)\|(?P<Product>[^|]*)\|(?P<ProductVersion>[^|]*)\|(?P<EventSignatureId>[^|]*)\|(?P<EventName>[^|]*)\|(?P<Severity>[^|]*)\|(?P<extension>.*)$`
+    }
+
+    // CEF severity to Grafana's levels: 0 Unknown, 1-3 Low, 4-6 Medium, 7-8
+    // High, 9-10 Very-High, numeric or named. The outer `if` leaves a line
+    // with no CEF header unlevelled; without it, it got level="<no value>".
+    stage.template {
+      source   = "Severity"
+      template = `{{ with .Value }}{{ if eq . "0" "Unknown" }}unknown{{ else if eq . "1" "2" "3" "Low" }}info{{ else if eq . "4" "5" "6" "Medium" }}warning{{ else if eq . "7" "8" "High" }}error{{ else if eq . "9" "10" "Very-High" }}critical{{ else }}{{ . }}{{ end }}{{ end }}`
+    }
+
+    stage.labels {
+      values = { level = "Severity" }
+    }
+
+    stage.structured_metadata {
+      values = {
+        Vendor           = "",
+        Product          = "",
+        ProductVersion   = "",
+        EventSignatureId = "",
+        EventName        = "",
+      }
+    }
+
+    stage.output {
+      source = "extension"
+    }
+  }
+}

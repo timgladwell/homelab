@@ -52,8 +52,8 @@ docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
 # Alloy refuses to run a component below the process's stability level, so a
 # release that has not opted in must not validate as though it had. Each release
 # that needs one sets the chart's alloy.stabilityLevel: the collector runs at
-# experimental, for loki.write's WAL alone, and the node log reader at the
-# default. The chart always renders
+# experimental, for loki.write's WAL and base/unifi-syslog's raw syslog format,
+# and the node log reader at the default. The chart always renders
 # --stability.level=<alloy.stabilityLevel>, so that value is the only one read
 # here. A copy in extraArgs would be a second flag that wins only by coming
 # last; step 15's policy (policy/rendered_chart_settings.rego) rejects it.
@@ -61,11 +61,13 @@ docs = [d for d in yaml.safe_load_all(pathlib.Path(built).read_text()) if d]
 # `alloy validate` enforces a component's own stability level, but not a gate a
 # component applies to its arguments when it is built: as of 1.21 it accepts
 # loki.write's `wal { enabled = true }` at any level, while `alloy run` refuses
-# it below experimental. A gate of that kind is caught only on the cluster.
+# it below experimental. loki.source.syslog's `syslog_format = "raw"` is the
+# same (measured 2026-10-29). A gate of that kind is caught only on the cluster.
 #
 # Experimental is process-wide, so validating at it alone would admit any
-# experimental component added later. The WAL is the only thing a release is
-# allowed to need it for, so such a release is validated a second time, with
+# experimental component added later. The WAL is the only component a release
+# is allowed to need it for (raw syslog is an argument, invisible here), so such
+# a release is validated a second time, with
 # every wal block stripped, at generally-available. The first pass still checks
 # the wal blocks' own attributes. A release that genuinely needs another
 # experimental component fails here until this rule is revisited.

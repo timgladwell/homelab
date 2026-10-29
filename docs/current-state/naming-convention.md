@@ -193,7 +193,8 @@ is noise (rule 5 — there is no sibling to disambiguate from).
 
 **Deployed in part.** Akron's ingest endpoints, their variables, each site's
 collector push hostnames, the forwarder's release, volume claim and ConfigMap,
-the node log reader, the `pod-logs` stream, and `network_site` on Unpoller's
+the node log reader, the `pod-logs`, `unifi-os-log` and `unifi-events`
+streams, the syslog address at every site, and `network_site` on Unpoller's
 signals are live. Everything else here
 is a target name that #514 and #515 apply, and this project is the deliberate
 exception to "do not mass-rename". Each name
@@ -231,9 +232,11 @@ cluster node a log came from, where that applies.
   Unpoller at Eastbank polling Akron's controller sends `site="eastbank"`,
   `network_site="akron"`. Unpoller's `site_name` is renamed to `network_site`
   at collection, metrics and logs alike, and the UniFi dashboards select on
-  it. UniFi CEF's `Site` gets the same treatment when #515 brings that stream
-  back. Data from before the rename carries only `site_name`, so the
-  dashboards show nothing for it.
+  it. Data from before the rename carries only `site_name`, so the
+  dashboards show nothing for it. UniFi syslog needs no `network_site`: each
+  console sends to its own site's ingest point, or to a relayed one stamped
+  with its site, so `site` is already the network. CEF's old `Site` label was
+  the console's device name, so it is `host` now, like every syslog line.
 - **Values are lowercase**, and the collector lowercases values that arrive
   otherwise (Unpoller's `Akron` becomes `akron`).
 
