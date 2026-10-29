@@ -14,6 +14,7 @@
 | 2026-10-24 | Tim and Claude | The log window is best effort, after grafana/alloy#7112 showed the log WAL losing entries on a restart mid-outage; a broker and a second collector rejected for now (#517) |
 | 2026-10-25 | Tim and Claude | The collector is defined by its contract, not its processes, as the interface of one observability domain; LAN devices reach it through Traefik by default, the cluster through an internal service; buffering starts at a collector; mobile senders; a sending and a forwarding site, and names standardised alongside drops (#524) |
 | 2026-10-27 | Tim and Claude | Each site's ingest points, the two processes behind them, receivers opted into per site, and a lenient UDP syslog ingest on its own address. Mobile senders use the site they are at, and one site label set by the ingest point replaces the sending and forwarding pair (#512) |
+| 2026-10-29 | Tim and Claude | Collecting by default is a denylist of metrics, separate from finding targets: metrics port names by default, the `prometheus.io/scrape` annotation for stragglers; an annotation is no longer counted as an allowlist (#516) |
 
 ## Context
 
@@ -191,6 +192,13 @@ collected unless a drop excludes them:
 One rule covers everything, our own software included: a single approach is
 easier to reason about than two.
 
+**Which metrics are kept is a denylist; finding the targets is separate.**
+Everything a target serves is kept, and tuning is choosing drops from measured
+data, never researching what to list. Targets are found by the common metrics
+port-name conventions by default, and a pod those miss declares its port with
+the `prometheus.io/scrape` annotations. The name conventions stay narrow,
+because a looser pattern starts catching ports that are not metrics.
+
 **A drop is a concession to the hardware**, never a judgement that a signal is
 not wanted, so it has to be revisitable when the hardware or the cost changes.
 Each drop carries a `DROP` tag (CONTRIBUTING.md) recording what it saves and
@@ -367,15 +375,17 @@ Lottage's equipment sends locally, like every other site's.
 ## Alternatives considered
 
 - **A TSDB at every site.** Rejected for SD-card wear and remote-site headroom.
-- **An allowlist of what to collect.** Needs knowing in advance which signals
+- **An allowlist of which metrics to keep.** Needs knowing in advance which signals
   will be needed, and keeping up with what other people's software emits; both
   fail silently.
 - **Our own software opting in.** We know what it emits, but two approaches are
   harder to reason about than one rule, and that knowledge does not need a
   different default.
-- **Components declaring their own metrics** (pod annotations, or #211). The
-  same problem as an allowlist: most components are other people's software,
-  whose charts do not carry the declaration, so each would need an override.
+- **Finding targets only by declaration** (the `prometheus.io/scrape`
+  annotation, or #211). A declaration says where a target is, not which
+  metrics to keep, so it is not an allowlist; but most charts here do not set
+  one, so relying on it alone would miss them. It is kept as the workaround for
+  a port the naming conventions miss.
 - **Promtail for logs.** End-of-life, superseded by Alloy, which also collects
   metrics, so one collector covers both.
 - **Apps pushing straight to Akron.** Works, but couples every app to a remote
