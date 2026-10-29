@@ -35,7 +35,8 @@ data:
   EASTBANK_TRAEFIK_IP: "10.4.1.80"
   # Each site's syslog address, for the other site's PiHole to answer
   # syslog.<site>. The same relationship to METALLB_SYSLOG_IP as the Traefik
-  # IPs above have to METALLB_TRAEFIK_IP.
+  # IPs above have to METALLB_TRAEFIK_IP. The UniFi consoles' A records repeat
+  # them (docs/current-state/host-state.md, *UDR DNS records*).
   AKRON_SYSLOG_IP: "10.6.1.81"
   EASTBANK_SYSLOG_IP: "10.4.1.81"
   # Each site's own subtree, as named by the others. Same relationship to

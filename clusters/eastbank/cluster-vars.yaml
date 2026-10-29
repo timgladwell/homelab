@@ -23,7 +23,8 @@ data:
   METALLB_TRAEFIK_IP: "10.4.1.80"
   METALLB_PIHOLE_IP: "10.4.1.53"
   # The syslog address (base/unifi-syslog/service.yaml): .81 at every site.
-  # The UDRs target it by IP, so changing it means retyping it in each console.
+  # The UniFi consoles' own A records repeat it, so changing it means editing
+  # those too (docs/current-state/host-state.md, *UDR DNS records*).
   METALLB_SYSLOG_IP: "10.4.1.81"
   NODE_IP: "10.4.1.3"
   # PiHole's conditional forwarding: reverse lookups for this LAN go to the
