@@ -40,6 +40,15 @@ instead.
 6. **What does it emit, and what will it cost?** Follow the pre-checks in
    [Planning a Workload's Observability](workload-observability.md) before it
    ships.
+7. **Does its namespace have a `ResourceQuota`?** Recompute it at every site
+   that lists the component, in the same PR, the way
+   [Sizing a Container's Memory Limit](memory-sizing.md) does in step 5:
+   steady state plus the largest Deployment's second pod, because a rolling
+   update runs old and new side by side. StatefulSets and DaemonSets replace in
+   place and don't count. A shared component lands at every site, and the
+   smaller sites' quotas run out first. Fitting steady state isn't enough: when
+   the quota refuses an existing workload's *next* rollout, its HelmRelease
+   stalls and the layer's Kustomization fails its health check (#562).
 
 ## Steps
 
