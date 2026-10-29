@@ -1,0 +1,50 @@
+---
+# The site's syslog address (ADR 0003): UDP straight to the collector on its
+# own MetalLB IP, not through Traefik, which would replace the device's address
+# with its own. externalTrafficPolicy: Local is what keeps that address; the
+# receiver falls back on it for `host` (unifi-syslog.alloy).
+#
+# Both selector labels are required. The chart labels every pod
+# `app.kubernetes.io/name: alloy`, the node log reader's included, and a
+# Service matching both once sent half of every UDR's stream to a pod with no
+# listener, silently: UDP has no handshake to fail. `instance` is the release
+# name, so renaming the collector HelmRelease breaks this Service.
+#
+# The UDRs target the address by IP (docs/current-state/host-state.md, *Syslog
+# targets*), so changing METALLB_SYSLOG_IP means retyping it in each console.
+#
+# kube-score's service-targets-pod check wants these ports declared on the
+# container. The chart declares only extraPorts, which would also put them on
+# the collector's ClusterIP Service; nothing in the cluster sends syslog.
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-syslog
+  namespace: monitoring
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: "${METALLB_SYSLOG_IP}"
+    kube-score/ignore: service-targets-pod
+spec:
+  selector:
+    app.kubernetes.io/name: alloy
+    app.kubernetes.io/instance: collector
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  ports:
+    - name: unifi-os-log
+      port: 1514
+      targetPort: 1514
+      protocol: UDP
+    - name: unifi-events
+      port: 1515
+      targetPort: 1515
+      protocol: UDP
+    # The same two streams for RELAYED_SITE_NAME (unifi-syslog.alloy).
+    - name: relayed-os-log
+      port: 1516
+      targetPort: 1516
+      protocol: UDP
+    - name: relayed-events
+      port: 1517
+      targetPort: 1517
+      protocol: UDP

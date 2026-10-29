@@ -139,13 +139,13 @@ loki.write "default" {
   // NOTE: this wal block is *experimental* upstream, unlike
   // prometheus.remote_write's, which is stable. That one cannot stand
   // in: it buffers metric samples only, and this is the only disk
-  // buffer Alloy has for log entries. It is the only reason
-  // collector.yaml runs the collector at
-  // --stability.level=experimental, without which it does not load.
-  // A breaking change to it would fail the collector at every site,
-  // so it is the first thing to check if an alloy chart bump
-  // misbehaves. Deleting these lines and that flag is a complete
-  // rollback, at the cost of the buffering.
+  // buffer Alloy has for log entries. It is one reason collector.yaml
+  // runs the collector at --stability.level=experimental, without
+  // which it does not load; base/unifi-syslog's raw format is the
+  // other. A breaking change to it would fail the collector at every
+  // site, so it is the first thing to check if an alloy chart bump
+  // misbehaves. Deleting these lines is a complete rollback, at the
+  // cost of the buffering.
   wal {
     enabled         = true
     max_segment_age = "24h"

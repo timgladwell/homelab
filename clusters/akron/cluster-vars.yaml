@@ -30,8 +30,8 @@ data:
   # this site, or the gateway answers for a domain PiHole never asks about.
   LAN_CIDR: "10.6.0.0/16"
   LAN_GATEWAY: "10.6.1.1"
-  # Nothing listens on this address until #515 puts a syslog receiver back on
-  # it. Kept so the UDRs' target and the syslog. record stay unchanged.
+  # The syslog address (base/unifi-syslog/service.yaml): .81 at every site.
+  # The UDRs target it by IP, so changing it means retyping it in each console.
   METALLB_SYSLOG_IP: "10.6.1.81"
   SITE_NAME: akron
   # Overrides the estate defaults in clusters/common/network-vars.yaml, which

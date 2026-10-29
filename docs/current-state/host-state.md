@@ -76,7 +76,7 @@ before Flux can do anything useful.
 | DHCP DNS servers | UniFi, per network | All VLANs hand out the site PiHole only. The public fallback is per-node static config, deliberately — see [Why the resolver fallback is not in DHCP](#why-the-resolver-fallback-is-not-in-dhcp). |
 | DHCP search domain | UniFi, per network | Set to `<site>.internal.zerpzorp.com`, which resolves for real since #233. Single-label lookups on those VLANs land on the site's Traefik via the `${SITE_DOMAIN}` wildcard — but **only usefully for `ssh` / `ping` / `dig`**, never a browser: TLS validates the single label as typed, and no certificate can cover it. See [naming convention](naming-convention.md). This covers DHCP clients on those VLANs only; VPN clients are the *VPN client search domain* row. |
 | VPN client search domain | Each VPN client's own WireGuard config | **Per device, not estate state.** A `DNS =` line carrying `akron.internal.zerpzorp.com` alongside the resolver. The tunnel hands out `10.6.1.53` on its own; the search domain is not pushed, so every client that has not been edited by hand lacks it. Set on one laptop today — do not read a single-label name working there as evidence it works anywhere else. Configuring it server-side on the console would push it to every client and make this row unnecessary; nobody has. |
-| Syslog targets | UniFi → Settings → Cybersecure → Traffic Logging (`:1514`), and Settings → System Logging (`:1515`) | Both point at `10.6.1.81` (`METALLB_SYSLOG_IP`), **by IP**. **Nothing listens there**: Akron's syslog receivers were removed with its old log collector, and every UDR's syslog is dropped until #515 adds a receiver back on the same address. A name works only if the console can resolve it, and today nothing guarantees that: the old `syslog.homelab.home.arpa` target stopped resolving without any error, and the gap in the logs was only noticed later. A name becomes usable again once something keeps it resolvable, such as an A record in the console's table synced from git, or a known resolver path for the console's own lookups. Both are #316. Every site targets Akron across the WAN; receiving at each site's own collector instead is #515. |
+| Syslog targets | UniFi → Settings → Cybersecure → Traffic Logging, and Settings → System Logging, per console | Each console sends to its own site's syslog address (`METALLB_SYSLOG_IP`, `10.x.1.81`), **by IP**: Akron's to `10.6.1.81` and Eastbank's to `10.4.1.81`, on ports `1514` and `1515`. Lottage has no collector, so its console sends to the relayed ports `1516` and `1517` on Akron's `10.6.1.81`. Eastbank's `10.4.1.81` serves the same ports, so moving Lottage there is a console change alone ([below](#unifi-syslog-which-setting-sends-which-format)). A name works only if the console can resolve it, and today nothing guarantees that: the old `syslog.homelab.home.arpa` target stopped resolving without any error, and the gap in the logs was only noticed later. A name becomes usable again once something keeps it resolvable, such as an A record in the console's table synced from git, or a known resolver path for the console's own lookups. Both are #316. |
 | IDS/IPS mode and engine | UniFi → Settings → CyberSecure → Intrusion Prevention, per console | **Notify and Block** on all three UDRs, running Suricata 8.0.6. **Turning IDS/IPS off and back on brings it back in Notify (detection only)**, not the previous mode, with no warning. Check the mode after any off/on. Engine upgrades are offered by an "Update now" card in the same page. The UI enables it only below 80% memory utilization, measured as `1 − MemAvailable/MemTotal`. The automatic hourly attempt is stricter and was refused on every box for weeks, logged as `EVT_GW_UpgradeSuricata status:INSUFFICIENT_MEMORY`, so in practice the card is the only route. Suricata 8 holds noticeably more RAM than 6 did on these 2 GB boxes. Measurements and the upgrade procedure are in #412. |
 | UDR DNS records | UniFi → Policy Table → DNS Records | Per-console A records and Forward Domain rules. `syslog.homelab.home.arpa` stopped resolving somewhere around #303, and was attributed to it — but that window held several manual changes and the checks either side were hours apart, so even "PiHole was in the answer path" is inference, not measurement. How this table ranks against the console's own resolver is untested, as is whether it consults PiHole at all (#316). Do not assume an internal name resolves on the device. Nothing in the repo reconciles this table. |
 | UniFi read-only user | Each controller | Consumed by Unpoller (via SOPS) and NetworkOptimizer (via its own UI). |
@@ -90,18 +90,24 @@ before Flux can do anything useful.
 ### UniFi syslog: which setting sends which format
 
 Two UniFi settings send syslog, each to its own port because they send
-different formats. Nothing receives either until #515; Loki holds what arrived
-before, under the stream names in the last column:
+different formats. The receiver is `base/unifi-syslog`, on each site's syslog
+address:
 
-| UniFi setting | Sends | Port | Stored in Loki as |
-|---|---|---|---|
-| Settings → Cybersecure → Traffic Logging | Plain RFC 3164 syslog with a `<PRI>` header: device system logs (`systemd`, `dbus-daemon`, `ubios-udapi-server`, `earlyoom`) | UDP `1514` | `{job="unifi-siem"}` |
-| Settings → System Logging (`/network/default/integrations`) | CEF (`CEF:0\|Ubiquiti\|UniFi OS\|…`) with **no** `<PRI>` header: admin activity, config changes, detections | UDP `1515` | `{job="unifi-cef"}` |
+| UniFi setting | Sends | Port | Relayed port | Loki stream |
+|---|---|---|---|---|
+| Settings → Cybersecure → Traffic Logging | Plain RFC 3164 syslog with a `<PRI>` header: device system logs (`systemd`, `dbus-daemon`, `ubios-udapi-server`, `earlyoom`) | UDP `1514` | UDP `1516` | `{job="unifi-os-log"}`, `{job="unifi-siem"}` before #515 |
+| Settings → System Logging (`/network/default/integrations`) | CEF (`CEF:0\|Ubiquiti\|UniFi OS\|…`) with **no** `<PRI>` header: admin activity, config changes, detections | UDP `1515` | UDP `1517` | `{job="unifi-events"}`, `{job="unifi-cef"}` before #515 |
+
+The relayed ports stamp `site` with `RELAYED_SITE_NAME` (Lottage) instead of
+the receiving site, for the console that has no collector of its own. APs and
+switches send with the console's setting but from their own address and with
+no hostname, so their `host` is that address.
 
 **The names are the reverse of what they sound like** — *Cybersecure* sends
 plain system syslog and *System Logging* sends CEF (measured 2026-08-27).
-A receiver on port 1515 has to accept a missing `<PRI>` header, and a strict
-one drops CEF silently — UDP has no handshake to fail and no retry. Both settings offer overlapping categories (Devices, Critical, Admin
+The receiver takes every line raw, so a missing `<PRI>` header costs nothing.
+A strict RFC 3164 receiver drops CEF silently: UDP has no handshake to fail and
+no retry. Both settings offer overlapping categories (Devices, Critical, Admin
 Activity, Updates, VPN, Firewall Default Policy), so the same event can arrive
 twice in two formats; enable categories deliberately rather than everything in
 both.

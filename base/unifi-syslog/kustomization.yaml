@@ -1,0 +1,24 @@
+---
+# UniFi's syslog receiver, for a site's collector (ADR 0003, *Sites opt into
+# receivers*). A site lists it under `components:` beside base/collector. It
+# adds one file to the collector's configuration and the Service that exposes
+# it, and base/collector knows nothing about it.
+#
+# Every site that lists it also serves the relayed ports for RELAYED_SITE_NAME
+# (clusters/common/network-vars.yaml), so the console that has no collector of
+# its own can send to whichever site it is set to.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - service.yaml
+
+# Merged into base/collector's generator; disableNameSuffixHash must match it,
+# or the merge produces a second ConfigMap instead.
+configMapGenerator:
+  - name: collector-config
+    namespace: monitoring
+    behavior: merge
+    options:
+      disableNameSuffixHash: true
+    files:
+      - unifi-syslog.alloy

@@ -8,6 +8,8 @@ resources:
   - ../../../base/collector
   - resourcequota.yaml
   - ./unpoller
+components:
+  - ../../../base/unifi-syslog
 patches:
   - path: collector-hostaliases.yaml
   # Unpoller's own push listener (unpoller/unpoller.alloy) on the collector's
