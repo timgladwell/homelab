@@ -53,9 +53,10 @@ loki.source.syslog "unifi" {
   forward_to    = [loki.process.unifi_syslog.receiver]
 }
 
-// The sender's address is the fallback `host`. APs and switches send no
-// hostname, so for them it is the only one (naming convention, *Labels*). It
-// survives because service.yaml keeps externalTrafficPolicy: Local.
+// The sender's address is the fallback `host`, for a line with no parseable
+// hostname: a USW-Flex-Mini sends no syslog header at all (naming convention,
+// *Labels*). It survives because service.yaml keeps externalTrafficPolicy:
+// Local.
 loki.relabel "unifi_syslog" {
   forward_to = []
 
@@ -71,8 +72,9 @@ loki.process "unifi_syslog" {
   // Raw mode strips <PRI>; what's left is an RFC 3164 timestamp, sometimes an
   // ISO one after it (UniFi OS's CEF), then a hostname unless the sender left
   // it out. A token followed by `[` or `:` is the program, not a hostname, so
-  // "hostapd[4051]: …" and "kernel: …" leave hostname empty. Measured against
-  // Loki samples from 2026-10-28, not against captured datagrams.
+  // "hostapd[4051]: …" and "kernel: …" leave hostname empty. A UDR sends its
+  // hostname twice and an AP sends "<MAC>,<model>-<version>:" after it; both
+  // leave the first token as the hostname.
   stage.regex {
     expression = `^(?P<syslog_timestamp>[A-Z][a-z]{2} [ \d]\d \d\d:\d\d:\d\d) (?:\d{4}-\d\d-\d\dT\S+ )?(?:(?P<hostname>[^\s\[\]:]+) )?`
   }

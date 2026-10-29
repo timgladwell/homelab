@@ -10,8 +10,9 @@
 # listener, silently: UDP has no handshake to fail. `instance` is the release
 # name, so renaming the collector HelmRelease breaks this Service.
 #
-# The UDRs target the address by IP (docs/current-state/host-state.md, *Syslog
-# targets*), so changing METALLB_SYSLOG_IP means retyping it in each console.
+# The UniFi consoles send to syslog.internal.zerpzorp.com through A records of
+# their own (docs/current-state/host-state.md, *UDR DNS records*), so changing
+# METALLB_SYSLOG_IP means editing those records too.
 #
 # kube-score's service-targets-pod check wants these ports declared on the
 # container. The chart declares only extraPorts, which would also put them on
