@@ -15,6 +15,7 @@
 | 2026-10-25 | Tim and Claude | The collector is defined by its contract, not its processes, as the interface of one observability domain; LAN devices reach it through Traefik by default, the cluster through an internal service; buffering starts at a collector; mobile senders; a sending and a forwarding site, and names standardised alongside drops (#524) |
 | 2026-10-27 | Tim and Claude | Each site's ingest points, the two processes behind them, receivers opted into per site, and a lenient UDP syslog ingest on its own address. Mobile senders use the site they are at, and one site label set by the ingest point replaces the sending and forwarding pair (#512) |
 | 2026-10-29 | Tim and Claude | Collecting by default is a denylist of metrics, separate from finding targets: metrics port names by default, the `prometheus.io/scrape` annotation for stragglers; an annotation is no longer counted as an allowlist (#516) |
+| 2026-10-29 | Tim and Claude | The storage stack's self-monitoring stays with the chart, as the one collection path outside the collector, and carries `site` like every other signal; aggregations keep `site` (#511) |
 
 ## Context
 
@@ -50,9 +51,14 @@ and Grafana Alloy as the only collector.
   exporters) and pod logs, all shipped to Akron. Akron collects the same way; it
   is not a remote-site special case.
 - *Storage is Akron-only:* Prometheus, Loki, Grafana and Alertmanager.
-- *The chart does no scraping of its own.* kube-prometheus-stack's kubelet,
-  apiserver, node-exporter, kube-state-metrics, controller-manager and scheduler
-  monitors are disabled, so nothing is collected twice.
+- *The chart scrapes only the storage stack itself.* kube-prometheus-stack's
+  kubelet, apiserver, node-exporter, kube-state-metrics, controller-manager and
+  scheduler monitors are disabled, so nothing is collected twice. Its own
+  monitors for Grafana, Prometheus, Alertmanager and the operator stay: they
+  are the chart's integration (ADR 0005), its default rules select on the jobs
+  they produce, and they exist only where storage runs. That is the one
+  collection path outside the collector. Prometheus stamps `site` on it, so
+  the label guarantee below still holds.
 - *All cardinality trimming lives in the collector config*, in one place.
 
 **Each site has one logical collector, defined by its contract.** Everything a
@@ -457,7 +463,9 @@ standardised in the collector*). The names chosen for each label, and the
 lists of accepted values, are kept in the
 [naming convention](../current-state/naming-convention.md).
 
-- **One site label on every signal:** the site whose ingest point received it.
+- **One site label on every signal:** the site whose ingest point received it,
+  or for the storage stack's own metrics, the site Prometheus runs at.
+  Aggregations keep it, so a rule never merges sites.
 - **Key values are lowercase**, site names included (`akron`, not `Akron`),
   because lowercase keeps queries simple. The exception is a value that has to
   be camel case.
