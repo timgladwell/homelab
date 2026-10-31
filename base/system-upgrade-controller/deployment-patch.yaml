@@ -42,7 +42,7 @@ spec:
             # (renovate.json) to keep kubectl on the server's minor.
             - name: SYSTEM_UPGRADE_JOB_KUBECTL_IMAGE
               # renovate: datasource=docker depName=registry.k8s.io/kubectl
-              value: registry.k8s.io/kubectl:v1.37.1
+              value: registry.k8s.io/kubectl:v1.37.2
           resources:
             requests:
               cpu: 50m
