@@ -89,7 +89,7 @@ spec:
       # path and up.conf's keys against the release.
       #
       # renovate: datasource=docker depName=ghcr.io/unpoller/unpoller
-      tag: v5.8.1
+      tag: v5.8.3
 
     # Dashboards are provisioned from ConfigMaps in sites/akron/monitoring/
     # dashboards/. The chart's own provisioning needs the Grafana operator.
