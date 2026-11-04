@@ -99,7 +99,7 @@ jobs:
       - name: Setup Flux CLI
         uses: fluxcd/flux2/action@main
         with:
-          version: 2.9.5
+          version: 2.10.0
 
       # Renders every HelmRelease for step 15. The action installs the flate
       # release matching its own tag, so the `uses:` ref is the only pin, and
