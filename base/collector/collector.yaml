@@ -132,13 +132,20 @@ spec:
       # collector at 87% utilisation — exit 137, which stalls the scrape loop
       # long enough to drop samples. A limit is a ceiling, not a reservation, so
       # the smaller sites do not pay for this.
+      #
+      # The limit has to hold the heap (GOMEMLIMIT below) *and* the page cache
+      # of the WAL the collector reads back on every send, ~250Mi at Akron
+      # (docs/runbooks/memory-sizing.md). Without that room the collector
+      # refaults its own WAL and throttles on CPU; #381 has the readings this
+      # was sized from. Raising this means raising GOMEMLIMIT by the same
+      # amount, and redoing Eastbank's quota sum.
       resources:
         requests:
           cpu: 100m
           memory: 256Mi
         limits:
           cpu: 500m
-          memory: 768Mi
+          memory: 1Gi
 
       # Raising the limit alone only moves the cliff. GOMEMLIMIT gives the Go
       # runtime a soft ceiling below the hard one, so as the heap approaches it
@@ -146,12 +153,13 @@ spec:
       # an OOM becomes a slowdown, which is the right failure mode for the
       # component whose death hides every other signal.
       #
-      # Akron runs at ~460MB heap / 524Mi working set against the 768Mi limit;
-      # Eastbank at ~270MB. 690MiB leaves headroom at the larger site while
-      # staying comfortably under the cgroup limit at both.
+      # At the 30s interval both sites run at ~590–650Mi RSS. The soft ceiling
+      # sits 256Mi below the hard one so the WAL's page cache fits beside the
+      # heap (see the limit above). A ceiling at 90% of the limit leaves too
+      # little for it.
       extraEnv:
         - name: GOMEMLIMIT
-          value: 690MiB
+          value: 768MiB
 
       # For loki.write's WAL (see the note on its wal block) and, at sites that
       # list base/unifi-syslog, syslog_format = "raw". Both are gates on a
