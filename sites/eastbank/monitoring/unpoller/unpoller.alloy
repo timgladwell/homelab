@@ -48,7 +48,7 @@ prometheus.scrape "unpoller" {
   targets         = discovery.relabel.unpoller.output
   forward_to      = [prometheus.relabel.unpoller.receiver]
   job_name        = "unpoller"
-  scrape_interval = "60s"
+  scrape_interval = "30s"
 }
 
 prometheus.relabel "unpoller" {
