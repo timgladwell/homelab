@@ -55,6 +55,22 @@ are embedded in the server binary and expose ~51K samples per scrape, of which
 ~724 series survive relabeling. The args are harmless but no longer serve
 anything, and Eastbank does not have them. Do not copy them to a new node.
 
+### Eastbank only
+
+`/etc/rancher/k3s/config.yaml` adds `image-gc-high-threshold=75` and
+`image-gc-low-threshold=70` to `kubelet-arg`, alongside `resolv-conf`.
+
+The kubelet's defaults are 85 and 80, and nothing else removes old images, so
+every past version of every image stays on disk until the filesystem reaches
+85%. On a 29G SD card that left under 5G free. At 75/70, GC starts at about
+7.7G free and stops at about 9.2G, which still keeps recent versions for a
+rollback. Without these lines the node runs on the defaults again, and nothing
+reports it. Akron's 251G disk doesn't need them.
+
+Prefer this to pruning by hand: `crictl rmi --prune` also removes the pod
+sandbox image (`rancher/mirrored-pause`), because no listed container uses it,
+and every new pod then has to pull it from Docker Hub first.
+
 ---
 
 ## In-cluster, but not in git
