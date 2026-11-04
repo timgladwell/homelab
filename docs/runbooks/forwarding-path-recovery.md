@@ -52,9 +52,9 @@ and confirming afterwards that the hole filled.
    sum by (client, path, status) (count_over_time({site="akron", namespace="traefik"} |~ "POST /(api/v1/write|loki/api/v1/push)" | regexp `^(?P<client>\S+) .*POST (?P<path>\S+) HTTP[^"]*" (?P<status>\d{3})` [10m]))
    ```
 
-   `client` is the address Traefik sees, which may not be unique per site once
-   there is more than one remote site. Akron's own collector doesn't appear,
-   because it writes to in-cluster Services.
+   `client` is the remote site's node address, its static DHCP reservation, so
+   it identifies the site while each site is one node. Akron's own collector
+   doesn't appear, because it writes to in-cluster Services.
 
    - **No requests from the site:** nothing is leaving it. It's the WAN or VPN,
      or the remote collector itself (step 4).
