@@ -1,6 +1,8 @@
 // Ship everything collected below to Prometheus. Snappy-compressed
 // protobuf batches: a site of this size is well under 1 kbit/s.
 prometheus.remote_write "default" {
+  // Changing this block orphans the WAL's backlog: the queue is keyed by a
+  // hash of it. Follow docs/runbooks/forwarding-path-changes.md.
   endpoint {
     url = "${METRICS_INGEST_URL}"
   }
@@ -26,6 +28,11 @@ prometheus.remote_write "default" {
   // length. The chart default is 8h. Akron's Prometheus must accept
   // samples this old: see tsdb.outOfOrderTimeWindow in
   // sites/akron/monitoring/kube-prometheus-stack.yaml, kept in sync.
+  //
+  // No queue_config tuning against the drain spiral (#270), by decision:
+  // one occurrence, whose evidence points at the receiver rather than this
+  // WAL, isn't enough to tune on. Recovery is
+  // docs/runbooks/forwarding-path-recovery.md; see #522.
   wal {
     truncate_frequency = "2h"
     max_keepalive_time = "24h"
@@ -119,6 +126,8 @@ loki.relabel "push" {
 }
 
 loki.write "default" {
+  // Assume changing this block orphans the WAL's backlog, like the metrics
+  // endpoint above. Follow docs/runbooks/forwarding-path-changes.md.
   endpoint {
     url = "${LOGS_INGEST_URL}"
   }
@@ -191,9 +200,11 @@ discovery.kubernetes "endpoints" {
 // names its port `tcp`, so its site's own stanza is the only one that
 // scrapes it (sites/eastbank/monitoring/unpoller/unpoller.alloy).
 //
-// Useful collector series: prometheus_remote_storage_samples_pending,
+// Useful collector series: send lag (the query is in
+// docs/runbooks/forwarding-path-recovery.md),
 // prometheus_remote_storage_samples_failed_total and
-// go_memstats_heap_inuse_bytes. The collector's failure hides every
+// go_memstats_heap_inuse_bytes. samples_pending doesn't track the backlog
+// (#522). The collector's failure hides every
 // other signal, so it must not be the one component nobody watches.
 // ---------------------------------------------------------------
 discovery.relabel "named_metrics_ports" {
