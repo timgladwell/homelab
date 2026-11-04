@@ -353,7 +353,7 @@ discovery.relabel "pod_metrics_https" {
 prometheus.scrape "pods" {
   targets         = discovery.relabel.pod_metrics_http.output
   forward_to      = [prometheus.remote_write.default.receiver]
-  scrape_interval = "60s"
+  scrape_interval = "30s"
 }
 
 // MetalLB's kube-rbac-proxy accepts the collector's token, and serves a
@@ -361,7 +361,7 @@ prometheus.scrape "pods" {
 prometheus.scrape "pods_https" {
   targets           = discovery.relabel.pod_metrics_https.output
   forward_to        = [prometheus.remote_write.default.receiver]
-  scrape_interval   = "60s"
+  scrape_interval   = "30s"
   scheme            = "https"
   bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
@@ -409,7 +409,7 @@ prometheus.scrape "kubelet" {
   targets           = discovery.relabel.kubelet.output
   forward_to        = [prometheus.relabel.drop_histogram_buckets.receiver]
   job_name          = "kubelet"
-  scrape_interval   = "60s"
+  scrape_interval   = "30s"
   scheme            = "https"
   bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
@@ -423,7 +423,7 @@ prometheus.scrape "cadvisor" {
   forward_to        = [prometheus.relabel.cadvisor.receiver]
   job_name          = "kubelet"
   metrics_path      = "/metrics/cadvisor"
-  scrape_interval   = "60s"
+  scrape_interval   = "30s"
   scheme            = "https"
   bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
@@ -513,7 +513,7 @@ prometheus.scrape "apiserver" {
   targets           = discovery.relabel.apiserver.output
   forward_to        = [prometheus.relabel.drop_histogram_buckets.receiver]
   job_name          = "apiserver"
-  scrape_interval   = "60s"
+  scrape_interval   = "30s"
   scheme            = "https"
   bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
