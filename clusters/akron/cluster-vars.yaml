@@ -30,7 +30,7 @@ data:
   # this site, or the gateway answers for a domain PiHole never asks about.
   LAN_CIDR: "10.6.0.0/16"
   LAN_GATEWAY: "10.6.1.1"
-  # The syslog address (base/unifi-syslog/service.yaml): .81 at every site.
+  # The syslog address (base/syslog/service.yaml): .81 at every site.
   # The UniFi consoles' own A records repeat it, so changing it means editing
   # those too (docs/current-state/host-state.md, *UDR DNS records*).
   METALLB_SYSLOG_IP: "10.6.1.81"

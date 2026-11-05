@@ -1,8 +1,16 @@
 ---
 # The site's syslog address (ADR 0003): UDP straight to the collector on its
 # own MetalLB IP, not through Traefik, which would replace the device's address
-# with its own. externalTrafficPolicy: Local is what keeps that address; the
-# receiver falls back on it for `host` (unifi-syslog.alloy).
+# with its own. externalTrafficPolicy: Local is what keeps that address; every
+# syslog receiver falls back on it for `host`.
+#
+# No ports here. Each sender's Component (base/<sender>-syslog) patches its own
+# onto this Service and adds its own Alloy file, so a new sender touches no
+# other sender's files. A site lists base/syslog first, then its senders. A
+# sender listed without it fails the build, because its patch has no target.
+# base/syslog listed with no sender renders a Service with no ports, which the
+# API server rejects. Ports in use are found with
+# `git grep -n 'port: 15' -- 'base/*-syslog'`.
 #
 # ASSUMES(single-node): Local drops packets that land on a node with no
 # collector pod, silently, because UDP has no handshake. Before adding a node,
@@ -18,9 +26,9 @@
 # their own (docs/current-state/host-state.md, *UDR DNS records*), so changing
 # METALLB_SYSLOG_IP means editing those records too.
 #
-# kube-score's service-targets-pod check wants these ports declared on the
-# container. The chart declares only extraPorts, which would also put them on
-# the collector's ClusterIP Service; nothing in the cluster sends syslog.
+# kube-score's service-targets-pod check wants the senders' ports declared on
+# the container. The chart declares only extraPorts, which would also put them
+# on the collector's ClusterIP Service; nothing in the cluster sends syslog.
 apiVersion: v1
 kind: Service
 metadata:
@@ -35,21 +43,3 @@ spec:
     app.kubernetes.io/instance: collector
   type: LoadBalancer
   externalTrafficPolicy: Local
-  ports:
-    - name: unifi-os-log
-      port: 1514
-      targetPort: 1514
-      protocol: UDP
-    - name: unifi-events
-      port: 1515
-      targetPort: 1515
-      protocol: UDP
-    # The same two streams for RELAYED_SITE_NAME (unifi-syslog.alloy).
-    - name: relayed-os-log
-      port: 1516
-      targetPort: 1516
-      protocol: UDP
-    - name: relayed-events
-      port: 1517
-      targetPort: 1517
-      protocol: UDP

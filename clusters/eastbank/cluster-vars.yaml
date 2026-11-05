@@ -22,7 +22,7 @@ data:
   METALLB_ADDRESS_RANGE: "10.4.1.10-10.4.1.99"
   METALLB_TRAEFIK_IP: "10.4.1.80"
   METALLB_PIHOLE_IP: "10.4.1.53"
-  # The syslog address (base/unifi-syslog/service.yaml): .81 at every site.
+  # The syslog address (base/syslog/service.yaml): .81 at every site.
   # The UniFi consoles' own A records repeat it, so changing it means editing
   # those too (docs/current-state/host-state.md, *UDR DNS records*).
   METALLB_SYSLOG_IP: "10.4.1.81"
