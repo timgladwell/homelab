@@ -9,6 +9,7 @@ resources:
   - resourcequota.yaml
   - ./unpoller
 components:
+  - ../../../base/syslog
   - ../../../base/unifi-syslog
 patches:
   - path: collector-hostaliases.yaml

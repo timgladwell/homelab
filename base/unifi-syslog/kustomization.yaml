@@ -9,8 +9,6 @@
 # its own can send to whichever site it is set to.
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
-resources:
-  - service.yaml
 
 # Merged into base/collector's generator; disableNameSuffixHash must match it,
 # or the merge produces a second ConfigMap instead.
