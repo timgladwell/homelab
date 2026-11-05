@@ -25,6 +25,7 @@ reconcile will not restore.
 | [Rotating the GitHub PAT for Flux](runbooks/github-pat-rotation.md) | Maintenance |
 | [Periodic Cluster Security Audit with trivy-operator](runbooks/trivy-operator-audit.md) | Maintenance |
 | [Renaming the K3s Node](runbooks/node-rename.md) | Maintenance |
+| [Rebooting or Upgrading a UniFi Console](runbooks/unifi-console-reboots.md) | Maintenance |
 | [TRIM on a USB-Attached SSD](runbooks/usb-trim.md) | Maintenance |
 | [Setting Up a Development Environment](runbooks/development-environment.md) | Provisioning |
 | [Bootstrapping a New Remote Site](runbooks/bootstrap-new-remote-site.md) | Provisioning |
