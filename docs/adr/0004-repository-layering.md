@@ -19,6 +19,10 @@ Sites run overlapping but different sets of components, and differ in their own
 values (IPs, domains, keys). Changes must be reviewable as one diff, and adding a
 site or a component must not mean editing every other site.
 
+Each site being one node is an assumption, not a decision. What depends on it
+is tagged `ASSUMES(single-node)` where it is ([CONTRIBUTING](../../CONTRIBUTING.md#assumptions)),
+so `git grep 'ASSUMES(single-node)'` lists what a second node would touch.
+
 ## Decision
 
 Three layers, composed many-to-many:

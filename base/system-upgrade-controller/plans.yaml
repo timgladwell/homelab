@@ -6,7 +6,9 @@ metadata:
   namespace: system-upgrade
 spec:
   concurrency: 1
-  cordon: false  # ponytail: single-node; cordoning prevents the upgrade job from scheduling
+  # ASSUMES(single-node): cordoning the only node leaves the upgrade job nowhere
+  # to schedule. With a second node, cordon and drain so its pods move first.
+  cordon: false
   nodeSelector:
     matchExpressions:
       - key: node-role.kubernetes.io/control-plane
@@ -34,6 +36,8 @@ metadata:
   namespace: system-upgrade
 spec:
   concurrency: 1
+  # ASSUMES(single-node): as in server-plan above. No agent node exists yet, so
+  # this plan has never run.
   cordon: false
   nodeSelector:
     matchExpressions:

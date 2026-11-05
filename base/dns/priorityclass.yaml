@@ -9,6 +9,10 @@
 # Two effects, and the second is the useful one on a single node: the kubelet
 # breaks eviction ties by priority, and the scheduler will preempt a lower
 # priority pod to make room for one of these.
+#
+# ASSUMES(single-node): preemption is the useful effect only because there is
+# no other node to place DNS on. With a second node the scheduler can place it
+# elsewhere, so revisit whether DNS still needs to preempt.
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:

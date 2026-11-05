@@ -62,6 +62,11 @@ spec:
       # Local costs nothing on a single node behind MetalLB L2: there is no
       # second node for traffic to be dropped on. base/dns/pihole-dns-service.yaml
       # already does this, for the same reason.
+      #
+      # ASSUMES(single-node): Local drops traffic that lands on a node with no
+      # Traefik pod, and a replica on another node would get none of it. Before
+      # adding a node, confirm MetalLB L2 announces this IP only from a node
+      # running Traefik.
       spec:
         externalTrafficPolicy: Local
 

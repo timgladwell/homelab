@@ -125,6 +125,8 @@ spec:
 
     singleBinary:
       replicas: 1
+      # ASSUMES(single-node): local-path, k3s's default class, keeps the store
+      # on one node and pins Loki there.
       persistence:
         enabled: true
         size: 8Gi

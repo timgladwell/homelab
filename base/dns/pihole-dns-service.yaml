@@ -32,6 +32,9 @@ spec:
     app: pihole
   type: LoadBalancer
   # Preserve real client IPs in PiHole query logs (single-node: no routing penalty)
+  # ASSUMES(single-node): Local drops DNS that lands on a node with no Pi-hole
+  # pod. Before adding a node, confirm MetalLB L2 announces this IP only from
+  # the pod's node, or every client loses DNS whenever the two differ.
   externalTrafficPolicy: Local
   ports:
     - name: dns-udp

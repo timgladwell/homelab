@@ -234,6 +234,9 @@ spec:
           # base/collector/collector.alloy; both implement ADR
           # 0003's outage window.
           outOfOrderTimeWindow: 24h
+        # ASSUMES(single-node): local-path, k3s's default class, keeps the TSDB
+        # on one node and pins Prometheus there. On a second node, losing this
+        # one stops all storage until it returns.
         storageSpec:
           volumeClaimTemplate:
             spec:

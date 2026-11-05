@@ -8,6 +8,9 @@
 # 10Gi therefore has plenty of headroom, and is deliberately not trimmed: it
 # matches what this ran with before, and local-path allocates on use rather
 # than up front, so a large claim costs nothing until something fills it.
+#
+# ASSUMES(single-node): local-path keeps this volume on one node and pins
+# network-optimizer there.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

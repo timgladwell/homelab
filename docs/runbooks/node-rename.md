@@ -332,6 +332,8 @@ verified healthy.
    No cordon or drain. On a single-node cluster draining only makes every pod
    `Pending` with nowhere to go, and the restart stops them anyway — the state
    they would be protecting is the state Trap 1 deletes.
+   <!-- ASSUMES(single-node): with a second node, drain this one first so its
+   pods have somewhere to go. -->
 
 5. **Delete the old Node object:**
    ```bash

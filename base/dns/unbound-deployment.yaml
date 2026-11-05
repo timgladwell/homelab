@@ -8,7 +8,8 @@ metadata:
     # unbound writes runtime state to /var/run/unbound; readOnlyRootFilesystem
     # requires mapping those paths which is outside what the upstream image guarantees.
     # Both probes intentionally query dnssec.works to confirm DNSSEC is active.
-    # This is a single node deployment; single replica is sufficient for now.
+    # ASSUMES(single-node): one replica, because a second has nowhere to go.
+    # On two nodes a second would keep DNS up through a node loss.
     # No NetworkPolicy, deliberately: #79 closed. One was tried in #73 and
     # reverted in #77 after it broke DNS at every site, and what it bought was
     # ingress rules on a single-node cluster whose threat model does not

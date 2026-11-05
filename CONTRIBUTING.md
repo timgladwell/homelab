@@ -426,3 +426,28 @@ Both fields are required. `saves` is the measured cost (series for metrics,
 lines or bytes per day for logs) and `measured` is when it was measured.
 Restoring a dropped signal for an investigation is a temporary change, tagged
 as above.
+
+## Assumptions
+
+Some code is right only while something about the estate holds, and that
+something is expected to change one day. Each place that depends on it carries
+a tag:
+
+```yaml
+# ASSUMES(single-node): <what depends on it, and what to change when it stops holding>
+```
+
+In Markdown, the same inside `<!-- -->`. The tag sits with the warning it
+belongs to (*Where a warning goes*), so `git grep 'ASSUMES(single-node)'` is
+the inventory to start from when the assumption changes. It has no date or
+issue, because it stays true for as long as the assumption does.
+
+The names are a closed set, kept here:
+
+| Name | Holds while |
+| --- | --- |
+| `single-node` | every site is one K3s node |
+
+A name is added when the first code that quietly depends on it is found. It is
+not added for a design decision whose dependants are the design itself: "Akron
+is the only store" is ADR 0003's decision, and everything built on it says so.
