@@ -107,9 +107,18 @@ otherwise in `sites/<site>/infrastructure/site.conf`.
 
 **A variable:** decide its owner first — identical at every site means
 `clusters/common/network-vars.yaml`; different per site means every
-`clusters/<site>/cluster-vars.yaml` that reconciles a consumer. Add it before, or
-in the same PR as, the manifest that uses it (#300). Grep before adding:
-nothing reports an unused variable.
+`clusters/<site>/cluster-vars.yaml` that reconciles a consumer. **Add it in its
+own PR, merged and reconciled at every site that will use it, before the PR that
+uses it.** Both files are applied by `flux-system`, and the layers read them
+through `substituteFrom` on their own schedules. In one PR, a layer can
+reconcile the new commit before `flux-system` has applied the variable. Strict
+substitution then fails it with `variable not set (strict mode)`, and every
+layer that depends on it is blocked. Validation can't catch this, because it
+reads the working tree, not the cluster (#300). If it happens anyway, check that
+`flux-system` is `Ready` and the variable is in the ConfigMap, then run
+`flux reconcile ks <layer>` on the failed layer. At Eastbank the same race
+comes with the `stable` promotion. Grep before adding: nothing reports an
+unused variable.
 
 **A new top-level Flux Kustomization** (only for different `dependsOn`, SOPS
 config or interval — rare):
