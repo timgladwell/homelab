@@ -252,7 +252,12 @@ spec:
             cpu: 200m
             memory: 1Gi
           limits:
-            cpu: 500m
+            # TEMPORARY(until: 2026-11-19, issue: #567): 1 core instead of
+            # 500m, to see whether CFS throttling (15-16% of periods since the
+            # 30 s scrape interval) mostly stops. GOMAXPROCS stays 1, so one
+            # thread can't overrun a full period. Keep it, or go back to 500m,
+            # on the readings in #567. Occasional throttling is acceptable here.
+            cpu: "1"
             memory: 2Gi
 
     alertmanager:
