@@ -1,0 +1,9 @@
+---
+# The site's syslog address, shared by every syslog sender (ADR 0003, *Sites
+# opt into receivers*). It holds only the Service; each base/<sender>-syslog
+# Component adds its ports and its receiver. See service.yaml for the order a
+# site lists them in.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - service.yaml

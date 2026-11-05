@@ -289,6 +289,7 @@ the same framing. It's also the name of the field every device asks for:
 | --- | --- | --- |
 | UniFi OS system log | `unifi-os-log` | `unifi-siem` |
 | UniFi events (CEF) | `unifi-events` | `unifi-cef` |
+| OBi100 syslog | `obihai-syslog` | — (new) |
 | Pod logs | `pod-logs` | `loki.source.kubernetes.pods` |
 | Node journal | `systemd-journal` | unchanged |
 

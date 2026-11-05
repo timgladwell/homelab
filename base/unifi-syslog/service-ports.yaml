@@ -1,0 +1,27 @@
+---
+# UniFi's ports on the site's syslog address (base/syslog/service.yaml), one
+# per stream (unifi-syslog.alloy).
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-syslog
+  namespace: monitoring
+spec:
+  ports:
+    - name: unifi-os-log
+      port: 1514
+      targetPort: 1514
+      protocol: UDP
+    - name: unifi-events
+      port: 1515
+      targetPort: 1515
+      protocol: UDP
+    # The same two streams for RELAYED_SITE_NAME (unifi-syslog.alloy).
+    - name: relayed-os-log
+      port: 1516
+      targetPort: 1516
+      protocol: UDP
+    - name: relayed-events
+      port: 1517
+      targetPort: 1517
+      protocol: UDP

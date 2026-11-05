@@ -165,7 +165,7 @@ spec:
           value: 768MiB
 
       # For loki.write's WAL (see the note on its wal block) and, at sites that
-      # list base/unifi-syslog, syslog_format = "raw". Both are gates on a
+      # list a base/*-syslog receiver, syslog_format = "raw". Both are gates on a
       # component's arguments: below this level `alloy run` refuses them while
       # `alloy validate` passes them (#498), so lowering this crash-loops the
       # collector at every site with nothing in CI to warn of it.

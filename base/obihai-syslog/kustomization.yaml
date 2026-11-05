@@ -1,0 +1,19 @@
+---
+# The Obihai OBi100's syslog receiver (ADR 0003, *Sites opt into receivers*).
+# A site lists it under `components:` after base/syslog. It adds one file to
+# the collector's configuration and its port on the site's syslog address.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+  - path: service-ports.yaml
+
+# Merged into base/collector's generator; disableNameSuffixHash must match it,
+# or the merge produces a second ConfigMap instead.
+configMapGenerator:
+  - name: collector-config
+    namespace: monitoring
+    behavior: merge
+    options:
+      disableNameSuffixHash: true
+    files:
+      - obihai-syslog.alloy
