@@ -15,7 +15,13 @@
 # telling the next reader to remember the other copy. Three call sites had that
 # comment. Now there is one definition and no reminder to forget.
 #
-# Adding a site means adding its Traefik IP here, once.
+# Adding a site means adding its <SITE>_TRAEFIK_IP and <SITE>_SYSLOG_IP here,
+# once. Each other site's sites/<site>/infrastructure/site.conf also gains two
+# lines naming it, so that part grows with the square of the number of sites.
+# Accepted while there are two: a shared list would need a file every site's
+# dnsmasq build reads, for two lines per site (#518). The full list of what a
+# new site touches outside its own directories is in
+# docs/runbooks/bootstrap-new-remote-site.md, step 1.
 apiVersion: v1
 kind: ConfigMap
 metadata:
