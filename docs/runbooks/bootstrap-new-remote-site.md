@@ -14,9 +14,21 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
 
 ## Process (only after Akron is confirmed healthy)
 
-1. **Copy Eastbank's directories and fill in real network values.** Copy `sites/eastbank/` to `sites/<site>/` and `clusters/eastbank/` to `clusters/<site>/`, replacing `eastbank` throughout. Drop components Eastbank alone runs (NetworkOptimizer in `apps/`, Unpoller in `monitoring/`) unless this site should run them. Then set this site's static IPs in `clusters/<site>/cluster-vars.yaml`: `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`, `NODE_IP`, `LAN_CIDR`, `LAN_GATEWAY`.
+1. **Copy Eastbank's directories and fill in real network values.** Copy `sites/eastbank/` to `sites/<site>/` and `clusters/eastbank/` to `clusters/<site>/`, replacing `eastbank` throughout. Drop components Eastbank alone runs unless this site should run them:
+   - NetworkOptimizer in `apps/`;
+   - Unpoller in `monitoring/`: the `./unpoller` resource, the `unpoller-push` port patch and the `collector-config` merge in `monitoring/kustomization.yaml`. One Unpoller polls every site's controller (step 1b);
+   - `base/obihai-syslog` in `monitoring/kustomization.yaml`, unless the site has an OBi100. Each syslog sender is opted into separately ([Adding a Syslog Source](adding-a-syslog-source.md)). Keep `base/syslog` and `base/unifi-syslog`.
 
-   Put this site's dnsmasq records in the copied `sites/<site>/infrastructure/site.conf` (Eastbank's is comments only). Keep the file even if it stays empty: `policy/pihole_dnsmasq_site.rego` fails the build without it, because a site with no file is indistinguishable from a site that wants no DNS records.
+   Keep `monitoring/collector-hostaliases.yaml` as copied: it names Akron, not the site holding it, so every remote site's copy is identical.
+
+   Then set this site's values in `clusters/<site>/cluster-vars.yaml`: `SITE_NAME` (the site identifier, [naming convention](../current-state/naming-convention.md)), `SITE_DOMAIN`, and its static IPs `METALLB_ADDRESS_RANGE`, `METALLB_TRAEFIK_IP`, `METALLB_PIHOLE_IP`, `METALLB_SYSLOG_IP` (`.81`, like every site), `NODE_IP`, `LAN_CIDR`, `LAN_GATEWAY`. Don't add `METRICS_INGEST_URL` or `LOGS_INGEST_URL`: a remote site takes Akron's from `network-vars.yaml`.
+
+   The copied `sites/<site>/infrastructure/site.conf` already resolves Akron's names, which this site needs too; add any records of its own. Keep the file even if it holds no records: `policy/pihole_dnsmasq_site.rego` fails the build without it, because a site with no file is indistinguishable from a site that wants no DNS records.
+
+   **Then tell the other sites about this one**, in the same PR. These are the only files outside `sites/<site>/` and `clusters/<site>/` a new site touches, each accepted for the reason in its own header:
+   - `clusters/common/network-vars.yaml`: `<SITE>_TRAEFIK_IP` and `<SITE>_SYSLOG_IP`, the same values as its `METALLB_TRAEFIK_IP` and `METALLB_SYSLOG_IP`.
+   - Every other site's `sites/<other>/infrastructure/site.conf`: the new site's subtree and its `syslog.` name, copying the two lines already there for a sibling.
+   - Unpoller at Eastbank, if the site has a UniFi console: a `UP_UNIFI_CONTROLLER_<n>_*` set in `sites/eastbank/monitoring/unpoller/secret.sops.yaml` (a read-only user on that console), and its `network_site` rule in `unpoller.alloy` beside it. `up.conf`'s header explains both.
 
 2. **Generate that site's age keypair** (do this locally, keep the private key off any machine that doesn't need it):
    ```bash
@@ -112,4 +124,13 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
 
 12. **Verify PiHole is actually serving DNS** on the new site's LAN before pointing any client devices at it.
 
-13. **Verify the site's metrics reach Akron.** In Grafana at Akron, `up{site="<site>"}` should return the new site's targets within a few minutes. Nothing alerts on a site that never started sending.
+13. **Point the site's off-cluster senders at it, by hand.** Nothing in git reconciles these; each is a row in [State That Is Not In Git](../current-state/host-state.md), updated in the same sitting:
+   - **The UniFi console's DNS records:** A records for `syslog.internal.zerpzorp.com` and `syslog.<site>.internal.zerpzorp.com` to this site's `METALLB_SYSLOG_IP`. The console doesn't resolve through PiHole, so without them its syslog fails silently (*UDR DNS records*).
+   - **The console's syslog targets:** `syslog.internal.zerpzorp.com`, ports `1514` and `1515` (*Syslog targets*).
+   - **Lottage's hand-managed Pi-hole**, if the new site's names should resolve from Lottage: its Traefik IP in `/etc/dnsmasq.d/site.conf` there (*Lottage's Pi-hole*).
+
+14. **Verify the site's signals reach Akron.** Nothing alerts on a site that never started sending (#221), so check each in Grafana at Akron within a few minutes:
+   - metrics: `up{site="<site>"}` returns the new site's targets;
+   - pod and node logs: `{site="<site>", job="pod-logs"}` and `{site="<site>", job="systemd-journal"}`;
+   - syslog: `{site="<site>", job=~"unifi-os-log|unifi-events"}`, after *Send Test Event* on the console;
+   - Unpoller, if step 1 added a controller: `count(last_over_time({job="unpoller", network_site="<site>"}[10m]))` is non-zero.

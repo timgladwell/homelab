@@ -11,6 +11,11 @@
 # next to the storage: it polls controllers over the Site Magic VPN and ships
 # results onward either way. Eastbank has the spare headroom and Akron needs
 # what it can get for the LGTM stack.
+#
+# So a new site's UniFi console is added here, at Eastbank, rather than in the
+# new site's own directories: a controller in secret.sops.yaml and its
+# network_site rule in unpoller.alloy (up.conf's header has both). Accepted,
+# since one poller per estate is how the tool expects to run (#518).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
