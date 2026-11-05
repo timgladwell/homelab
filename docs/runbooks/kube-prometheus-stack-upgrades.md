@@ -29,7 +29,7 @@ For any kube-prometheus-stack chart version bump:
 
 After merging, an operator bump restarts Prometheus **twice**. The Helm upgrade restarts it once, and the new operator restarts it again when it reconciles the `Prometheus` object with its own config-reloader image. Alertmanager does the same.
 
-Each start replays the WAL, which takes about 30s. Until Prometheus logs `Server is ready to receive web requests`, every Grafana query against it returns **502**, `up` included. Loki keeps working, so read the Prometheus pod's logs there:
+Each start replays the WAL, which takes about a minute at the 30s scrape interval. It scales with the samples ingested since the last head compaction, so it grows with the interval and the series count. Until Prometheus logs `Server is ready to receive web requests`, every Grafana query against it returns **502**, `up` included. Loki keeps working, so read the Prometheus pod's logs there:
 
 ```logql
 {namespace="monitoring", pod="prometheus-kube-prometheus-stack-prometheus-0"}
