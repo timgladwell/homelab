@@ -32,7 +32,7 @@ carries a [`TEMPORARY` tag](#temporary-things) saying why and until when.
 | [`docs/adr/`](#adrs) | The target design that solves one product problem, and why it was chosen | How to implement it, progress toward it |
 | [`docs/runbooks/`](#runbooks) | A procedure for a specific outcome | One-off history, past-run logs |
 | [Issues](#issues) | Plans and their structure, tasks, findings, decisions, history | — |
-| [Pull requests](#pull-requests) | Why this change is built this way | Analysis results, discovered work |
+| [Pull requests](#pull-requests) | Why this change is built this way; a summary of what its deploy showed | Detailed analysis results, discovered work |
 | [`README.md`](#readme) | Purpose, scope, getting started, licence | Everything else |
 | [Claude's memory](#claudes-memory) | How Tim prefers to work with Claude | Any decision, convention or technical fact |
 
@@ -342,6 +342,33 @@ that attacked the same root cause (a partial fix, and why it recurred), and any
 PR the change reverts or invalidates, so nobody reapplies it. The Flux v2.9.4
 strict-substitution outage links #172 (cause), #90 and #107 (partial fixes),
 #226 (fix) and #224 (the runbook check that keeps it from recurring).
+
+**A PR that changes the running system opens a change period.** Review,
+validation and rendering keep side effects down at reasonable cost, but only a
+deploy shows what a change really does. The period starts when the change
+reaches Akron and ends once it is shown good at Eastbank, with Akron's result
+recorded before promotion. Docs, scripts and CI changes don't open one.
+
+How long it lasts and how closely it is watched is a judgement, scaled to the
+change's blast radius: a Pi-hole version bump needs a glance, a change to the
+observability plane needs its signals followed through a restart or two.
+Scoping that blast radius, and planning around other changes in flight, is part
+of the change itself. So is deciding whether a later failure belongs to it. If
+the change fails under normal operating conditions, its design was
+insufficient and the result belongs on its PR. If it fails under a condition it
+never met before, that may be a new problem with its own issue.
+
+Manual steps that ship the change (a CRD apply, a firmware upgrade, a secret
+edit) are listed in the PR as part of implementing it, and their results are
+recorded with the rest. What the deploy showed is recorded on the PR that
+drove it:
+
+- **As expected:** a short comment saying what was checked, so "all good" is
+  evidence: for example, `up`, restarts, memory against the limit, and Flux
+  Ready at both sites.
+- **Impactful, or needing follow-up:** a short summary on the PR, linking to a
+  comment on the PR's issue that holds the readings. A PR with no issue gets one
+  opened retroactively to hold them.
 
 ## Commits
 
