@@ -60,7 +60,14 @@ full example, `base/obihai-syslog` the minimal one.
    level it sends to, in the same PR.
 
 6. **Merge, then set the device** to the site's syslog address and the new
-   port. At Eastbank, wait for the promotion to `stable` first.
+   port. At Eastbank, wait for the promotion to `stable` first. Prefer the
+   site-local name, `syslog.internal.zerpzorp.com`, if the device takes a
+   hostname: the site's Pi-hole answers it with that site's own address. Some
+   devices apply the setting only after a reboot, so if nothing arrives,
+   reboot before debugging. If still nothing arrives, check
+   `loki_source_syslog_entries_total` for its listener. At 0, no datagram
+   reached the collector. Look at the device and network, starting with
+   `tcpdump -ni eth0 host <device-ip> and udp` on the node.
 
 7. **Read its raw lines** and decide what the receiver should do with them:
    - parse the header into `host` and a timestamp if it has one, following
@@ -94,8 +101,8 @@ full example, `base/obihai-syslog` the minimal one.
 
 - **OBi100 at Eastbank** (2026-11-05): the second syslog sender, and the one
   that moved the syslog address out of `base/unifi-syslog` into a Component
-  of its own. Port 1518, stream `obihai-syslog`, raw. Its admin guide gives a
-  server IP, a port (default 514) and a level (7 is debug). Its line format
-  was unknown when the receiver was written.
+  of its own. Port 1518, stream `obihai-syslog`, raw. It took the site-local
+  hostname, but sent nothing until it was rebooted. Its lines have no syslog
+  header and end in a NUL, and many arrive as a lone NUL (samples on #567).
 - **MFC-9130CW printer** (2026-11-05): its Network User's Guide has no syslog
   setting, so it can't be added this way. It answers SNMP.

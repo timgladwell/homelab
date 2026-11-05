@@ -184,11 +184,18 @@ How options are compared, for an ADR and for any smaller design choice in a PR:
   tuned so nothing ever fails hides real problems. Change config only when the
   failure also happens outside maintenance, and check that first against merge
   and apply times.
-- **Ask what the next instance would need.** List what adding another site,
-  device or collector would touch outside its own directory; each item is a
-  hidden assumption worth removing. It finds assumptions, it does not justify
-  building for the future, and a one-off special case (Lottage on docker) is not
-  a target to design for.
+- **Ask what the next instance would need, once version 1 ships.** A design
+  is made when the most is unknown. After it ships, take the next change of
+  each kind it serves: the next site, syslog sender, workload or node. List
+  what each would touch outside its own directory, and each item is a hidden
+  assumption.
+  - **Decide what to do about each item.** Most are accepted (YAGNI) and
+    recorded where they live. `ASSUMES(...)` is one way (*Assumptions*). Some
+    are gaps worth fixing at once: the OBi100, the second syslog sender, showed
+    that the site's syslog address belonged to UniFi's receiver, and #596
+    moved it into a Component of its own.
+  - **It finds assumptions; it does not justify building for the future.** A
+    one-off special case (Lottage on docker) is not a target to design for.
 
 ## Runbooks
 
