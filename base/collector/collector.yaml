@@ -96,6 +96,9 @@ spec:
       # whatever the buffer was holding. The chart mounts nothing at
       # alloy.storagePath by default ("data is lost between reboots"), so both
       # this claim and the matching mount below are required.
+      # ASSUMES(single-node): local-path, k3s's default class, keeps the WAL on
+      # one node and pins the collector there. On a second node, losing this one
+      # stops collection until it returns.
       volumeClaimTemplates:
         - metadata:
             name: wal

@@ -22,8 +22,8 @@ metadata:
   name: landing
   namespace: landing
   annotations:
-    # Single-node cluster, so a second replica has nowhere to go — same
-    # reasoning as base/dns/unbound-deployment.yaml.
+    # ASSUMES(single-node): one replica, because a second has nowhere to go —
+    # same reasoning as base/dns/unbound-deployment.yaml.
     # imagePullPolicy is IfNotPresent repo-wide: the tag is pinned and
     # Dependabot moves it, so re-pulling on every restart only adds a
     # registry dependency to pod start.

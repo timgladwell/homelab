@@ -55,6 +55,8 @@ and confirming afterwards that the hole filled.
    `client` is the remote site's node address, its static DHCP reservation, so
    it identifies the site while each site is one node. Akron's own collector
    doesn't appear, because it writes to in-cluster Services.
+   <!-- ASSUMES(single-node): one client address per site. With a second node,
+   this step needs every node's address before "no requests" means anything. -->
 
    - **No requests from the site:** nothing is leaving it. It's the WAN or VPN,
      or the remote collector itself (step 4).

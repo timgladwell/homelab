@@ -73,6 +73,7 @@ major version is pinned explicitly.
 
 No replication and no HA. A second node does not exist, and a second instance on
 this one protects against nothing.
+<!-- ASSUMES(single-node): a second node at Akron reopens replication. -->
 
 Onboarding a second tenant is a database, two roles and a Secret — see the contract
 below. Nothing is built for it until it exists.

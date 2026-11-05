@@ -420,6 +420,7 @@ Lottage's equipment sends locally, like every other site's.
   internal only, every site is one node, and the concern is data in clear,
   which TLS already covers. A site with a second node, or an endpoint reachable
   beyond the LAN and VPN, reopens it.
+  <!-- ASSUMES(single-node): one of the reasons mTLS is deferred. -->
 - **Telemetry endpoints by IP**, to avoid DNS. Breaks TLS: Traefik picks the
   certificate from SNI, which an IP does not carry. `/etc/hosts` pinning gets
   the same independence from DNS.

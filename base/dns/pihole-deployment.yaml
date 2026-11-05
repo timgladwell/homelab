@@ -8,7 +8,9 @@ metadata:
     # pihole runs as root (required for DNS port binding) and needs a writable
     # filesystem for FTL runtime state; these checks cannot be satisfied.
     # Both probes intentionally verify DNS resolution via dig.
-    # This is a single node deployment; single replica is sufficient for now.
+    # ASSUMES(single-node): one replica, because a second has nowhere to go.
+    # On two nodes a second would keep DNS up through a node loss, but it
+    # cannot share pihole-config, which is ReadWriteOnce on local-path.
     # No NetworkPolicy, deliberately: #79 closed. One was tried in #73 and
     # reverted in #77 after it broke DNS at every site, and what it bought was
     # ingress rules on a single-node cluster whose threat model does not

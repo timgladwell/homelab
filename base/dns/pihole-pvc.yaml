@@ -1,4 +1,7 @@
 ---
+# ASSUMES(single-node): local-path, k3s's default class, keeps this volume on
+# one node and pins Pi-hole there. On a second node, losing this one is a DNS
+# outage until it returns.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

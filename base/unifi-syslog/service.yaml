@@ -4,6 +4,10 @@
 # with its own. externalTrafficPolicy: Local is what keeps that address; the
 # receiver falls back on it for `host` (unifi-syslog.alloy).
 #
+# ASSUMES(single-node): Local drops packets that land on a node with no
+# collector pod, silently, because UDP has no handshake. Before adding a node,
+# confirm MetalLB L2 announces this IP only from the collector's node.
+#
 # Both selector labels are required. The chart labels every pod
 # `app.kubernetes.io/name: alloy`, the node log reader's included, and a
 # Service matching both once sent half of every UDR's stream to a pod with no
