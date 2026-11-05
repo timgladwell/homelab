@@ -1,0 +1,36 @@
+// The Obihai OBi100's syslog, received at the site's syslog address
+// (base/syslog/service.yaml) and forwarded through the collector's buffered
+// loki.write. This file joins base/collector/collector.alloy as one directory
+// (ADR 0003, *Sites opt into receivers*) and depends only on its
+// loki.write "default". The device's setting is in
+// docs/current-state/host-state.md, *Off-cluster*.
+//
+// Raw and unparsed. The OBi100's line format wasn't known when this was
+// written, so every line is kept whole until real lines show what to parse
+// (docs/runbooks/adding-a-syslog-source.md). The listener stamps `site`
+// itself, so it bypasses loki.relabel "push", like base/unifi-syslog.
+//
+// NOTE: syslog_format = "raw" needs --stability.level=experimental, which the
+// collector already runs at (base/collector/collector.yaml).
+loki.source.syslog "obihai" {
+  listener {
+    address       = "0.0.0.0:1518"
+    protocol      = "udp"
+    syslog_format = "raw"
+    labels        = { job = "obihai-syslog", site = "${SITE_NAME}" }
+  }
+
+  relabel_rules = loki.relabel.obihai_syslog.rules
+  forward_to    = [loki.write.default.receiver]
+}
+
+// The sender's address is `host` until the format is known. It survives
+// because base/syslog keeps externalTrafficPolicy: Local.
+loki.relabel "obihai_syslog" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__syslog_connection_ip_address"]
+    target_label  = "host"
+  }
+}

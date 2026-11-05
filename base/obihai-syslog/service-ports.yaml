@@ -1,0 +1,13 @@
+---
+# The OBi100's port on the site's syslog address (base/syslog/service.yaml).
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-syslog
+  namespace: monitoring
+spec:
+  ports:
+    - name: obihai-syslog
+      port: 1518
+      targetPort: 1518
+      protocol: UDP
