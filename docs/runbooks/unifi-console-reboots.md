@@ -1,8 +1,10 @@
 # Rebooting or Upgrading a UniFi Console
 
-For any reboot of a site's UDR: a UniFi OS or firmware upgrade, a deliberate
-restart, or an automatic update. It covers what the reboot does to that site's
-K3s node, and how to confirm the site recovered.
+For any reboot of a site's UDR: a UniFi OS or firmware upgrade, or a
+deliberate restart. Nothing in the UniFi estate updates automatically
+([State That Is Not In Git](../current-state/host-state.md#off-cluster)), so
+every planned reboot is one somebody started. The runbook covers what the
+reboot does to that site's K3s node, and how to confirm the site recovered.
 
 ## What a console reboot does to its site
 
@@ -96,13 +98,6 @@ address would restart. -->
 3. **Scrapes resumed:** in Grafana, `up{site="<site>"}` is back to 1 for every
    target.
 
-## Automatic updates
-
-Automatic console firmware updates reboot the UDR on their own schedule, with
-the same effect, and nobody is watching. Run the post-checks the next time you
-look at the site. Whether automatic updates are enabled on each console isn't
-recorded.
-
 ## Appendix: examples
 
 From #570:
@@ -117,5 +112,5 @@ From #570:
 - **2026-11-05, Eastbank:** UniFi OS 5.1.35. The node was without its
   address for 2 m 16 s.
 - **2026-10-15 and 2026-10-23, Akron:** UDR firmware 6.0.12 and 6.0.15,
-  starting about 20:50 local, with no change recorded beforehand. The console's
-  own log shows the download, `fwupdate` and reboot just before the link drop.
+  started by hand at about 20:50 local. The console's own log shows the
+  download, `fwupdate` and reboot just before the link drop.
