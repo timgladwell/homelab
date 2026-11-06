@@ -3,7 +3,7 @@
 For an off-cluster device that can send only syslog, such as a printer, a
 phone adapter or a network appliance, to send its logs to its site's
 collector. A device that speaks OTLP or Loki push uses the collector's HTTPS
-ingest points instead (ADR 0003, *Every site publishes these ingest points*).
+ingest points instead (ADR 0009, *Every site publishes these ingest points*).
 
 Each sender is a Component of its own, `base/<sender>-syslog`. It adds its
 ports to the site's syslog address (`base/syslog`) and one Alloy file to the
@@ -15,7 +15,7 @@ full example, `base/obihai-syslog` the minimal one.
 1. **The device can send syslog to a remote server.** Find its setting, and
    whether it takes an IP address or a hostname, which port, and UDP, TCP or
    TLS. Plaintext UDP is accepted only from a sender that offers nothing else
-   (ADR 0003). A device with no syslog setting can't be added this way.
+   (ADR 0009). A device with no syslog setting can't be added this way.
 2. **Which site it's at.** It sends to that site's syslog address
    (`METALLB_SYSLOG_IP`, `10.x.1.81`).
 3. **Whether a Component for this kind of device already exists**

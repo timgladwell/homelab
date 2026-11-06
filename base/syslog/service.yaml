@@ -1,5 +1,5 @@
 ---
-# The site's syslog address (ADR 0003): UDP straight to the collector on its
+# The site's syslog address (ADR 0009): UDP straight to the collector on its
 # own MetalLB IP, not through Traefik, which would replace the device's address
 # with its own. externalTrafficPolicy: Local is what keeps that address; every
 # syslog receiver falls back on it for `host`.

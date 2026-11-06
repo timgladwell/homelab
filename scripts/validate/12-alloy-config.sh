@@ -114,7 +114,7 @@ for doc in docs:
     name, key, flags = entry
     # key "." is the chart's `run /etc/alloy/.`: Alloy loads every *.alloy key
     # as one configuration, so the assembled directory is what gets validated
-    # (ADR 0003: a receiver's file isn't valid on its own).
+    # (ADR 0009: a receiver's file isn't valid on its own).
     files = ({k: v for k, v in doc["data"].items() if k.endswith(".alloy")}
              if key == "." else {"config.alloy": doc["data"][key]})
     if not files:

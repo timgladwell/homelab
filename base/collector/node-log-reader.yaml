@@ -1,6 +1,6 @@
 ---
-# The site collector's node log reader (ADR 0003, *Behind the contract, two
-# processes*). It reads pod logs and the node's journal from the host, which
+# The site collector's node log reader (ADR 0003, *The collector behind the
+# contract*). It reads pod logs and the node's journal from the host, which
 # needs root, and does nothing else: no listener, no WAL. It forwards to the
 # collector beside it, which buffers and writes to Akron. A DaemonSet at every
 # site, because it reads the node it runs on.

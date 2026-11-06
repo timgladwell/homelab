@@ -1,6 +1,6 @@
 # Planning a Workload's Observability
 
-[ADR 0003](../adr/0003-observability-collection-and-storage.md) collects every
+[ADR 0008](../adr/0008-what-observability-collects.md) collects every
 metric and log by default and drops only for the hardware's sake. So every
 change that adds a workload or changes one, including a chart or image upgrade,
 puts that workload's whole output on Akron's Prometheus and Loki the moment it

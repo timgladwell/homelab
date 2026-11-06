@@ -15,7 +15,7 @@
 [ADR 0006](0006-how-observability-is-used.md) decides what alerts and at what
 level, and keeps levels separate from delivery. This ADR is the delivery: the
 products and channels that carry an alert from the rule that fires it to the
-operator, in the way [ADR 0003](0003-observability-collection-and-storage.md)
+operator, in the way [ADR 0003](0003-observability-storage-and-stack.md)
 chooses the stack that carries data to storage.
 
 Constraints:
