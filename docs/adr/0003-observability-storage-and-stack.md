@@ -19,6 +19,7 @@
 | 2026-11-05 | Tim and Claude | The syslog address is its own Component, shared by every syslog sender. The second sender (the OBi100) showed UniFi's receiver owned it |
 | 2026-11-06 | Tim and Claude | Split into one problem per ADR: what is collected moves to [ADR 0008](0008-what-observability-collects.md), the ingest contract to [ADR 0009](0009-observability-ingest-contract.md); this ADR keeps storage, durability and the stack, which aren't separable (#617) |
 | 2026-11-06 | Tim and Claude | Unpoller's placement moves to [ADR 0009](0009-observability-ingest-contract.md), as the example of a rule for exporters (#624 review) |
+| 2026-11-06 | Tim and Claude | Every dashboard is a copy in Akron's git, not shipped by a workload's chart; the stack's own chart is the exception (#624 review) |
 
 ## Context
 
@@ -128,8 +129,26 @@ process of their own later doesn't touch any sender.
 memcached caches disabled.** The scale-out path, if log volume ever justifies
 it, is SimpleScalable.
 
-**Dashboards are ConfigMaps** loaded by the Grafana sidecar, generated from JSON
-in git.
+**Every dashboard is a copy of its JSON in Akron's git**, whatever its source
+(grafana.com, a workload's chart, or our own), loaded into Grafana as a
+ConfigMap by the sidecar. A workload's chart doesn't ship its own dashboard:
+
+- *A chart at a remote site can't reach Akron's Grafana.* The sidecar sees
+  only the cluster it runs in.
+- *A copy can be edited to match what is stored.* Standardisation renames
+  labels a packaged dashboard selects on
+  ([ADR 0008](0008-what-observability-collects.md)), and dashboards from
+  grafana.com need their datasource inputs resolved.
+- *A copy is pinned.* It changes only when git does, not on a chart upgrade.
+
+The exception is the storage stack's own chart. kube-prometheus-stack's
+built-in dashboards are its integration (ADR 0005), they live where Grafana
+does, and the collector reproduces the names they select on
+([ADR 0008](0008-what-observability-collects.md)), so they ship with the chart.
+
+The cost is that updates are by hand: a dashboard from grafana.com records its
+source in its `gnetId`, and an update is a fresh copy with the same edits
+reapplied.
 
 ## Consequences
 
@@ -165,6 +184,9 @@ in git.
 - **Grafana Operator CRs for dashboards** (including the Unpoller chart's own
   dashboards). Adds an operator dependency, and the Unpoller chart's set omitted
   the Client DPI dashboard.
+- **Dashboards shipped by each workload's chart**, picked up by the sidecar
+  from any namespace. Works only for workloads at Akron, and the dashboard
+  can't be edited to match standardised names.
 - **Loki's memcached caches.** Overhead without benefit for a single binary.
 - **Mimir/Thanos for HA metrics, Tempo for traces.** Rejected for their
   footprint on Pi hardware.
