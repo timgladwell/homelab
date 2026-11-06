@@ -1,6 +1,6 @@
 # 6. How observability is used: what alerts, at what level, and what it tells the operator
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-06
 - **Deciders:** Tim Gladwell
 
@@ -9,6 +9,7 @@
 | Date | By | Description |
 | --- | --- | --- |
 | 2026-11-06 | Tim and Claude | Proposed: two severity scales, alert levels decoupled from delivery, exhaustion alerts alongside SLOs (#617) |
+| 2026-11-06 | Tim and Claude | Accepted (#617) |
 
 ## Context
 
