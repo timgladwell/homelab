@@ -70,7 +70,7 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    cat /boot/firmware/cmdline.txt   # must stay a single line — appended flags, no newline
    sudo reboot
    ```
-   Then re-run the k3s install command above.
+   After the reboot, `grep -w memory /sys/fs/cgroup/cgroup.controllers` must print a line. `/proc/cmdline` will still show `cgroup_disable=memory`: the firmware adds it ahead of `cmdline.txt`, and the flags appended here override it. Then re-run the k3s install command above.
 
    **Raise the inotify instance limit before the node carries a full workload:**
    ```bash
