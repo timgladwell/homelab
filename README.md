@@ -20,4 +20,5 @@ settings — is inventoried in
 
 ## Licence
 
-Not yet chosen; until it is, default copyright applies. Tracked in #423.
+[MIT](LICENSE): use, change and redistribute freely, keeping the copyright
+notice.
