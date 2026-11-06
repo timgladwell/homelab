@@ -1,6 +1,6 @@
 // The node log reader only reads; it forwards everything to the collector at
-// this site over the in-cluster Loki push API (ADR 0003, *Behind the
-// contract, two processes*). The collector stamps the site, applies the drops
+// this site over the in-cluster Loki push API (ADR 0003, *The collector
+// behind the contract*). The collector stamps the site, applies the drops
 // and holds the WAL, so every log passes one set of relabels and one buffer.
 // The collector keeps the timestamps sent here (use_incoming_timestamp on its
 // loki.source.api), which matters at startup: this reader keeps no positions,

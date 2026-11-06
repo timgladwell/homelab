@@ -203,7 +203,7 @@ is a target name that #514 and #515 apply, and this project is the deliberate
 exception to "do not mass-rename". Each name
 says what the thing does, not which vendor runs it, and has to stay true with a
 second collector, a fourth site or a different backend. The collector's
-published contract is in [ADR 0003](../adr/0003-observability-collection-and-storage.md).
+published contract is in [ADR 0009](../adr/0009-observability-ingest-contract.md).
 
 ### Labels
 
@@ -230,7 +230,7 @@ cluster node a log came from, where that applies.
 - **`site` keeps its name and its meaning**, so dashboards and alerts that
   filter on it keep working. For a mobile sender it's the site the sender was
   at. Lottage's UniFi equipment, which has no collector at its own site, is
-  stamped `lottage` by the Lottage-only ingest points it sends to (ADR 0003).
+  stamped `lottage` by the Lottage-only ingest points it sends to (ADR 0009).
 - **The network the data *describes* is a separate fact, `network_site`.**
   Unpoller at Eastbank polling Akron's controller sends `site="eastbank"`,
   `network_site="akron"`. Unpoller's `site_name` is renamed to `network_site`

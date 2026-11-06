@@ -1,7 +1,7 @@
 // Eastbank's Unpoller, collected by this site's collector. Kustomize merges
 // this file into the collector's ConfigMap (kustomization.yaml), and the
 // collector loads its configuration as a directory, so it joins
-// base/collector/collector.alloy without editing it (ADR 0003, *Sites opt into
+// base/collector/collector.alloy without editing it (ADR 0009, *Sites opt into
 // receivers*). It lives here, beside up.conf, because only Eastbank runs
 // Unpoller (#120) and the controller map below is site knowledge base/ must
 // not hold.
@@ -96,7 +96,8 @@ prometheus.relabel "unpoller" {
     replacement   = "lottage"
   }
 
-  // Values are lowercase (ADR 0003, *Appendix: naming conventions*).
+  // Values are lowercase (ADR 0008, *Names and key values are
+  // standardised in the collector*).
   rule {
     source_labels = ["network_site"]
     target_label  = "network_site"
@@ -173,7 +174,8 @@ loki.relabel "unpoller" {
     replacement   = "lottage"
   }
 
-  // Values are lowercase (ADR 0003, *Appendix: naming conventions*).
+  // Values are lowercase (ADR 0008, *Names and key values are
+  // standardised in the collector*).
   rule {
     source_labels = ["network_site"]
     target_label  = "network_site"

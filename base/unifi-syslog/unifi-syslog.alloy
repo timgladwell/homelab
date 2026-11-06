@@ -1,18 +1,18 @@
 // UniFi's syslog, received at the site's syslog address (service.yaml) and
 // forwarded through the collector's buffered loki.write. This file joins
-// base/collector/collector.alloy as one directory (ADR 0003, *Sites opt into
+// base/collector/collector.alloy as one directory (ADR 0009, *Sites opt into
 // receivers*) and depends only on its loki.write "default".
 //
 // One port per stream, because UniFi sends two formats from two settings
 // (docs/current-state/host-state.md, *UniFi syslog: which setting sends which
 // format*). Ports 1516 and 1517 are the same two streams for the site named by
-// RELAYED_SITE_NAME, which has no collector of its own yet (ADR 0003). Each
+// RELAYED_SITE_NAME, which has no collector of its own yet (ADR 0009). Each
 // listener stamps its own `site`, so these bypass loki.relabel "push", which
 // would overwrite it with this site's.
 //
-// Lenient by design (ADR 0003): every line is received raw and kept, and the
-// header is parsed best-effort afterwards. A line whose header doesn't parse
-// gets unparsed="true" and is counted in
+// Received raw (ADR 0009), and every line kept until this parser is complete
+// (ADR 0008, *Parsing logs*): the header is parsed best-effort afterwards.
+// A line whose header doesn't parse gets unparsed="true" and is counted in
 // loki_process_custom_syslog_unparsed_lines_total.
 //
 // NOTE: syslog_format = "raw" needs --stability.level=experimental, which the

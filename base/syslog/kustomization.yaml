@@ -1,5 +1,5 @@
 ---
-# The site's syslog address, shared by every syslog sender (ADR 0003, *Sites
+# The site's syslog address, shared by every syslog sender (ADR 0009, *Sites
 # opt into receivers*). It holds only the Service; each base/<sender>-syslog
 # Component adds its ports and its receiver. See service.yaml for the order a
 # site lists them in.

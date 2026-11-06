@@ -12,7 +12,7 @@ prometheus.remote_write "default" {
   // is the fallback for everything this site collects, and a receiver that
   // stamps another site, such as a Lottage-only ingest point, keeps its value.
   // It does not stop a push sender choosing its own site: overwriting that
-  // belongs at the push receiver (ADR 0003: set by the collector, never the
+  // belongs at the push receiver (ADR 0009: set by the collector, never the
   // sender).
   external_labels = {
     site = "${SITE_NAME}",
@@ -68,19 +68,20 @@ loki.source.api "push" {
 }
 
 // ---------------------------------------------------------------
-// OTLP over HTTP, for logs and metrics (ADR 0003, *The site
-// collector*). Served at every site, because our own software pushes
+// OTLP over HTTP, for logs and metrics (ADR 0009, *The ingest
+// points*). Served at every site, because our own software pushes
 // OTLP wherever it runs, and a mobile sender uses whichever site it is
 // at. The cluster reaches it on the collector Service, and the LAN
 // through Traefik (collector-ingressroute.yaml). Both get the same
 // receivers.
 //
-// Metric names are translated here, not in Prometheus (ADR 0003,
-// *Appendix: naming conventions*). `claude_code.token.usage` with unit
-// `tokens` arrives as `claude_code_token_usage_tokens_total`, and
-// service.name becomes `job`. The other resource attributes go only on
-// `target_info` (measured on Alloy v1.21.0, #514). Everything here is
-// generally available, so it adds nothing to --stability.level.
+// Metric names are translated here, not in Prometheus (ADR 0008, *Names
+// and key values are standardised in the collector*).
+// `claude_code.token.usage` with unit `tokens` arrives as
+// `claude_code_token_usage_tokens_total`, and service.name becomes `job`.
+// The other resource attributes go only on `target_info` (measured on
+// Alloy v1.21.0, #514). Everything here is generally available, so it adds
+// nothing to --stability.level.
 // ---------------------------------------------------------------
 otelcol.receiver.otlp "push" {
   http {
@@ -103,7 +104,7 @@ otelcol.exporter.loki "push" {
 
 // Every signal a sender pushes gets this site, whatever the sender
 // set: the site comes from the ingest point, never from the sender
-// (ADR 0003). external_labels on the writers can't do it, because it
+// (ADR 0009). external_labels on the writers can't do it, because it
 // never overwrites a label (#514). A receiver that stamps another
 // site, such as a Lottage-only ingest point (#515), must not route
 // through these.
@@ -174,7 +175,7 @@ discovery.kubernetes "endpoints" {
 }
 
 // ---------------------------------------------------------------
-// Every pod's metrics, collected by default (ADR 0003). Every metric a
+// Every pod's metrics, collected by default (ADR 0008). Every metric a
 // target serves is kept; tuning is dropping what measurement shows isn't
 // useful, each with a DROP tag, never listing what to keep.
 //

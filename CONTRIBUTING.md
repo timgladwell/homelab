@@ -421,7 +421,7 @@ the reason in the commit message.
 
 ## Dropped signals
 
-[ADR 0003](docs/adr/0003-observability-collection-and-storage.md) collects
+[ADR 0008](docs/adr/0008-what-observability-collects.md) collects
 every metric and log by default and drops only for the hardware's sake, so a
 drop has to be revisitable. Each one carries a tag where it is made:
 

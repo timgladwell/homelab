@@ -1,7 +1,7 @@
 // The Obihai OBi100's syslog, received at the site's syslog address
 // (base/syslog/service.yaml) and forwarded through the collector's buffered
 // loki.write. This file joins base/collector/collector.alloy as one directory
-// (ADR 0003, *Sites opt into receivers*) and depends only on its
+// (ADR 0009, *Sites opt into receivers*) and depends only on its
 // loki.write "default". The device's setting is in
 // docs/current-state/host-state.md, *Off-cluster*.
 //

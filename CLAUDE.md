@@ -76,7 +76,9 @@ monorepo pattern):
 |---|---|
 | `base/` components, `sites/` composition, `clusters/` entry points; `cluster-vars` vs `network-vars` | [0004](docs/adr/0004-repository-layering.md) |
 | Akron first; `stable` only fast-forwarded by the *Promote to stable* workflow | [0002](docs/adr/0002-rollout-across-sites.md) |
-| Collect at every site, store at Akron; what gets collected | [0003](docs/adr/0003-observability-collection-and-storage.md) |
+| Collect at every site, store at Akron; the 24h outage window; the observability stack | [0003](docs/adr/0003-observability-storage-and-stack.md) |
+| Everything collected by default, dropped only for the hardware; names standardised in the collector | [0008](docs/adr/0008-what-observability-collects.md) |
+| Senders depend only on a site's ingest points; the collector is defined by its contract; `site` set at ingest | [0009](docs/adr/0009-observability-ingest-contract.md) |
 | PostgreSQL as a platform service | [0001](docs/adr/0001-postgresql-platform-service.md) |
 | A product's own integration before glue; improvements to third-party tools tracked here, not upstream | [0005](docs/adr/0005-third-party-integration.md) |
 | What alerts and at what level (by response needed, apart from event severity and from delivery); every alert specific and actionable; dashboards summary → detail | [0006](docs/adr/0006-how-observability-is-used.md) |

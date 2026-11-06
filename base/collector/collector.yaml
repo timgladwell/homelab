@@ -1,5 +1,6 @@
 ---
-# The site collector's forwarder (ADR 0003, *The site collector*). Both sites
+# The site collector's forwarder (ADR 0003, *The collector behind the
+# contract*). Both sites
 # run this identically; only the destination and the site label differ, via
 # each cluster's cluster-vars.yaml. Akron writes to its own in-cluster
 # Prometheus and Loki, Eastbank writes to Akron over the Site Magic VPN. Akron
@@ -204,7 +205,7 @@ spec:
       #
       # key "." makes the chart run `alloy run /etc/alloy/.`, loading every
       # *.alloy key in the ConfigMap as one configuration. That is how a site's
-      # receiver Components add a file without editing this one (ADR 0003, *Sites
+      # receiver Components add a file without editing this one (ADR 0009, *Sites
       # opt into receivers*). The configReloader already watches the whole
       # directory. Validation step 12 checks the assembled directory per site.
       configMap:

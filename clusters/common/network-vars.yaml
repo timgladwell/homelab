@@ -51,7 +51,7 @@ data:
   AKRON_SITE_DOMAIN: akron.internal.zerpzorp.com
   # The site whose UniFi console has no collector of its own to send to. Every
   # site's syslog receiver serves ports that stamp this name instead of its own
-  # (base/unifi-syslog), so base/ never names it (ADR 0003). Removed, with
+  # (base/unifi-syslog), so base/ never names it (ADR 0009). Removed, with
   # those ports, once that site runs a collector.
   RELAYED_SITE_NAME: lottage
   # Where telemetry goes, for every site that is not Akron.

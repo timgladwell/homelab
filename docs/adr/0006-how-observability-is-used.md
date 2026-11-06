@@ -1,6 +1,6 @@
 # 6. How observability is used: what alerts, at what level, and what it tells the operator
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-06
 - **Deciders:** Tim Gladwell
 
@@ -9,12 +9,15 @@
 | Date | By | Description |
 | --- | --- | --- |
 | 2026-11-06 | Tim and Claude | Proposed: two severity scales, alert levels decoupled from delivery, exhaustion alerts alongside SLOs (#617) |
+| 2026-11-06 | Tim and Claude | Accepted (#617) |
 
 ## Context
 
-[ADR 0003](0003-observability-collection-and-storage.md) decides how
-observability data is collected and stored. This ADR decides what is done with
-it: what becomes an alert, what an alert's level means, what an alert must say,
+[ADR 0008](0008-what-observability-collects.md),
+[ADR 0009](0009-observability-ingest-contract.md) and
+[ADR 0003](0003-observability-storage-and-stack.md) decide what observability
+data is collected, how it reaches storage, and where it is stored. This ADR
+decides what is done with it: what becomes an alert, what an alert's level means, what an alert must say,
 and what is left to dashboards.
 
 Constraints:
@@ -68,7 +71,7 @@ impact:
 | `unknown` | The source gave no level, or one that can't be mapped. It's an explicit value, so a gap in normalisation is visible rather than silently becoming `info`. |
 
 Normalising happens in the collector, with the other standardisation
-[ADR 0003](0003-observability-collection-and-storage.md) puts there. A source
+[ADR 0008](0008-what-observability-collects.md) puts there. A source
 whose level has to be read from the content of each line (as syslog parsers
 do) maps what it can and leaves the rest `unknown`.
 

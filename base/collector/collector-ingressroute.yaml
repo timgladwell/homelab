@@ -1,9 +1,9 @@
 ---
-# The site collector's LAN ingest point (ADR 0003, *The site collector*):
+# The site collector's LAN ingest point (ADR 0009, *The ingest points*):
 # devices on this site's LAN push OTLP here, over HTTPS, and reach the same
 # receiver the cluster reaches on the collector Service.
 #
-# OTLP only, for now. ADR 0003 also lists Loki push on the LAN, but nothing on
+# OTLP only, for now. ADR 0009 also lists Loki push on the LAN, but nothing on
 # a LAN sends it: the UDRs speak syslog (#515), and every Loki sender is in the
 # cluster, using the collector Service. A second route, `/loki/api/v1/push` to
 # the collector's port 3100, adds it when a LAN sender needs it (#514).
@@ -16,7 +16,7 @@
 #
 # Path-scoped, so only the push APIs are published: the collector's UI and
 # /metrics on :12345 stay off the LAN. Unauthenticated, like the storage ingest
-# routes at Akron; reachable only from the LAN and the VPN (ADR 0003, *Ingest is
+# routes at Akron; reachable only from the LAN and the VPN (ADR 0009, *Ingest is
 # internal only*).
 #
 # `Host(a) || Host(b)`, never `Host(a, b)`: see base/landing/ingressroute.yaml.
