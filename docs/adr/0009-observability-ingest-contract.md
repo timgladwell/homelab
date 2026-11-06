@@ -9,6 +9,7 @@
 | Date | By | Description |
 | --- | --- | --- |
 | 2026-11-06 | Tim and Claude | Split out of [ADR 0003](0003-observability-storage-and-stack.md), unchanged in substance; that ADR's changelog holds the history before the split (#617) |
+| 2026-11-06 | Tim and Claude | Syslog ingest only takes lines raw; what a parser keeps, and how its health is measured, moves to ADR 0008 (#624 review) |
 
 ## Context
 
@@ -137,14 +138,13 @@ empty, that address is the only host label there is. With
 `externalTrafficPolicy: Local` on its own Service, the address reaches the
 collector. TLS syslog is added beside it if a sender turns out to support it.
 
-**The syslog ingest is lenient: a line is never dropped for failing to
-parse.** UniFi is loose with the format. One stream mixes standard syslog
-lines, applications' own log formats and kernel debug dumps, and another omits
-the syslog priority header. A strict RFC 3164 parser discards whatever it
-can't read: Akron's dropped 145 of about 352,000 lines in a week. So the
-receiver takes each line raw, and parsing the header is a best-effort step
-after it. A line that doesn't parse is kept whole and labelled as unparsed,
-and counted, so the formats it misses show up instead of disappearing.
+**Syslog ingest takes every line raw; parsing comes after it.** A receiver
+that parses as it receives discards whatever it can't read: Akron's strict RFC
+3164 receiver dropped 145 of about 352,000 UniFi lines in a week, and those
+lines could never be queried. So the receiver accepts each line as it arrives,
+and parsing is a separate step behind it. What a parser keeps or drops, and
+how its health is measured, is
+[ADR 0008](0008-what-observability-collects.md)'s.
 
 **Sites opt into receivers; base never knows which.** Each reusable receiver,
 such as UniFi's syslog parsing, is a Kustomize Component in `base/`. It adds

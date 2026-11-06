@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | 2026-11-06 | Tim and Claude | Split out of [ADR 0003](0003-observability-storage-and-stack.md), unchanged in substance; that ADR's changelog holds the history before the split (#617) |
 | 2026-11-06 | Tim and Claude | Standardise towards the names consumers already expect, renaming a sender's name only on a collision; drops checked against the rules and dashboards that read them (#624 review) |
+| 2026-11-06 | Tim and Claude | Each source's parser decides what it keeps, and every parser emits the same health counters; moved from ADR 0009's lenient-syslog rule (#624 review) |
 
 ## Context
 
@@ -133,6 +134,35 @@ The conventions:
   suffixes), not by our own rules. That way, OTLP metrics take the same network
   path and the same buffer as every other metric.
 
+### Parsing logs
+
+**Each source has its own parser, and the parser decides what it keeps.**
+Every source has its own quirks, so its parsing rules are built and tuned over
+time, one source at a time. Ingest keeps every line
+([ADR 0009](0009-observability-ingest-contract.md)), and a parser keeps a line
+it can't parse, whole and marked as unparsed, until its implementation is
+judged complete. Moving from "keep everything" to dropping what a complete
+parser rejects is decided in that parser, with the reason beside it, not by a
+rule for every source. UniFi shows why it takes time: one stream mixes
+standard syslog lines, applications' own log formats and kernel debug dumps,
+and another omits the syslog priority header.
+
+**Every parser emits the same health counters**, so a parser's health is
+measured, and alerted on, in the same way for every source:
+
+- lines received;
+- level parsed, failed, or set to `unknown`;
+- line parsed, failed, or passed through untouched (no parsing applies).
+
+Health is then the same set of questions for every source: is data arriving at
+the expected rate, and is the parse rate high.
+
+**A line from an unexpected sender is kept and marked, not dropped.** Each
+source arrives on its own port, so a port receiving from a sender it wasn't
+built for (a new device, a misconfigured target, a forger) is a fact worth
+seeing. The parsing standard marks and counts such lines in the same way for
+every source.
+
 ## Consequences
 
 **Positive**
@@ -152,6 +182,8 @@ The conventions:
   mitigation.
 - **A rename costs every consumer of the old name**, including copies of
   third-party dashboards, which have to be edited again on each update.
+- **Every parser carries the health counters**, which is work per source, and a
+  source without them can't be judged healthy.
 - **A default only collects what is exposed.** A component with no metrics
   endpoint, such as PiHole with no exporter, stays dark; how to handle each is
   decided when its collection is implemented.

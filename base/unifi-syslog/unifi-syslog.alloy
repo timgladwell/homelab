@@ -10,9 +10,9 @@
 // listener stamps its own `site`, so these bypass loki.relabel "push", which
 // would overwrite it with this site's.
 //
-// Lenient by design (ADR 0009): every line is received raw and kept, and the
-// header is parsed best-effort afterwards. A line whose header doesn't parse
-// gets unparsed="true" and is counted in
+// Received raw (ADR 0009), and every line kept until this parser is complete
+// (ADR 0008, *Parsing logs*): the header is parsed best-effort afterwards.
+// A line whose header doesn't parse gets unparsed="true" and is counted in
 // loki_process_custom_syslog_unparsed_lines_total.
 //
 // NOTE: syslog_format = "raw" needs --stability.level=experimental, which the
