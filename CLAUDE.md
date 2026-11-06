@@ -79,6 +79,7 @@ monorepo pattern):
 | Collect at every site, store at Akron; what gets collected | [0003](docs/adr/0003-observability-collection-and-storage.md) |
 | PostgreSQL as a platform service | [0001](docs/adr/0001-postgresql-platform-service.md) |
 | A product's own integration before glue; improvements to third-party tools tracked here, not upstream | [0005](docs/adr/0005-third-party-integration.md) |
+| What alerts and at what level (by response needed, apart from event severity and from delivery); every alert specific and actionable; dashboards summary → detail | [0006](docs/adr/0006-how-observability-is-used.md) |
 
 **`base/` never contains anything site-specific.** A site opts into a component
 by listing it; a `$patch: delete` against `base/` means the layering is wrong.
