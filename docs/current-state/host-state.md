@@ -41,7 +41,7 @@ Set during k3s install, per [Bootstrapping a New Remote Site](../runbooks/bootst
 | What | Where | Why |
 |---|---|---|
 | k3s install flags | `--disable traefik --disable servicelb`, `K3S_KUBECONFIG_MODE=644` | This repo deploys Traefik and MetalLB; the built-ins conflict. Without the kubeconfig mode, `kubectl` and `flux` fail as non-root. |
-| cgroup flags | `cgroup_memory=1 cgroup_enable=memory` in `/boot/firmware/cmdline.txt` | Raspberry Pi OS does not enable the memory cgroup by default and k3s will not start without it. |
+| cgroup flags | `cgroup_memory=1 cgroup_enable=memory` in `/boot/firmware/cmdline.txt` | Raspberry Pi OS does not enable the memory cgroup by default and k3s will not start without it. The firmware adds `cgroup_disable=memory` ahead of `cmdline.txt`, so `/proc/cmdline` carries both and the later enable flags win. That pair is expected: there is nothing in `cmdline.txt` to remove. `grep -w memory /sys/fs/cgroup/cgroup.controllers` confirms the controller is on (#353). |
 | inotify instances | `fs.inotify.max_user_instances = 1024` in `/etc/sysctl.d/90-inotify.conf` | Kernel default is 128, and the limit is per **UID** — k3s-server (~54 on its own), systemd and every containerd-shim share root's pool. Exhaustion makes whichever process starts next fail to create a watcher, so the symptom surfaces far from the cause: at Akron it left MetalLB's webhook unable to serve, which failed every Flux reconcile touching a MetalLB CR. See #160. |
 
 ### Akron only
