@@ -77,7 +77,12 @@ exists to avoid.
 `-disable-write` drops every mutating tool from the server's advertised list, so
 a write is not something Claude can attempt and have refused — it is not offered
 at all. The Viewer role is still the first control; this is the second. It is
-set in the launcher, so check it is still there after editing the script.
+set in the launcher, so check it is still there after editing the script, and
+re-run *Verify* after any major `mcp-grafana` upgrade: a flag that is accepted
+but ignored fails silently. Before upgrading, read the release notes for changes
+to `-disable-write`, the environment variable names and the tool names. The
+launcher also passes `-usage-stats=disabled`, because 2.0.0 turned anonymous
+usage reporting on by default.
 
 **`--scope user` is deliberate, and the two alternatives are both wrong here.**
 
