@@ -16,11 +16,11 @@ flux install --export | diff clusters/akron/flux-system/gotk-components.yaml -
 
 No output means Renovate regenerated correctly, whatever the diff looked like. Any output means it did not — see [Regenerating by hand](#regenerating-by-hand).
 
-The five checks below are what "review" means. They are all answerable from git and the release notes; none require cluster access.
+The six checks below are what "review" means. They are all answerable from git and the release notes; none require cluster access.
 
 > **Validation passing is not evidence the upgrade is safe.** `flux build` uses the Flux **CLI**, and the CLI and the controllers do not always behave identically — see [check 5](#5-behaviour-changes-in-substitution). CI went green on the v2.9.4 upgrade and Akron's `monitoring` Kustomization broke on merge. The checks below are the real gate.
 
-## The five checks
+## The six checks
 
 ### 1. Removed APIs
 
@@ -101,6 +101,18 @@ kustomize.toolkit.fluxcd.io/substitute: disabled
 
 Escaping variables one at a time with `$$` is **not** the fix — that was tried in #90 and #107 and left the mechanism in place for the next dashboard to trip over. Worse, once a resource opts out, nothing unescapes `$$` any more, so old escapes become literal.
 
+### 6. The `reason` label on `gotk_resource_info`
+
+The estate overview's Flux panels tell a failure from a dependency wait by the Ready condition's `reason`, which kube-state-metrics copies into a label (`base/collector/kube-state-metrics.yaml`). That only stays cheap while every reason is a short constant. fluxcd/pkg's `WithSourceRef` option would append ` @ Kind/name` to summarized reasons, making one label value per object. No controller enabled it as of fluxcd/pkg `runtime` v0.110.3 (#500).
+
+If the upgrade moves the controllers to a new `runtime` version, search the target controllers' source for `WithSourceRef`. After the rollout, read the label's values:
+
+```promql
+count by (site, reason) (count_over_time(gotk_resource_info[7d]))
+```
+
+Expect a short list of CamelCase values and no `@`. If a suffix appears, drop the label and fix the panels.
+
 Then run `./scripts/validate-k3s.sh` and merge.
 
 ## Flux CRDs need no manual step
@@ -121,7 +133,7 @@ Akron is the canary, and the branch layout enforces it — Akron's `GitRepositor
 2. Confirm Akron is healthy (below). Reconciliation pauses for ~1–2 minutes during the restart; nothing breaks, work queues up.
 3. Run the **Promote to stable** workflow from the Actions tab. Eastbank upgrades.
 4. Upgrade the `flux` CLI on **both boxes** to match — see below. Flux does not do this for you.
-5. Confirm the controllers' signals with the post-checks in [Planning a Workload's Observability](workload-observability.md#post-checks). Its pre-checks go alongside the five checks above.
+5. Confirm the controllers' signals with the post-checks in [Planning a Workload's Observability](workload-observability.md#post-checks). Its pre-checks go alongside the six checks above.
 
 ```bash
 flux version      # server-side versions, not just the CLI
