@@ -283,12 +283,16 @@ spec:
         route:
           routes:
             # The dead-man's switch (ADR 0007), check akron-alerting-path.
-            # Watchdog always fires, so Alertmanager pings healthchecks.io
-            # every minute, and healthchecks.io notifies Slack when the pings
-            # stop: Akron, Prometheus or Alertmanager down, or Akron's WAN
-            # out. The check's period (1m) and grace (10m) are set at
-            # healthchecks.io (docs/current-state/host-state.md). The period
-            # matches repeat_interval, and the grace absorbs a few missed pings.
+            # Watchdog always fires, so Alertmanager pings healthchecks.io, and
+            # healthchecks.io notifies Slack when the pings stop: Akron,
+            # Prometheus or Alertmanager down, or Akron's WAN out.
+            #
+            # Pings arrive every 2 minutes, not every repeat_interval (measured
+            # 2026-11-06, #626). Hypothesis: a repeat is only checked on a
+            # group_interval tick, and the tick lands just short of a full
+            # repeat_interval, so every other tick is skipped. The check's
+            # period (2m) matches what arrives, and its grace (10m) is set at
+            # healthchecks.io (docs/current-state/host-state.md).
             - receiver: healthchecks
               matchers:
                 - alertname = "Watchdog"
