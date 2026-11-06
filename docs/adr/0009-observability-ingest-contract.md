@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | 2026-11-06 | Tim and Claude | Split out of [ADR 0003](0003-observability-storage-and-stack.md), unchanged in substance; that ADR's changelog holds the history before the split (#617) |
 | 2026-11-06 | Tim and Claude | Syslog ingest only takes lines raw; what a parser keeps, and how its health is measured, moves to ADR 0008 (#624 review) |
+| 2026-11-06 | Tim and Claude | An exporter is a sender outside the domain, placed by headroom; Unpoller's placement moves here from ADR 0003 as the example (#624 review) |
 
 ## Context
 
@@ -109,6 +110,18 @@ whose receiving collector stamps the device's site explicitly. Which site
 *forwarded* a signal isn't recorded: every collector forwards to Akron, so it
 would only repeat the site. The storage stack's own metrics carry the site
 Prometheus runs at ([ADR 0003](0003-observability-storage-and-stack.md)).
+
+**An exporter is a sender, outside the domain.** Equipment that can't send its
+own telemetry (a UniFi controller, a node's kernel, the Kubernetes API) is made
+observable by an exporter that translates it. The exporter depends on the
+ingest points like any other sender, and is scraped or pushes through its
+local collector. It runs wherever there is headroom, not necessarily beside
+what it observes or beside storage. Unpoller is the example: one instance at
+Eastbank polls every site's UniFi controller over the VPN and sends through
+Eastbank's collector (#120), because polling doesn't need to sit next to
+storage and Akron's headroom is what is scarce. The site label still follows
+the ingest point, so what the data describes goes in a label of its own
+(`network_site`, [ADR 0008](0008-what-observability-collects.md)).
 
 ### The ingest points
 
@@ -238,6 +251,8 @@ Lottage's equipment sends locally, like every other site's.
 - **Telemetry endpoints by IP**, to avoid DNS. Breaks TLS: Traefik picks the
   certificate from SNI, which an IP does not carry. `/etc/hosts` pinning gets
   the same independence from DNS.
+- **Unpoller at Akron, one instance per controller.** The original layout,
+  replaced to save Akron's headroom (#120).
 - **Syslog through a Traefik UDP entry point.** No extra address and no DNS
   record, but the proxy hides the device's address from the collector.
 - **Sharing Traefik's address for syslog** (MetalLB `allow-shared-ip`). It ties

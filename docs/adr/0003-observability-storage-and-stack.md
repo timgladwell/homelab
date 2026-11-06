@@ -18,6 +18,7 @@
 | 2026-10-29 | Tim and Claude | The storage stack's self-monitoring stays with the chart, as the one collection path outside the collector, and carries `site` like every other signal; aggregations keep `site` (#511) |
 | 2026-11-05 | Tim and Claude | The syslog address is its own Component, shared by every syslog sender. The second sender (the OBi100) showed UniFi's receiver owned it |
 | 2026-11-06 | Tim and Claude | Split into one problem per ADR: what is collected moves to [ADR 0008](0008-what-observability-collects.md), the ingest contract to [ADR 0009](0009-observability-ingest-contract.md); this ADR keeps storage, durability and the stack, which aren't separable (#617) |
+| 2026-11-06 | Tim and Claude | Unpoller's placement moves to [ADR 0009](0009-observability-ingest-contract.md), as the example of a rule for exporters (#624 review) |
 
 ## Context
 
@@ -123,10 +124,6 @@ process of their own later doesn't touch any sender.
 
 ### The rest of the stack
 
-**Unpoller runs once, at Eastbank**, polling every site's UniFi controller over
-the VPN and writing back through its local collector (#120). Polling does not need
-to sit next to the storage, and Akron's headroom is what is scarce.
-
 **Loki runs as a single binary (the chart's `Monolithic` mode) with its
 memcached caches disabled.** The scale-out path, if log volume ever justifies
 it, is SimpleScalable.
@@ -165,8 +162,6 @@ in git.
 - **A TSDB at every site.** Rejected for SD-card wear and remote-site headroom.
 - **Promtail for logs.** End-of-life, superseded by Alloy, which also collects
   metrics, so one collector covers both.
-- **Unpoller at Akron, one instance per controller.** The original layout,
-  replaced to save Akron's headroom (#120).
 - **Grafana Operator CRs for dashboards** (including the Unpoller chart's own
   dashboards). Adds an operator dependency, and the Unpoller chart's set omitted
   the Client DPI dashboard.
