@@ -392,11 +392,20 @@ verified healthy.
    prometheus-operator rather than by Helm, so they return on their own once
    `kube-prometheus-stack-operator` is running again.
 
-7. **Reclaim the disk.** Deleting the PV does not always remove its directory,
-   and these are the largest things on the node:
+7. **Reclaim the disk.** Deleting the PVCs in step 6 leaves their directories
+   behind, and these are the largest things on the node. local-path removes a
+   directory with a helper pod scheduled by the PV's `nodeAffinity`, which
+   still names the old node. The likely result is that the helper never runs
+   (*hypothesis*: every orphan found at Eastbank dated from its rename, #510).
+   List the directories with no matching PV:
    ```bash
-   sudo du -sh /var/lib/rancher/k3s/storage/* | sort -h | tail
-   # remove directories with no matching PV
+   comm -23 <(sudo ls /var/lib/rancher/k3s/storage | sed 's/_.*//' | sort) \
+            <(kubectl get pv -o name | sed 's|.*/||' | sort)
+   ```
+   Read each before deleting it: an old volume can hold credentials, like
+   Pi-hole's `cli_pw` or NetworkOptimizer's `.credential_key`. Then remove it:
+   ```bash
+   sudo rm -rf /var/lib/rancher/k3s/storage/<pvc-uid>_<namespace>_<claim>
    ```
 
 8. **Force a reconcile** rather than waiting out the interval:
