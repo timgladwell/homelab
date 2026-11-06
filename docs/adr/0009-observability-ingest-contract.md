@@ -11,6 +11,7 @@
 | 2026-11-06 | Tim and Claude | Split out of [ADR 0003](0003-observability-storage-and-stack.md), unchanged in substance; that ADR's changelog holds the history before the split (#617) |
 | 2026-11-06 | Tim and Claude | Syslog ingest only takes lines raw; what a parser keeps, and how its health is measured, moves to ADR 0008 (#624 review) |
 | 2026-11-06 | Tim and Claude | An exporter is a sender outside the domain, placed by headroom; Unpoller's placement moves here from ADR 0003 as the example (#624 review) |
+| 2026-11-06 | Tim and Claude | Forged syslog lines are an accepted risk, since few syslog senders support authentication (#624 review) |
 
 ## Context
 
@@ -205,8 +206,10 @@ Lottage's equipment sends locally, like every other site's.
 
 - Remote telemetry depends on Akron's Traefik, and each site's LAN devices
   depend on their own site's Traefik.
-- **Plaintext syslog can be forged** by anyone on the VLAN, and any sender can
-  push to an ingest endpoint unless it authenticates.
+- **Forged syslog lines are an accepted risk.** Anyone on the VLAN can forge
+  plaintext syslog. Authentication would close that, but few syslog senders
+  support it, so it isn't expected to be implemented here. Likewise, any sender
+  can push to an ingest endpoint unless it authenticates.
 - **A device's data is lost while its collector is unreachable.** Lottage's
   devices reach theirs across the VPN, so any VPN outage loses their data.
 - **A mobile sender's data depends on the sender.** It's lost off the network
