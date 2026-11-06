@@ -9,6 +9,7 @@
 | Date | By | Description |
 | --- | --- | --- |
 | 2026-11-06 | Tim and Claude | Split out of [ADR 0003](0003-observability-storage-and-stack.md), unchanged in substance; that ADR's changelog holds the history before the split (#617) |
+| 2026-11-06 | Tim and Claude | Standardise towards the names consumers already expect, renaming a sender's name only on a collision; drops checked against the rules and dashboards that read them (#624 review) |
 
 ## Context
 
@@ -94,7 +95,27 @@ receives.
 reach storage only after the collector has translated them to one convention.
 That covers metric names arriving over OTLP, and label values such as site
 names that a sender spells its own way. The conventions are common, published
-ones rather than our own wherever one exists:
+ones rather than our own wherever one exists.
+
+**Standardise towards what consumers already expect.** Rules and dashboards
+from other people select on exact names: kube-prometheus-stack's default rules
+and dashboards select on `job="kubelet"` and `metrics_path`, and read the node
+from `instance`. So the collector reproduces those names rather than inventing
+its own. Standardising decouples a consumer from each sender's spelling, but
+every rename breaks every consumer of the old name. That trade is worth making,
+because the packaged consumers here are few and replaceable. It is still made
+only where it buys something:
+
+- **A sender's own name is renamed only when it collides with ours or
+  misleads.** Unpoller's `site_name` names the network it describes, not the
+  site that received it, so it became `network_site`. The cost is stated beside
+  the rename: here, every copied Unpoller dashboard was edited to match, and is
+  edited again on each update.
+- **A drop is checked against the rules and dashboards that read it.** A
+  dropped signal breaks its consumers as silently as a rename does: a rule
+  over a dropped histogram's buckets never fires.
+
+The conventions:
 
 - **One site label on every signal**, set as
   [ADR 0009](0009-observability-ingest-contract.md) describes. Aggregations keep
@@ -129,6 +150,8 @@ ones rather than our own wherever one exists:
 - **A new workload's first intake could overwhelm Prometheus or Loki** on this
   hardware, and become an incident. The research before it ships is the
   mitigation.
+- **A rename costs every consumer of the old name**, including copies of
+  third-party dashboards, which have to be edited again on each update.
 - **A default only collects what is exposed.** A component with no metrics
   endpoint, such as PiHole with no exporter, stays dark; how to handle each is
   decided when its collection is implemented.
