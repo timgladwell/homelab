@@ -9,6 +9,7 @@
 | Date | By | Description |
 | --- | --- | --- |
 | 2026-11-06 | Tim and Claude | Proposed: Alertmanager routes every alert; an external heartbeat watches the path; push channel open (#617) |
+| 2026-11-06 | Tim and Claude | Slack is the one push channel, Pushover the fallback; one heartbeat, from Akron (#214, #619) |
 
 ## Context
 
@@ -43,7 +44,17 @@ ADR 0006's `severity`. The chart's inhibit rules are kept.
 always-firing `Watchdog` alert is routed to **healthchecks.io**, which notifies
 when the heartbeat stops. That covers what nothing inside can report: Akron,
 Prometheus or Alertmanager down, or Akron's WAN out. Its own notification goes
-to a channel that doesn't depend on the estate.
+to a channel that doesn't depend on the estate. **There is one heartbeat, from
+Akron**, because it watches the path and the path runs only at Akron. A remote
+site going dark is an ordinary alert evaluated at Akron; what that misses is a
+remote site failing while Akron is also down, which is learned when Akron
+recovers.
+
+**Slack is the one push channel**, for Alertmanager's notifications and the
+heartbeat's alike. It is already on the operator's phone, so nothing else is
+installed or kept running, and Alertmanager supports it natively. It honours
+Do Not Disturb, which suits the constraint above: a `critical` alert such as a
+site's WAN loss matters, but can't be acted on at night.
 
 **Resolution is delivered wherever the alert was**, so `send_resolved` is set
 explicitly on every receiver rather than left to per-integration defaults,
@@ -53,14 +64,6 @@ which differ.
 
 These are decided in this ADR when they are chosen, not elsewhere:
 
-- **The push channel.**
-  - **Slack:** already on the operator's phone; native in Alertmanager
-    (`slack_configs`, webhook URL as a SOPS secret).
-  - **Pushover:** per-message priority, so a `critical` can override Do Not
-    Disturb and repeat until acknowledged, and it stays apart from other Slack
-    traffic.
-  - A middle option: Slack for everything, adding Pushover for `critical` only
-    if Slack is ever tuned out.
 - **Where log rules evaluate**: Loki's ruler, sending to Alertmanager, or
   Grafana-managed alerting, sending to the same Alertmanager.
 
@@ -90,5 +93,13 @@ These are decided in this ADR when they are chosen, not elsewhere:
   rules (*Open*), sending them here.
 - **A self-hosted notifier** (ntfy, Gotify). It runs on the estate it reports
   on, so it fails with it; a site-down alert needs a path that doesn't.
+- **Pushover**, for everything or for `critical` only. Per-message priority
+  lets a `critical` override Do Not Disturb and repeat until acknowledged, and
+  keeps alerts apart from other Slack traffic. Rejected for now: overriding Do
+  Not Disturb isn't wanted, and it is one more app on the phone. It is the
+  fallback if Slack is ever tuned out.
+- **A heartbeat from every site.** It would report a remote site down while
+  Akron is down too, a case UniFi's own WAN-loss notification mostly covers,
+  for another check and another sender to keep.
 - **Email.** Universal, but needs a relay and credentials, and it's the slowest
   channel to be noticed.

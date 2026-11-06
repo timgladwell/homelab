@@ -8,6 +8,7 @@ resources:
   - resourcequota.yaml
   - kube-prometheus-stack.yaml
   - grafana-secret.sops.yaml
+  - alertmanager-healthchecks-secret.sops.yaml
   - grafana-ingressroute.yaml
   - metrics-ingest-service.yaml
   - metrics-ingest-ingressroute.yaml
