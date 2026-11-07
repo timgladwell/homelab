@@ -343,6 +343,13 @@ alternatives rejected, and what a reviewer needs. When a finding drives the
 change, the finding goes in an issue and the PR links it. Review replies answer
 the review point.
 
+**Push a work-in-progress branch and open a draft PR for it, by default.** Work
+often runs over days, and the draft records what the branch is for and keeps it
+from being forgotten. Don't wait for a definite plan: closing a draft is cheap
+if the plan changes (#639 holds a paused prototype). The exception is a branch
+that isn't an intended change, such as a backup taken before git surgery and
+deleted once the surgery is done.
+
 **A fix links back to the PRs behind it**, with a short comment on each: the PR
 that caused the regression (what broke, and where the fix is), every earlier PR
 that attacked the same root cause (a partial fix, and why it recurred), and any
