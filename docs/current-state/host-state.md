@@ -60,7 +60,7 @@ flags. The Raspberry Pi kernel builds in pressure stall information but leaves
 it off (`CONFIG_PSI_DEFAULT_DISABLED=y`), so without the flag `/proc/pressure`
 and the per-cgroup `*.pressure` files don't exist, and node-exporter's
 `pressure` collector fails (`node_scrape_collector_success{collector="pressure"}`
-is 0). `ls /proc/pressure` lists `cpu io irq memory` when it is on. It is at
+is 0). `ls /proc/pressure` lists `cpu io memory` when it is on. It is at
 Akron alone while its CPU cost on a Pi is measured; Eastbank and the
 new-site runbook follow that result (#381).
 
