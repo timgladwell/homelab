@@ -1,0 +1,11 @@
+---
+# TEMPORARY(until: 2026-11-21, issue: #615): fails on purpose, to read what
+# Flux logs and records when a Kustomization fails. Removed by deleting this
+# directory and clusters/akron/test-615.yaml.
+#
+# It builds cleanly, so validation passes, but the ConfigMap's namespace does
+# not exist, so the server-side apply on the cluster fails on every reconcile.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - configmap.yaml

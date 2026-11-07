@@ -1,0 +1,10 @@
+---
+# TEMPORARY(until: 2026-11-21, issue: #615): see kustomization.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-615
+  # Deliberately absent from the cluster: this is the failure under test.
+  namespace: test-615-does-not-exist
+data:
+  purpose: "Flux failure-log test for #615"
