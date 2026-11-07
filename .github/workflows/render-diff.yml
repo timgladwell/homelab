@@ -48,12 +48,13 @@ jobs:
       # only when there is something to show, so a PR that changes no manifest
       # gets no comment at all.
       #
-      # Skipped where the token cannot write: Dependabot's PRs and forks get a
-      # read-only GITHUB_TOKEN. The job summary above still has the diff.
+      # Skipped for forks, whose GITHUB_TOKEN is read-only whatever
+      # `permissions:` says; the job summary above still has the diff.
+      # Dependabot's PRs default to read-only too, but GitHub honours the
+      # `permissions:` block above for them (changelog 2021-10-06), so they
+      # get the comment.
       - name: Comment on PR
-        if: >-
-          github.actor != 'dependabot[bot]' &&
-          github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
