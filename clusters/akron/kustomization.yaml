@@ -10,5 +10,3 @@ resources:
   - ./infrastructure-config.yaml
   - ./dns-config.yaml
   - ./apps.yaml
-  # TEMPORARY(until: 2026-11-21, issue: #615): see test-615.yaml.
-  - ./test-615.yaml
