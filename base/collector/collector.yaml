@@ -35,7 +35,7 @@ spec:
       chart: alloy
       # A patch range like every other chart, so an Alloy minor arrives as a
       # Renovate PR. CI validates with this range's appVersion (validate.yml).
-      version: "~1.14.0"
+      version: "~1.15.0"
       sourceRef:
         kind: HelmRepository
         name: grafana
