@@ -72,6 +72,15 @@ If this is a brand-new device (not just a Flux re-bootstrap on existing hardware
    ```
    After the reboot, `grep -w memory /sys/fs/cgroup/cgroup.controllers` must print a line. `/proc/cmdline` will still show `cgroup_disable=memory`: the firmware adds it ahead of `cmdline.txt`, and the flags appended here override it. Then re-run the k3s install command above.
 
+   **Turn on pressure stall information (PSI).** The Raspberry Pi kernel builds it in but leaves it off, and without it node-exporter and the kubelet export no pressure series. If the cgroup step above needed a reboot, append this before that reboot rather than rebooting twice:
+   ```bash
+   cat /boot/firmware/cmdline.txt
+   sudo sed -i 's/$/ psi=1/' /boot/firmware/cmdline.txt
+   cat /boot/firmware/cmdline.txt   # must stay a single line, ending in psi=1
+   sudo reboot
+   ```
+   After the reboot, `ls /proc/pressure` must list `cpu io memory`.
+
    **Raise the inotify instance limit before the node carries a full workload:**
    ```bash
    echo 'fs.inotify.max_user_instances = 1024' | sudo tee /etc/sysctl.d/90-inotify.conf
