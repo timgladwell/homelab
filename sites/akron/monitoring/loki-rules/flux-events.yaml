@@ -1,0 +1,76 @@
+---
+# DRAFT for #648 (key estate events), step 2: Flux deployment events.
+# Not wired in yet: Loki's ruler and its rules sidecar are off (loki.yaml),
+# so nothing loads this file. Wiring it is its own change.
+#
+# Each rule records one key event as a series whose VALUE is the event's own
+# timestamp (unix seconds, from the log line), so a Grafana annotation with
+# "series value as timestamp" draws the exact moment, whatever the
+# evaluation cadence. Every event shares one metric name, told apart by
+# `event`, so one annotation query can draw them all (#648, step 1).
+#
+# Cadence and lookback follow the system's other constraints (#648):
+#   - interval 30s, the scrape interval;
+#   - [24h] lookback, ADR 0003's outage window. Each evaluation re-derives
+#     the whole window, so an event in data that arrives late, buffered at a
+#     remote site through an outage, is recorded on the next evaluation after
+#     it lands. Data later than 24h is never derived.
+#
+# The `unless … [1h] offset 23h` leg keeps "first seen" honest. Flux logs a
+# commit again on every reconcile (every 10m for a Kustomization, every
+# retry for a failure), so a commit still current 23h ago is excluded rather
+# than having its "first" time creep forward as the window slides. The cost:
+# an event's series ends ~23h after it, so a consumer looking further back
+# takes min_over_time() of this series, not its latest value.
+#
+# The commit comes from the controllers' JSON logs, not Kubernetes Events,
+# whose revision is an annotation that loki.source.kubernetes_events doesn't
+# write (#615). `site` is the stream's, set at ingest (ADR 0009).
+groups:
+  - name: flux-events
+    interval: 30s
+    rules:
+      # A site starts deploying a commit: the first kustomize-controller line
+      # that names it. source-controller's fetch line names only the commit
+      # subject, not the sha; the first apply follows the fetch by ~3s (#615).
+      - record: estate_event_timestamp_seconds
+        labels:
+          event: flux_deploy_started
+        expr: |
+          min by (site, revision) (
+            min_over_time({namespace="flux-system", app="kustomize-controller"} |= `"revision":`
+              | json revision | revision != ""
+              | label_format ts_s=`{{ __timestamp__ | unixEpoch }}` | unwrap ts_s [24h]))
+          unless on (site, revision)
+          count by (site, revision) (
+            count_over_time({namespace="flux-system", app="kustomize-controller"} |= `"revision":`
+              | json revision | revision != "" [1h] offset 23h))
+
+      # One Kustomization finishes applying a commit, health checks included.
+      - record: estate_event_timestamp_seconds
+        labels:
+          event: flux_kustomization_applied
+        expr: |
+          min by (site, name, revision) (
+            min_over_time({namespace="flux-system", app="kustomize-controller"} |= "Reconciliation finished"
+              | json name, revision
+              | label_format ts_s=`{{ __timestamp__ | unixEpoch }}` | unwrap ts_s [24h]))
+          unless on (site, name, revision)
+          count by (site, name, revision) (
+            count_over_time({namespace="flux-system", app="kustomize-controller"} |= "Reconciliation finished"
+              | json name, revision [1h] offset 23h))
+
+      # One Kustomization first fails at a commit. Whether it is still failing
+      # is state, not an event: gotk_resource_info{ready="False"} (#221).
+      - record: estate_event_timestamp_seconds
+        labels:
+          event: flux_kustomization_failed
+        expr: |
+          min by (site, name, revision) (
+            min_over_time({namespace="flux-system", app="kustomize-controller"} |= "Reconciliation failed"
+              | json name, revision
+              | label_format ts_s=`{{ __timestamp__ | unixEpoch }}` | unwrap ts_s [24h]))
+          unless on (site, name, revision)
+          count by (site, name, revision) (
+            count_over_time({namespace="flux-system", app="kustomize-controller"} |= "Reconciliation failed"
+              | json name, revision [1h] offset 23h))
