@@ -55,6 +55,15 @@ are embedded in the server binary and expose ~51K samples per scrape, of which
 ~724 series survive relabeling. The args are harmless but no longer serve
 anything, and Eastbank does not have them. Do not copy them to a new node.
 
+`/boot/firmware/cmdline.txt` also carries `psi=1`, appended after the cgroup
+flags. The Raspberry Pi kernel builds in pressure stall information but leaves
+it off (`CONFIG_PSI_DEFAULT_DISABLED=y`), so without the flag `/proc/pressure`
+and the per-cgroup `*.pressure` files don't exist, and node-exporter's
+`pressure` collector fails (`node_scrape_collector_success{collector="pressure"}`
+is 0). `ls /proc/pressure` lists `cpu io irq memory` when it is on. It is at
+Akron alone while its CPU cost on a Pi is measured; Eastbank and the
+new-site runbook follow that result (#381).
+
 ### Eastbank only
 
 `/etc/rancher/k3s/config.yaml` adds `image-gc-high-threshold=75` and
