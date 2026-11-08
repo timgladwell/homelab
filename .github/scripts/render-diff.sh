@@ -62,6 +62,9 @@ echo "## Rendered manifest diff"
 echo
 echo "\`flate diff all\` against \`${base}\`: every manifest as Flux will apply it, including chart-rendered objects."
 echo "A review aid; Validate's step 15 is the pass/fail check."
+# flate's --strip-attr default; without this line a chart bump that renders the
+# same objects reads as a render that failed (asked in the #641 review run).
+echo "Chart labels (\`helm.sh/chart\`, \`app.kubernetes.io/version\`, \`chart\`, \`checksum/\`) are stripped before diffing, so a chart bump showing only its version renders the same objects with these values. It does not prove every value is still read (#654)."
 
 for site in $(sites); do
     # Serial, for the same parallel-reconcile livelock as step 15 (#437).
