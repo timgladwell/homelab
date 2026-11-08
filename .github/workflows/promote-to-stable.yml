@@ -29,6 +29,13 @@ on:  # yamllint disable-line rule:truthy
         options: ["no", "yes"]
         default: "no"
         required: true
+      validate_override:
+        description: >
+          Break-glass, for when CI itself is broken: promote without a green
+          Validate run, and say why. Leave empty to require the run.
+        type: string
+        default: ""
+        required: false
 
 concurrency:
   group: promote-to-stable
@@ -58,9 +65,15 @@ jobs:
       # main is validated on every PR and on push, so the tree being promoted
       # has already been checked. Rather than re-running the pipeline, assert
       # that the run which covered *this exact commit* actually passed.
+      #
+      # validate_override is the operator's judgement over this gate, so a fix
+      # can reach the remote sites while CI is what's broken. It lifts only
+      # this gate: the Akron assertion and the fast-forward check still apply.
+      # It is passed through env, never interpolated into the script.
       - name: Require a green Validate run on this commit
         env:
           GH_TOKEN: ${{ github.token }}
+          OVERRIDE: ${{ inputs.validate_override }}
         run: |
           set -euo pipefail
           sha=$(git rev-parse origin/main)
@@ -68,10 +81,22 @@ jobs:
           conclusion=$(gh run list --branch main --workflow Validate \
             --commit "$sha" --limit 1 --json conclusion --jq '.[0].conclusion // "none"')
           echo "Validate conclusion for $sha: $conclusion"
-          if [[ "$conclusion" != "success" ]]; then
+          if [[ "$conclusion" == "success" ]]; then
+            exit 0
+          fi
+          if [[ -z "${OVERRIDE//[[:space:]]/}" ]]; then
             echo "::error::No successful Validate run for $sha (got: $conclusion)."
             exit 1
           fi
+          echo "::warning::Validate gate overridden for $sha (got: $conclusion): $OVERRIDE"
+          {
+            echo "### Validate gate overridden"
+            echo
+            echo "\`$sha\` had Validate conclusion \`$conclusion\`. Reason given:"
+            echo
+            echo "> $OVERRIDE"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify this is a fast-forward
         run: |

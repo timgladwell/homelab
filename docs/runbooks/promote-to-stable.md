@@ -14,7 +14,10 @@ rulesets that make it safe: [ADR 0002](../adr/0002-rollout-across-sites.md).
    ```
 
 2. **The commit has a green `Validate` run on `main`.** The workflow checks this
-   too and refuses without one.
+   too and refuses without one. A run that failed on something transient (a
+   download 5xx) is re-run, not overridden: `gh run rerun --failed <run-id>`.
+   If CI itself is broken and a fix has to reach the remote sites anyway, see
+   [Promoting while CI is broken](#promoting-while-ci-is-broken).
 
 ## Steps
 
@@ -38,6 +41,28 @@ Kustomization is `Ready`:
 flux get sources git
 flux get kustomizations -A
 ```
+
+## Promoting while CI is broken
+
+Break-glass, for when `Validate` can't go green for reasons that have nothing
+to do with the commit (an outage, a broken CI dependency) and the remote sites
+need a fix now. It lifts only the `Validate` gate: Akron must still be
+confirmed healthy, and the push must still fast-forward.
+
+Before using it, check the failure yourself: read the failed run and be sure
+it's CI that's broken, not the tree. Then give the reason as the override:
+
+```bash
+gh workflow run promote-to-stable.yml -f akron_healthy=yes \
+  -f validate_override="<why CI can't pass, and the run you checked>"
+```
+
+The run logs a warning and records the reason and the Validate conclusion in
+its summary. Leaving the field empty keeps the normal gate.
+
+**Post-checks**, beyond the usual ones: once CI is fixed, confirm `Validate`
+passes on a `main` commit at or after the one you promoted, so the tree on
+`stable` has been validated after all.
 
 ## If the push is rejected
 

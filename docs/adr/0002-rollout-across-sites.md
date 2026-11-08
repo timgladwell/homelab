@@ -12,6 +12,7 @@
 | 2026-08-06 | Tim | Promotion by workflow fast-forward; `stable`'s ruleset reduced to rules that need no bypass (#206) |
 | 2026-08-23 | Tim | `required_signatures` on both branches (#294) |
 | 2026-10-06 | Tim and Claude | Written up as an ADR from CLAUDE.md and the retired reset runbook (#402) |
+| 2026-11-08 | Tim and Claude | Operator can override the `Validate` gate with a reason, so a fix still ships when CI is broken |
 
 ## Context
 
@@ -35,6 +36,13 @@ Constraints:
 *Promote to stable* workflow, run by hand. The workflow refuses to run unless
 the operator asserts Akron is healthy and the commit has a successful `Validate`
 run. It never passes `--force`.
+
+**The `Validate` gate can be overridden by the operator, with a stated reason.**
+CI is a dependency of the remote sites' repair path, and it can break on its
+own (an outage, a broken tool download). The operator's judgement takes
+precedence over the gate. The override is recorded in the run, and it lifts
+only that gate: the Akron assertion and the fast-forward check have none,
+because Akron having run the commit is the evidence that matters most.
 Procedure: [Promoting to `stable`](../runbooks/promote-to-stable.md).
 
 **Rulesets, with no bypass actor on either branch:**
@@ -60,6 +68,9 @@ repository owner, so `stable` can only move forward and nobody can rewrite it.
 
 - Promotion is manual. There is no automatic cross-site health gate; the gate is
   the operator's assertion.
+- The `Validate` override can't tell a broken CI from a broken tree; the
+  operator does. A tree promoted under it reaches the remote sites unvalidated
+  until CI passes on `main` again.
 - **An unsigned commit on `main` cannot be repaired.** `main`'s history is
   immutable too, and every later promotion carries the commit to `stable`, where
   `required_signatures` rejects the push until `stable`'s ruleset is temporarily
