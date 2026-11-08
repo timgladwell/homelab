@@ -20,17 +20,26 @@ jobs:
   render-diff:
     runs-on: ubuntu-latest
     # Seconds normally. Bounds a stalled chart fetch well short of GitHub's
-    # 6-hour default, as Validate does.
-    timeout-minutes: 10
+    # 6-hour default, as Validate does. Room for Setup flate's 7-minute cap.
+    timeout-minutes: 15
     steps:
       # Full history, so the base branch is there to diff against.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
+      # Same as Validate's step of this name, which explains it and the
+      # timeout-minutes on Setup flate: flate's download is curl, and GitHub
+      # release downloads intermittently 504 or hang. Keep the two in step.
+      - name: Retry transient download failures
+        run: |
+          printf '%s\n' 'retry = 9' 'retry-max-time = 300' 'connect-timeout = 10' \
+            'speed-limit = 1024' 'speed-time = 30' >> "$HOME/.curlrc"
+
       # Same pin and cache as Validate. `base` is exported as FLATE_BASE, which
       # the script unsets: it diffs two prepared checkouts with -P instead.
       - name: Setup flate
+        timeout-minutes: 7
         uses: home-operations/flate/action@v0.6.5
         with:
           base: origin/${{ github.base_ref }}
