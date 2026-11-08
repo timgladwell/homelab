@@ -1,0 +1,23 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+# Loki recording rules, one file per event domain (#648), each its own
+# ConfigMap. Loki's rules sidecar (loki.yaml) loads every ConfigMap labelled
+# loki_rule in this namespace, and the ruler reloads them without a restart.
+#
+# - A fixed name, not a hash suffix: the sidecar writes each ConfigMap's keys
+#   as files, so renaming the ConfigMap on every edit would make it delete and
+#   rewrite the file. A rule change needs no pod restart to take effect.
+# - Substitution off: LogQL is not Flux's to touch, and a `$` in a regex or a
+#   `${…}` would otherwise be read as a Flux variable.
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    loki_rule: "1"
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+configMapGenerator:
+  - name: loki-rules-deployment
+    files:
+      - deployment.yaml
