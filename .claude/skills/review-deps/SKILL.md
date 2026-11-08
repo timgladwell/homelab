@@ -116,10 +116,33 @@ restart or two of the observability plane's own signals for a change to it.
 
 ## 6. Post on each PR, then report here
 
-Every PR in the run gets a comment, mechanical and held ones included. Write
+Every PR in the run gets a review, mechanical and held ones included. Write
 it to a file and post with `scripts/dep-review.sh post <pr> <file>`, which
 replaces an earlier review comment instead of stacking a second one. The
 head SHA is the packet's `<!-- head: … -->` line.
+
+**Before posting, read the earlier review** with `scripts/dep-review.sh
+previous <pr>`. A re-run must not replace good analysis with worse because
+something failed this time:
+
+- **No previous review, or the head moved:** post the new review. A review
+  of another head is stale whatever its quality.
+- **Same head, and this run has gaps the earlier one didn't** because a
+  fetch failed, a page would not load, an API rate-limited, or CI is still
+  running: that is transient. Keep the earlier review word for word, and
+  change only its heading's batch and its merge-plan table if the plan has
+  changed. If nothing changed, do not post.
+- **Same head, with new evidence:** a CI result changed, upstream fixed or
+  broke something, this run found a lead the earlier one missed, or it
+  contradicts an earlier claim. Post the new review, with a `Revised` line
+  under the heading (template below) saying what changed. A transient gap in
+  this run doesn't count as new evidence; where this run could not check
+  something the earlier one did, carry the earlier finding over and say so.
+- **Same head, same conclusions:** do not post, unless the merge plan
+  changed; then update only the heading's batch and the table.
+
+GitHub keeps every comment's edit history, so nothing is lost outright; the
+rule is about what Tim reads when he merges.
 
 ```markdown
 🤖 *Posted by Claude via @timgladwell's account.*
@@ -129,6 +152,9 @@ head SHA is the packet's `<!-- head: … -->` line.
 Reviewed at <sha7> on <date>. **If this PR's head has moved since (a
 Renovate rebase or a newer version), this review is stale: re-run
 `/review-deps`.**
+
+<Only on a revision of the same head:> **Revised from the review of
+<date>:** <what changed, and the evidence>.
 
 ### Merge plan
 <one line why this batch: the rule above that applies>. <Merge after batch
@@ -165,8 +191,9 @@ A held PR's heading reads `hold · not batched`. Its comment says what would unb
 merged before the next promotion. A **needs Tim** comment states the
 decision as a question.
 
-Then report here: one table of PR, verdict and batch, with a link to each
-comment. End with a cost line (PRs total, PRs judged, triage tokens per agent
+Then report here: one table of PR, verdict, batch and what happened to its
+comment (new, replaced because the head moved, revised, kept with only the
+plan updated, or unchanged), with a link to each comment. End with a cost line (PRs total, PRs judged, triage tokens per agent
 and in total) and append it to #641 while the process is being measured.
 
 ## Boundaries

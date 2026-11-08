@@ -9,6 +9,11 @@
 #   scripts/dep-review.sh post <pr> <file>
 #                                     post <file> as the PR's review comment,
 #                                     editing the earlier one in place
+#   scripts/dep-review.sh previous <pr>
+#                                     the PR's earlier review comment, and
+#                                     whether its head has moved since. For
+#                                     the judge only: kept out of the packet so
+#                                     triage reads the evidence blind
 #
 # The packet holds the bump (Renovate's update table), the release notes the
 # bot embedded, the PR's own diff, the rendered-manifest diff that
@@ -36,9 +41,31 @@ if [[ $# -eq 0 ]]; then
   exit 0
 fi
 
+marker='<!-- review-deps -->'
+
+if [[ $1 == previous ]]; then
+  pr=$2
+  json=$(gh pr view "$pr" --json headRefOid,comments)
+  body=$(jq -r --arg m "$marker" '[.comments[] | select(.body | contains($m))] | last | .body // empty' <<<"$json")
+  if [[ -z "$body" ]]; then
+    echo "(no previous review)"
+    exit 0
+  fi
+  head=$(jq -r '.headRefOid[0:7]' <<<"$json")
+  # Backticks optional: the model writing the comment doesn't always keep them.
+  was=$(grep -oE 'Reviewed at `?[0-9a-f]{7}' <<<"$body" | grep -oE '[0-9a-f]{7}$' || true)
+  if [[ "$was" == "$head" ]]; then
+    echo "Previous review: at $was, the current head (same head)"
+  else
+    echo "Previous review: at ${was:-unknown}; head is now $head (head moved)"
+  fi
+  echo
+  echo "$body"
+  exit 0
+fi
+
 if [[ $1 == post ]]; then
   pr=$2 file=$3
-  marker='<!-- review-deps -->'
   grep -qF "$marker" "$file" || { echo "$file lacks $marker" >&2; exit 1; }
   # One review comment per PR, so a re-run replaces the verdict rather than
   # leaving a stale one above it.
