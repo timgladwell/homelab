@@ -41,6 +41,66 @@ spec:
         #   sum by (site) (rate(node_cpu_seconds_total{mode!="idle",mode!="iowait",mode!="steal"}[5m]))
         kubePrometheusNodeRecording: false
 
+    # Rules defined here, rendered by the chart as PrometheusRules, so Helm
+    # installs them after the CRDs (a PrometheusRule in a layer beside this
+    # HelmRelease would fail on a fresh cluster).
+    additionalPrometheusRulesMap:
+      # Flux deployment events (#648), site level. They read the
+      # per-Kustomization series that Loki's ruler writes
+      # (loki-rules/deployment.yaml, which explains the shape and keys), and
+      # add gotk_resource_info, which Loki can't see. Rules in a group run in
+      # order at one timestamp, so later rules read earlier ones' results.
+      deployment:
+        groups:
+          - name: deployment
+            # Matches the scrape interval and the Loki rules (#648); the global
+            # evaluationInterval below is 60s.
+            interval: 30s
+            rules:
+              # How many Kustomizations the site has, for every commit it
+              # started. The count is today's, so a commit that added or
+              # removed a Kustomization is measured against the new count.
+              - record: zerpzorp_deployment_kustomizations
+                labels:
+                  state: expected
+                expr: |
+                  count by (site, revision, sha) (zerpzorp_deployment_timestamp_seconds{event="started"}) * 0
+                  + on (site) group_left ()
+                  count by (site) (count by (site, name) (gotk_resource_info{customresource_kind="Kustomization"}))
+              - record: zerpzorp_deployment_kustomizations
+                labels:
+                  state: applied
+                expr: |
+                  count by (site, revision, sha) (zerpzorp_deployment_kustomization_timestamp_seconds{event="applied"})
+              - record: zerpzorp_deployment_kustomizations
+                labels:
+                  state: failed
+                expr: |
+                  count by (site, revision, sha) (zerpzorp_deployment_kustomization_timestamp_seconds{event="failed"})
+              # Finished: the last Kustomization applied the commit, once every
+              # Kustomization has. A failure first then a success on retry
+              # gives both `failed` and `finished` for one commit, as a health
+              # check timing out mid chart upgrade does (#648, 2026-11-08). A
+              # commit superseded before every Kustomization applies it never
+              # finishes.
+              - record: zerpzorp_deployment_timestamp_seconds
+                labels:
+                  event: finished
+                expr: |
+                  max by (site, revision, sha) (zerpzorp_deployment_kustomization_timestamp_seconds{event="applied"})
+                  and on (site, revision, sha)
+                  (zerpzorp_deployment_kustomizations{state="applied"}
+                    >= ignoring (state) zerpzorp_deployment_kustomizations{state="expected"})
+              - record: zerpzorp_deployment_timestamp_seconds
+                labels:
+                  event: failed
+                expr: |
+                  min by (site, revision, sha) (zerpzorp_deployment_kustomization_timestamp_seconds{event="failed"})
+              - record: zerpzorp_deployment_duration_seconds
+                expr: |
+                  max without (event) (zerpzorp_deployment_timestamp_seconds{event="finished"})
+                  - max without (event) (zerpzorp_deployment_timestamp_seconds{event="started"})
+
     grafana:
       enabled: true
       adminPassword: ""

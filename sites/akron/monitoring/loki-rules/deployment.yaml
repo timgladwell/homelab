@@ -1,0 +1,93 @@
+---
+# Flux deployment events (#648): the per-Kustomization half, derived from the
+# Flux controllers' JSON logs. The site-level half (finished, failed,
+# duration, counts) needs gotk_resource_info, so it is a Prometheus rule:
+# additionalPrometheusRulesMap in kube-prometheus-stack.yaml, which reads
+# what these rules write. Loki's ruler loads this file through the rules
+# sidecar (loki.yaml) and remote-writes the results into Prometheus.
+#
+# Names follow docs/current-state/naming-convention.md, *Metrics*: every
+# event series has the event's own timestamp (unix seconds, from the log
+# line) as its value, so an annotation drawn from it lands at the exact
+# moment, whatever the evaluation cadence.
+#
+# Keys: `revision` exactly as Flux writes it (`main@sha1:<sha>`,
+# `stable@sha1:<sha>`), the same key as gotk_resource_info and the controller
+# logs, so these join with Flux's own series. `sha` is the revision without
+# its branch, for comparing sites: a promotion to `stable` is a fast-forward
+# and keeps the sha.
+#
+# Each rule re-derives the whole [24h] window on every evaluation, so lines
+# that arrive late (buffered at a remote site through an outage, ADR 0003's
+# 24h window) are recorded on the evaluation after they land. A line later
+# than 24h is never recorded. The `unless … [1h] offset 23h` leg keeps "first
+# seen" from creeping forward as the window slides: Flux logs a current
+# commit again on every reconcile (every 10m, or every retry while failing),
+# so a commit still being logged 23h ago is dropped. An event's series
+# therefore ends ~23h after the event; a consumer looking further back takes
+# min_over_time() of the series rather than its latest value.
+#
+# `| __error__ = ""` after each parse: in a metric query, one line that fails
+# to parse fails the whole rule.
+#
+# Shortcut: these parse the raw `pod-logs` stream, so every evaluation reads
+# all of kustomize-controller's lines (~4 MB a day) to use ~20% of them. The
+# site-side Flux parser in #648 gives event lines a stream of their own; the
+# rules move to it additively, reading both shapes until the old one ages out.
+groups:
+  - name: deployment
+    # Matches the scrape interval (scrapeInterval in kube-prometheus-stack.yaml,
+    # the collector's scrape_interval): change them together (#648). It only
+    # sets how soon an event appears, never the time it is recorded at.
+    interval: 30s
+    rules:
+      # A site starts deploying a commit: the first kustomize-controller line
+      # that names it. source-controller's fetch line names only the commit
+      # subject, not the sha; the first apply follows the fetch by seconds.
+      - record: zerpzorp_deployment_timestamp_seconds
+        labels:
+          event: started
+        expr: |
+          min by (site, revision, sha) (
+            min_over_time({namespace="flux-system", app="kustomize-controller"} |= `"revision":`
+              | json revision | __error__ = "" | revision != ""
+              | label_format sha=`{{ regexReplaceAll "^.*@sha1:" .revision "" }}`
+              | label_format ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+          unless on (site, revision)
+          count by (site, revision) (
+            count_over_time({namespace="flux-system", app="kustomize-controller"} |= `"revision":`
+              | json revision | __error__ = "" | revision != "" [1h] offset 23h))
+
+      # One Kustomization finishes applying a commit, health checks included.
+      - record: zerpzorp_deployment_kustomization_timestamp_seconds
+        labels:
+          event: applied
+        expr: |
+          min by (site, name, revision, sha) (
+            min_over_time({namespace="flux-system", app="kustomize-controller"} |= "Reconciliation finished"
+              | json name, revision | __error__ = "" | revision != ""
+              | label_format sha=`{{ regexReplaceAll "^.*@sha1:" .revision "" }}`
+              | label_format ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+          unless on (site, name, revision)
+          count by (site, name, revision) (
+            count_over_time({namespace="flux-system", app="kustomize-controller"} |= "Reconciliation finished"
+              | json name, revision | __error__ = "" | revision != "" [1h] offset 23h))
+
+      # One Kustomization first fails at a commit. Whether it is still failing
+      # is state, not an event: gotk_resource_info{ready="False"} (#221).
+      - record: zerpzorp_deployment_kustomization_timestamp_seconds
+        labels:
+          event: failed
+        expr: |
+          min by (site, name, revision, sha) (
+            min_over_time({namespace="flux-system", app="kustomize-controller"} |= "Reconciliation failed"
+              | json name, revision | __error__ = "" | revision != ""
+              | label_format sha=`{{ regexReplaceAll "^.*@sha1:" .revision "" }}`
+              | label_format ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+          unless on (site, name, revision)
+          count by (site, name, revision) (
+            count_over_time({namespace="flux-system", app="kustomize-controller"} |= "Reconciliation failed"
+              | json name, revision | __error__ = "" | revision != "" [1h] offset 23h))

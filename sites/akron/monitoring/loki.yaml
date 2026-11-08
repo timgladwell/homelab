@@ -39,7 +39,26 @@ spec:
         name: grafana-community
         namespace: monitoring
       interval: 12h
+  postRenderers:
+    - kustomize:
+        patches:
+          # The rules sidecar's Role, which the chart hard-codes to configmaps
+          # *and* secrets. The sidecar reads only loki_rule ConfigMaps
+          # (sidecar.rules.resource below), so Loki gets no read on this
+          # namespace's Secrets (Grafana's admin password among them).
+          - target:
+              kind: Role
+              name: loki
+            patch: |
+              - op: replace
+                path: /rules/0/resources
+                value: ["configmaps"]
   values:
+    # The chart's default is a ClusterRole that reads every ConfigMap and
+    # Secret in the cluster, rendered even with the rules sidecar off. The
+    # sidecar needs only this namespace's ConfigMaps; see postRenderers.
+    rbac:
+      namespaced: true
     loki:
       # No `image.tag`: this chart's default is its appVersion, so a chart
       # bump is a Loki bump. The chart also sets seccomp RuntimeDefault, which
@@ -100,6 +119,23 @@ spec:
         max_query_length: 168h
         max_querier_bytes_read: 2GB
         max_query_parallelism: 4
+      # Monolithic Loki already runs the ruler; this gives it rules and
+      # somewhere to send them. Recording rules derive events (#648) and are
+      # remote-written into Prometheus. That is a write path inside storage,
+      # not a collection path: the rules read what the collectors already
+      # delivered (ADR 0003, ADR 0009).
+      rulerConfig:
+        storage:
+          type: local
+          local:
+            # The rules sidecar's volume (sidecar.rules.folder below). Local
+            # storage reads <directory>/<tenant>/, and with auth_enabled off
+            # the tenant is `fake`.
+            directory: /rules
+        remote_write:
+          enabled: true
+          client:
+            url: http://kube-prometheus-stack-prometheus.monitoring.svc:9090/api/v1/write
       schemaConfig:
         configs:
           - from: "2024-01-01"
@@ -138,13 +174,29 @@ spec:
           cpu: 300m
           memory: 512Mi
 
-    # The rules sidecar watches for ConfigMaps/Secrets labeled loki_rule to load
-    # alerting/recording rules. Nothing in this repo creates one — no alerting
-    # exists yet (#214) — so it's an idle container with no resources by chart
-    # default, which the ResourceQuota on this namespace would otherwise reject.
+    # The rules sidecar copies every ConfigMap labelled loki_rule in this
+    # namespace into the ruler's rule store, and the ruler reloads them without
+    # a restart, so tuning a rule doesn't interrupt ingest. It is the chart's
+    # only rule route in Monolithic mode: `ruler.directories` mounts a ConfigMap
+    # that this chart renders only for distributed mode. The rules are
+    # sites/akron/monitoring/loki-rules/, generated in kustomization.yaml.
     sidecar:
       rules:
-        enabled: false
+        enabled: true
+        # <rulerConfig.storage.local.directory>/<tenant>; see rulerConfig.
+        folder: /rules/fake
+        # Rules live in ConfigMaps only; the Role is narrowed to match.
+        resource: configmap
+      # Provisional, until sized from its own cgroup after deploy
+      # (docs/runbooks/memory-sizing.md, #648). The namespace's ResourceQuota
+      # rejects a container without them.
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
 
     chunksCache:
       enabled: false

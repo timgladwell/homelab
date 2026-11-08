@@ -296,6 +296,41 @@ the same framing. It's also the name of the field every device asks for:
 An old name is never reused for the other stream (#411). Queries that span the
 cutover use `job=~"old|new"` until the old data ages out.
 
+### Metrics
+
+Metrics this estate defines follow [Prometheus's naming
+practice](https://prometheus.io/docs/practices/naming/): base units as a
+suffix (`_seconds`, `_bytes`), `_total` on counters, and one number per series,
+with every other fact a label. Third-party metrics keep their own names, apart
+from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.md).
+
+- **`zerpzorp_` prefixes every metric defined here**, whether derived by a rule
+  or emitted by our own software, so they are told apart from third-party
+  series and selected with one regex.
+- **Then the domain**: what the metric is about, such as `deployment`.
+- **An event's series has the event's own time as its value**:
+  `zerpzorp_<domain>_timestamp_seconds{event="…"}`, like
+  `node_boot_time_seconds`. A Grafana annotation drawn from it lands at the
+  moment of the event, whatever the evaluation cadence.
+- **A recording rule that defines a metric records that metric's own name.**
+  A rule that aggregates one uses Prometheus's `level:metric:operations`.
+- **An exception** is recorded beside the code that makes it, with its reason,
+  and listed here.
+
+| Metric | Labels | Defined in |
+| --- | --- | --- |
+| `zerpzorp_deployment_timestamp_seconds` | `site`, `revision`, `sha`, `event` = `started` | `sites/akron/monitoring/loki-rules/deployment.yaml` |
+| | `event` = `finished`, `failed` | `additionalPrometheusRulesMap` in `sites/akron/monitoring/kube-prometheus-stack.yaml` |
+| `zerpzorp_deployment_kustomization_timestamp_seconds` | `site`, `name`, `revision`, `sha`, `event` = `applied`, `failed` | `sites/akron/monitoring/loki-rules/deployment.yaml` |
+| `zerpzorp_deployment_duration_seconds` | `site`, `revision`, `sha` | `additionalPrometheusRulesMap` |
+| `zerpzorp_deployment_kustomizations` | `site`, `revision`, `sha`, `state` = `expected`, `applied`, `failed` | `additionalPrometheusRulesMap` |
+
+`revision` is Flux's own, `<branch>@sha1:<sha>`, the same key as
+`gotk_resource_info`'s. `sha` is the revision without its branch, so a
+commit can be followed across sites.
+
+There are no exceptions yet.
+
 ### Behind the contract
 
 These are free to change with the collector's shape.
