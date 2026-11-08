@@ -21,6 +21,16 @@
 set -euo pipefail
 
 if [[ $# -eq 0 ]]; then
+  # The judge reads this checkout's values, runbooks and host-state, and the
+  # skill and agent prompts are loaded from it, so a checkout behind main
+  # reviews against a repo that no longer exists. Refused rather than warned:
+  # a warning scrolls past in a long run. A branch ahead of main passes.
+  git fetch -q origin main
+  if ! git merge-base --is-ancestor origin/main HEAD; then
+    echo "✗ This checkout is $(git rev-list --count HEAD..origin/main) commit(s) behind origin/main." >&2
+    echo "  git pull (or rebase this branch), then start a new session: the skill and agent load at session start." >&2
+    exit 1
+  fi
   gh pr list --label dependencies --state open --json number,title \
     --jq '.[] | "\(.number)\t\(.title)"'
   exit 0
