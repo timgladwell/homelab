@@ -320,7 +320,10 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 | Metric | Labels | Defined in |
 | --- | --- | --- |
 | `zerpzorp_deployment_timestamp_seconds` | `site`, `revision`, `sha`, `event` = `started` | `sites/akron/monitoring/loki-rules/deployment.yaml` |
-| `zerpzorp_deployment_kustomization_timestamp_seconds` | `site`, `name`, `revision`, `sha`, `event` = `applied`, `failed` | the same |
+| | `event` = `finished`, `failed` | `additionalPrometheusRulesMap` in `sites/akron/monitoring/kube-prometheus-stack.yaml` |
+| `zerpzorp_deployment_kustomization_timestamp_seconds` | `site`, `name`, `revision`, `sha`, `event` = `applied`, `failed` | `sites/akron/monitoring/loki-rules/deployment.yaml` |
+| `zerpzorp_deployment_duration_seconds` | `site`, `revision`, `sha` | `additionalPrometheusRulesMap` |
+| `zerpzorp_deployment_kustomizations` | `site`, `revision`, `sha`, `state` = `expected`, `applied`, `failed` | `additionalPrometheusRulesMap` |
 
 `revision` is Flux's own, `<branch>@sha1:<sha>`, the same key as
 `gotk_resource_info`'s. `sha` is the revision without its branch, so a
