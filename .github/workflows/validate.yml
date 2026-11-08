@@ -28,7 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     # A full run takes under a minute. Without this, a hang runs to GitHub's
     # 6-hour default before anyone is told; step 15 has hung once already.
-    timeout-minutes: 15
+    # Room for the five download steps' 7-minute caps (see "Retry transient
+    # download failures") to all run slow and still finish.
+    timeout-minutes: 40
     env:
       # Pinned so CI and a developer's machine reach the same verdict. Only
       # kustomize/kubeconform/kube-score/conftest are installed by hand — flux
@@ -57,6 +59,27 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # GitHub release downloads intermittently 504 or hang (run 42464077746
+      # failed six attempts in a row on them). Every curl in this job reads
+      # ~/.curlrc, including the ones inside the flux and flate actions, which
+      # can't be given flags.
+      #
+      # - retry: only transient failures (timeouts, 408, 429, 5xx), never a
+      #   404, backing off 1s, 2s, 4s… with no new try after retry-max-time.
+      # - speed-limit/speed-time and connect-timeout end a hung attempt:
+      #   retry-max-time never interrupts one in flight, and two stalled tries
+      #   once stretched a single call to 9 minutes. A stall check, not
+      #   max-time, so the 169MB alloy zip isn't cut off on a slow link.
+      #
+      # That bounds one curl call to ~5.5 minutes. The actions wrap curl in
+      # loops of their own, so each step that downloads also carries
+      # timeout-minutes: 7, the hard cap. The budget is long on purpose: a slow
+      # run beats a red one, since promotion waits on a green run on main.
+      - name: Retry transient download failures
+        run: |
+          printf '%s\n' 'retry = 9' 'retry-max-time = 300' 'connect-timeout = 10' \
+            'speed-limit = 1024' 'speed-time = 30' >> "$HOME/.curlrc"
+
       # Step 12 must validate with the Alloy the clusters run, which is the
       # alloy chart's appVersion. The chart's version is a patch range, so a
       # pin here lagged every chart patch that floated in without a PR (#537).
@@ -64,6 +87,7 @@ jobs:
       # to keep current. It can run ahead of a cluster by up to the chart's
       # 12h fetch interval, never behind. helm is preinstalled on the runner.
       - name: Resolve Alloy version from the alloy chart
+        timeout-minutes: 7
         run: |
           set -euo pipefail
           ranges=$(grep -h -A3 'chart: alloy$' \
@@ -74,8 +98,16 @@ jobs:
             echo "::error::alloy HelmReleases disagree on chart version: ${ranges//$'\n'/, }"
             exit 1
           fi
-          app=$(helm show chart alloy --repo https://grafana.github.io/helm-charts --version "$ranges" \
-            | sed -n 's/^appVersion: v//p')
+          # helm has no retry flag; same backoff as ~/.curlrc above.
+          for delay in 1 2 4 8 16 32 64 128 fail; do
+            if app=$(helm show chart alloy --repo https://grafana.github.io/helm-charts --version "$ranges" \
+                | sed -n 's/^appVersion: v//p'); then
+              break
+            fi
+            [[ $delay == fail ]] && exit 1
+            echo "helm show chart failed, retrying in ${delay}s"
+            sleep "$delay"
+          done
           echo "alloy chart $ranges deploys Alloy $app"
           echo "ALLOY_VERSION=$app" >> "$GITHUB_ENV"
 
@@ -97,6 +129,7 @@ jobs:
       # Deliberately carries no `# renovate:` comment: an automated bump to the
       # newest Flux would be the one wrong answer here.
       - name: Setup Flux CLI
+        timeout-minutes: 7
         uses: fluxcd/flux2/action@main
         with:
           version: 2.10.0
@@ -112,17 +145,20 @@ jobs:
       # matters: step 6 runs trivy over ./ and would scan cached charts as if
       # they were this repo's IaC.
       - name: Setup flate
+        timeout-minutes: 7
         uses: home-operations/flate/action@v0.6.5
         with:
           cache: true
 
       - name: Setup Trivy
+        timeout-minutes: 7
         uses: aquasecurity/setup-trivy@v0.3.1
         with:
           # renovate: datasource=github-releases depName=aquasecurity/trivy
           version: v0.76.1
 
       - name: Install remaining tools
+        timeout-minutes: 7
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.local/bin"
