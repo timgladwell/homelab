@@ -13,7 +13,9 @@ same pieces.
 
 ## 1. List
 
-`scripts/dep-review.sh` prints the open PRs labelled `dependencies`.
+`scripts/dep-review.sh` prints the open PRs labelled `dependencies`. If it
+refuses because the checkout is behind `origin/main`, stop and pass its
+message to Tim; don't pull for him, and don't review from the stale checkout.
 
 ## 2. Triage, in parallel
 
