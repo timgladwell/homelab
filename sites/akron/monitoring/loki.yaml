@@ -195,7 +195,9 @@ spec:
           cpu: 10m
           memory: 64Mi
         limits:
-          cpu: 100m
+          # Startup is the CPU peak: at 100m it was throttled in every period,
+          # never opened /healthz, and the liveness probe killed it (#648).
+          cpu: 500m
           memory: 128Mi
 
     chunksCache:
