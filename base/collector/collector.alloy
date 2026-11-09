@@ -131,6 +131,12 @@ loki.write "default" {
   // endpoint above. Follow docs/runbooks/forwarding-path-changes.md.
   endpoint {
     url = "${LOGS_INGEST_URL}"
+    // Retry until the WAL ages the batch out (ADR 0003, *A sender retries
+    // until its buffer ages the data out*). The default, 10, gives up after
+    // about 8½ minutes and drops a batch the WAL still holds (#662). A 4xx
+    // other than 429 is still dropped at once, so a bad batch can't block the
+    // queue; a 5xx that never clears would, and shows as send lag.
+    max_backoff_retries = 0
   }
 
   // Fills a missing site only; see the note on prometheus.remote_write above.
@@ -143,8 +149,10 @@ loki.write "default" {
   // backoff, so a WAN outage silently punches a hole in exactly the
   // logs you would want afterwards to answer "was this router
   // compromised, and when". max_segment_age is the ceiling on how
-  // much outage this survives; the chart default is 1h, and 24h
-  // matches the metrics WAL above (ADR 0003's outage window).
+  // much outage this survives, only because max_backoff_retries = 0
+  // above keeps retrying until then; the chart default is 1h, and 24h
+  // matches the metrics WAL above (ADR 0003's outage window). Segments
+  // are deleted by age whether or not they were sent.
   //
   // NOTE: this wal block is *experimental* upstream, unlike
   // prometheus.remote_write's, which is stable. That one cannot stand
