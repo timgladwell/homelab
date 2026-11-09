@@ -19,9 +19,28 @@ message to Tim; don't pull for him, and don't review from the stale checkout.
 
 ## 2. Triage, in parallel
 
-Spawn one `dep-triage` agent per PR, all in one message. Give each only its
-PR number. Note each agent's token count from its completion notice, for the
-cost line in step 5.
+First run `scripts/dep-review.sh previous <pr>` for every PR. It reads the
+earlier review and checks, at no token cost, what can change while the head
+stays put: CI re-running, a conflict with main, and main changing a file the
+PR touches. Its last status line is `RETRIAGE: yes (<reasons>)` or
+`RETRIAGE: no`.
+
+Spawn one `dep-triage` agent per PR that prints `RETRIAGE: yes`, all in one
+message. Give each only its PR number. Note each agent's token count from its
+completion notice, for the cost line.
+
+A PR with `RETRIAGE: no` is not re-triaged: its version range is unchanged,
+so its release notes and leads are too, and the earlier review's *Leads
+checked* stands in for the triage report. It is **still gated, judged and
+planned** from a fresh packet. The packet is free, and the merge plan spans
+every open PR. A packet flag the earlier review doesn't address (a
+`⚠ LOCAL TOOL` or `⚠ WRONG PACKAGE?` added since) is new evidence under
+step 6's rules. Re-triage it anyway if the judge finds a reason the script
+can't see, e.g. a held PR whose unblock condition may have been met
+upstream.
+
+`/review-deps full` re-triages every PR. Use it when upstream may have
+edited release notes after the fact, or the agent's prompt has changed.
 
 ## 3. Gate
 
@@ -139,7 +158,11 @@ something failed this time:
   this run doesn't count as new evidence; where this run could not check
   something the earlier one did, carry the earlier finding over and say so.
 - **Same head, same conclusions:** do not post, unless the merge plan
-  changed; then update only the heading's batch and the table.
+  changed; then update only the heading's batch and the table. **Exception:
+  a PR this run re-triaged is always re-posted**, with only its
+  `Reviewed at … on <date>` line changed if nothing else did. `previous`
+  measures "since the review" from the comment's last edit, so an unposted
+  re-triage would trigger the same re-triage on every later run.
 
 GitHub keeps every comment's edit history, so nothing is lost outright; the
 rule is about what Tim reads when he merges.
@@ -207,7 +230,8 @@ decision as a question.
 
 Then report here: one table of PR, verdict, batch and what happened to its
 comment (new, replaced because the head moved, revised, kept with only the
-plan updated, or unchanged), with a link to each comment. End with a cost line (PRs total, PRs judged, triage tokens per agent
+plan updated, or unchanged), with a link to each comment. End with a cost
+line (PRs total, PRs re-triaged and why, PRs judged, triage tokens per agent
 and in total) and append it to #641 while the process is being measured.
 
 ## Boundaries
