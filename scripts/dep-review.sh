@@ -10,10 +10,11 @@
 #                                     post <file> as the PR's review comment,
 #                                     editing the earlier one in place
 #   scripts/dep-review.sh previous <pr>
-#                                     the PR's earlier review comment, and
-#                                     whether its head has moved since. For
-#                                     the judge only: kept out of the packet so
-#                                     triage reads the evidence blind
+#                                     the PR's earlier review comment, what
+#                                     has changed since it (head, CI,
+#                                     conflicts, main), and a RETRIAGE line.
+#                                     For the judge only: kept out of the
+#                                     packet so triage reads the evidence blind
 #
 # The packet holds the bump (Renovate's update table), the release notes the
 # bot embedded, the PR's own diff, the rendered-manifest diff that
@@ -44,20 +45,76 @@ fi
 marker='<!-- review-deps -->'
 
 if [[ $1 == previous ]]; then
+  # Triage's output (release notes for a version range) depends only on the
+  # head, so a same-head re-run need not repeat it. What can change under the
+  # same head is checked here, free: CI, conflicts with main, and main
+  # changing a file this PR touches. Any of those, or a moved head, prints
+  # RETRIAGE: yes. Upstream editing a release's notes after the fact is not
+  # caught; a full run (`/review-deps full`) covers that.
   pr=$2
-  json=$(gh pr view "$pr" --json headRefOid,comments)
-  body=$(jq -r --arg m "$marker" '[.comments[] | select(.body | contains($m))] | last | .body // empty' <<<"$json")
-  if [[ -z "$body" ]]; then
+  comment=$(gh api --paginate "repos/{owner}/{repo}/issues/$pr/comments" \
+    --jq "[.[] | select(.body | contains(\"$marker\"))] | last // empty")
+  if [[ -z "$comment" ]]; then
     echo "(no previous review)"
+    echo "RETRIAGE: yes (no previous review)"
     exit 0
   fi
-  head=$(jq -r '.headRefOid[0:7]' <<<"$json")
+  body=$(jq -r .body <<<"$comment")
+  at=$(jq -r .updated_at <<<"$comment")
+  head=$(gh pr view "$pr" --json headRefOid -q '.headRefOid[0:7]')
   # Backticks optional: the model writing the comment doesn't always keep them.
   was=$(grep -oE 'Reviewed at `?[0-9a-f]{7}' <<<"$body" | grep -oE '[0-9a-f]{7}$' || true)
+  reasons=()
+
   if [[ "$was" == "$head" ]]; then
-    echo "Previous review: at $was, the current head (same head)"
+    echo "Previous review: at $was, the current head (same head), last posted $at"
   else
-    echo "Previous review: at ${was:-unknown}; head is now $head (head moved)"
+    echo "Previous review: at ${was:-unknown}; head is now $head (head moved), last posted $at"
+    reasons+=("head moved")
+  fi
+
+  echo "Since then:"
+  # A head's checks change only when something re-runs, so a check that
+  # finished after the review was posted is a CI change. Commit statuses
+  # (renovate/stability-days) report no completion time and are skipped.
+  checks=$(gh pr checks "$pr" --json name,bucket,completedAt 2>/dev/null || echo '[]')
+  newer=$(jq -r --arg t "$at" '[.[] | select(.completedAt > $t and (.completedAt | startswith("0001") | not))
+                               | "\(.name)=\(.bucket)"] | join(", ")' <<<"$checks")
+  pending=$(jq -r '[.[] | select(.bucket == "pending") | .name] | join(", ")' <<<"$checks")
+  if [[ -n "$newer" ]]; then
+    echo "- CI: re-ran after the review: $newer"
+    reasons+=("CI re-ran")
+  else
+    echo "- CI: no check finished after the review"
+  fi
+  # Pending is transient (the posting rules keep the earlier review), not a
+  # reason to re-triage.
+  [[ -z "$pending" ]] || echo "- CI: still pending: $pending"
+
+  mergeable=$(gh pr view "$pr" --json mergeable -q .mergeable)
+  if [[ "$mergeable" == CONFLICTING ]]; then
+    echo "- Conflicts: CONFLICTING with main"
+    reasons+=("conflicts with main")
+  else
+    echo "- Conflicts: none ($mergeable)"
+  fi
+
+  git fetch -q origin main
+  files=()  # no mapfile: macOS ships bash 3.2
+  while IFS= read -r f; do files+=("$f"); done < <(gh pr diff "$pr" --name-only)
+  touched=$(git log origin/main --since="$at" --format='%h %s' -- "${files[@]}")
+  if [[ -n "$touched" ]]; then
+    echo "- main: commits since the review touch this PR's files:"
+    sed 's/^/    /' <<<"$touched"
+    reasons+=("main changed this PR's files")
+  else
+    echo "- main: no commits since the review touch this PR's files"
+  fi
+
+  if [[ ${#reasons[@]} -gt 0 ]]; then
+    echo "RETRIAGE: yes ($(IFS=,; echo "${reasons[*]}" | sed 's/,/, /g'))"
+  else
+    echo "RETRIAGE: no"
   fi
   echo
   echo "$body"
