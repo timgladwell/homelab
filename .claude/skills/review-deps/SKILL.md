@@ -182,8 +182,14 @@ comment shows what comes next.>
 ### Before merging
 <manual steps, with commands | Nothing.>
 
-### After merging, at Akron
-<checks for Tim to run, scaled to blast radius; what "healthy" looks like>
+### After merging
+<At Akron: checks for Tim to run, scaled to blast radius; what "healthy"
+looks like. | Nothing at a site, for a PR that deploys nothing.>
+<When the packet shows ⚠ LOCAL TOOL and the change moves a tool's pinned
+version: "On your machine:" the command to bring that tool to the new pin
+(the install method in docs/runbooks/development-environment.md, step 1),
+and the version check that confirms it. A GitHub Action bump counts when
+the action *is* the tool (`home-operations/flate/action@vX` pins flate).>
 
 ### Why
 <2–5 bullets: the deciding evidence, with links>

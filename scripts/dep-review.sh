@@ -146,3 +146,15 @@ if [[ -n "$name" && ${#runbooks[@]} -gt 0 ]]; then
 else
   echo "(none by name; docs/runbooks.md indexes the rest, e.g. helm-crd-upgrades.md)"
 fi
+
+echo
+echo '## Local tools'
+# The workflows pin the validation tools a developer also runs locally, at the
+# same versions (development-environment runbook, step 1). A bump there leaves
+# the local copy behind unless the review says so (#657 didn't).
+workflows=$(gh pr diff "$pr" --name-only | grep '^\.github/workflows/' || true)
+if [[ -n "$workflows" ]]; then
+  echo "> ⚠ LOCAL TOOL: this PR changes $(tr '\n' ' ' <<<"$workflows")— a pinned tool may need updating locally to match CI."
+else
+  echo "(no CI workflow changed)"
+fi
