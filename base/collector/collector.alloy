@@ -127,8 +127,9 @@ loki.relabel "push" {
 }
 
 loki.write "default" {
-  // Assume changing this block orphans the WAL's backlog, like the metrics
-  // endpoint above. Follow docs/runbooks/forwarding-path-changes.md.
+  // Changing the endpoint block keeps the WAL's backlog but replays the
+  // marked segment, a burst of rejected duplicates. Follow
+  // docs/runbooks/forwarding-path-changes.md.
   endpoint {
     url = "${LOGS_INGEST_URL}"
     // Retry until the WAL ages the batch out (ADR 0003, *A sender retries
