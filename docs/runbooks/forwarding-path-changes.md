@@ -7,7 +7,7 @@ the receiving end at Akron (its ingest IngressRoutes and Services). Recovering
 a path that broke on its own is [Recovering a Quiet
 Site](forwarding-path-recovery.md).
 
-**Each of these changes orphans the buffer.** The collector holds what it
+**Each of these changes orphans the metrics buffer.** The collector holds what it
 can't send in a write-ahead log (WAL) on its PVC, and ADR 0003's outage window
 depends on that WAL being replayed. Replay only happens into the same queue:
 
@@ -17,8 +17,11 @@ depends on that WAL being replayed. Replay only happens into the same queue:
   with no stored progress. The old backlog is never offered (#306).
   Prometheus's out-of-order window doesn't help, because the samples are
   never sent.
-- **Logs:** assumed to behave the same on a URL change. That hasn't been
-  checked against the source, so treat it as orphaning.
+- **Logs:** the backlog survives. `loki.write` keeps its read position in
+  one marker file in the component's WAL directory, not keyed by the
+  endpoint config, so a changed endpoint resumes where the old one stopped
+  (read in Alloy v1.21.3's source, not yet seen in a deploy). After a URL
+  change the backlog goes to the new URL.
 - **A renamed StatefulSet or PVC** starts on an empty volume. The old PVC keeps
   the backlog and nothing reads it.
 
