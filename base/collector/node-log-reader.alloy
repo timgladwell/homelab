@@ -8,6 +8,11 @@
 loki.write "default" {
   endpoint {
     url = "http://collector.monitoring:3100/loki/api/v1/push"
+    // Retry for as long as the collector is down (ADR 0003, *A sender
+    // retries until its buffer ages the data out*). With no WAL here, a
+    // blocked send stops the sources reading, so the journal and pod log
+    // files are the buffer; the default, 10, drops after about 8½ minutes.
+    max_backoff_retries = 0
   }
 }
 

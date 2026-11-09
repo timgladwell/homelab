@@ -20,6 +20,7 @@
 | 2026-11-06 | Tim and Claude | Split into one problem per ADR: what is collected moves to [ADR 0008](0008-what-observability-collects.md), the ingest contract to [ADR 0009](0009-observability-ingest-contract.md); this ADR keeps storage, durability and the stack, which aren't separable (#617) |
 | 2026-11-06 | Tim and Claude | Unpoller's placement moves to [ADR 0009](0009-observability-ingest-contract.md), as the example of a rule for exporters (#624 review) |
 | 2026-11-06 | Tim and Claude | Every dashboard is a copy in Akron's git, not shipped by a workload's chart; the stack's own chart is the exception (#624 review) |
+| 2026-11-09 | Tim and Claude | A sender retries until its buffer ages the data out: a retry budget shorter than the WAL cut the log window to ~8½ minutes (#662) |
 
 ## Context
 
@@ -83,8 +84,17 @@ Akron, and a longer drain on reconnect (#270).
   there to fix it (#388), and waiting for replacement hardware. Alerting is what
   makes that loss visible.
 
-The collector's WAL settings and Prometheus's `outOfOrderTimeWindow` implement
-the window, and each carries a comment naming this ADR.
+**A sender retries until its buffer ages the data out, and never gives up
+sooner.** The buffer's age limit is the window only while the sender holding it
+keeps trying. A retry budget shorter than the buffer silently shortens the
+window to the budget: logs were lost after about 8½ minutes of a Loki outage
+while the WAL still held them (#662). This applies to every hop inside a
+site's cluster, the node log reader's included, whose buffer is the journal and
+pod log files it reads. Errors that no retry can fix, a malformed or rejected
+entry, are still dropped at once.
+
+The collector's WAL and retry settings and Prometheus's `outOfOrderTimeWindow`
+implement the window, and each carries a comment naming this ADR.
 
 **For logs, the window is best effort**, like much else in this design.
 Alloy's only disk buffer for log entries, `loki.write`'s WAL, is experimental
@@ -169,6 +179,11 @@ reapplied.
   silent unless alerting reports it.
 - **Nothing is buffered before a collector**, so a sender loses what it sends
   while its collector is unreachable.
+- **A batch the receiver keeps refusing as temporary holds up everything behind
+  it.** Retrying until the buffer ages out means a receiver that answers one
+  batch with a 5xx forever stalls that sender until the window passes. It ends
+  in the same loss as an outage of that length, and is as silent unless send
+  lag is watched.
 - **Push bursts and scraping share the forwarder's CPU and memory.**
 - `loki.write`'s WAL is experimental upstream, unlike `prometheus.remote_write`'s.
   The collector has to run at the experimental stability level to use it, which
