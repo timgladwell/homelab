@@ -156,6 +156,14 @@ Renovate rebase or a newer version), this review is stale: re-run
 <Only on a revision of the same head:> **Revised from the review of
 <date>:** <what changed, and the evidence>.
 
+<Only when the PR's own description misleads, e.g. the packet's ⚠ WRONG
+PACKAGE or triage found the embedded notes are another chart's:>
+> ⚠ **The release notes in this PR's description are for another chart**
+> (`<tag>`). The real notes: <link>.
+
+<The PR description is the first thing read, so a correction to it goes
+here, above the plan, never only under Why (#661).>
+
 ### Merge plan
 <one line why this batch: the rule above that applies>. <Merge after batch
 n-1 is healthy at Akron | Merge first>. <Promote with … | Akron-only:
