@@ -12,6 +12,7 @@ reconcile will not restore.
 | [Reaching PiHole When Traefik Is Not Routing](runbooks/pihole-access.md) | Operational |
 | [Taking a Heap Dump of the UniFi Network App](runbooks/unifi-network-heap-dump.md) | Operational |
 | [Recovering a Quiet Site](runbooks/forwarding-path-recovery.md) | Operational |
+| [A k3s Upgrade Pod Shows `Unknown`](runbooks/k3s-upgrade-pod-unknown.md) | Operational |
 | [Adding or Removing a Component, Layer or Variable](runbooks/adding-components.md) | Maintenance |
 | [Adding a Syslog Source](runbooks/adding-a-syslog-source.md) | Maintenance |
 | [Changing a Site's Forwarding Path](runbooks/forwarding-path-changes.md) | Maintenance |

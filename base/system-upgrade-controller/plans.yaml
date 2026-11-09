@@ -16,6 +16,8 @@ spec:
         values:
           - "true"
   serviceAccountName: system-upgrade
+  # An upgrade pod left Unknown/255 beside a Completed retry is usually
+  # expected: docs/runbooks/k3s-upgrade-pod-unknown.md confirms it.
   upgrade:
     image: rancher/k3s-upgrade
   # Pinned rather than `channel:` on purpose. A channel is resolved inside the
