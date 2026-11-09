@@ -17,11 +17,15 @@ depends on that WAL being replayed. Replay only happens into the same queue:
   with no stored progress. The old backlog is never offered (#306).
   Prometheus's out-of-order window doesn't help, because the samples are
   never sent.
-- **Logs:** the backlog survives. `loki.write` keeps its read position in
-  one marker file in the component's WAL directory, not keyed by the
-  endpoint config, so a changed endpoint resumes where the old one stopped
-  (read in Alloy v1.21.3's source, not yet seen in a deploy). After a URL
-  change the backlog goes to the new URL.
+- **Logs:** the backlog survives, and some of what was already sent goes
+  again. `loki.write` keeps its read position in one marker file in the
+  component's WAL directory, not keyed by the endpoint config. The marker
+  records whole segments, so the new endpoint replays from the start of the
+  marked segment, re-sending entries up to hours old. Loki rejects those older
+  than its out-of-order window (about an hour) with a 400, `entry too far
+  behind`, and the collector counts them in `loki_write_dropped_entries_total`.
+  That's a burst of drops of data Loki already stores, not loss. After a URL
+  change, the backlog and the replay go to the new URL.
 - **A renamed StatefulSet or PVC** starts on an empty volume. The old PVC keeps
   the backlog and nothing reads it.
 
@@ -74,6 +78,11 @@ be a decision, not a surprise.
    ```
 
    Two `marker segment file does not exist` warnings at startup are normal.
+   After a `loki.write` endpoint change, so is a burst of `final error sending
+   batch` lines with `status=400` and `entry too far behind`, within a few
+   seconds of `config reloaded`: that's the replay above. To confirm the
+   rejected entries are already stored, query Loki for the exact timestamp an
+   error quotes.
 3. **Promote to `stable`** ([Promoting to `stable`](promote-to-stable.md)), and
    verify each remote site with the same commands on its node. If the change
    renames the StatefulSet, the namespace ResourceQuota may refuse the new pod
