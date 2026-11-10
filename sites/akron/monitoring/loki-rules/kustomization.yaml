@@ -21,3 +21,12 @@ configMapGenerator:
   - name: loki-rules-deployment
     files:
       - deployment.yaml
+  - name: loki-rules-host
+    files:
+      - host.yaml
+  - name: loki-rules-gateway
+    files:
+      - gateway.yaml
+  - name: loki-rules-wan
+    files:
+      - wan.yaml

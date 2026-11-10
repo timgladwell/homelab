@@ -1,0 +1,91 @@
+---
+# Host events (#648): what happened to a site's machine, from its own journal.
+# `booted` is a Prometheus rule (additionalPrometheusRulesMap in
+# kube-prometheus-stack.yaml), because node_boot_time_seconds already holds it.
+#
+# Shape and late data as in deployment.yaml: the value is the line's own
+# timestamp, and each rule re-derives [24h] on every evaluation, so lines a
+# site buffered through an outage are recorded once they land.
+#
+# Unlike a deployment, these events have no key of their own and repeat: one
+# UDR reboot at Eastbank took the link down twice in 82 s (2026-11-05). So
+# every occurrence is its own series, keyed by `occurrence`, its time in unix
+# seconds. Two of one event in the same second are one. A series ends when
+# its line leaves the window, 24h after the event.
+#
+# Only one-shot lines are used. k3s's `failed to validate nodeIP` repeats every
+# 10 s while the address is gone, and NetworkManager logs `new lease` on every
+# renewal too (16 a week per site), so neither marks a moment.
+#
+# Interface names come from the line. Pod interfaces (veth, cni, flannel) and
+# lo are dropped; NetworkManager logs an activation for every pod's veth.
+groups:
+  - name: host
+    # As deployment.yaml: matches the scrape interval, and sets only how soon
+    # an event appears, never the time it is recorded at.
+    interval: 30s
+    rules:
+      # A shutdown asked for through systemd: `shutdown -r "<reason>"` or
+      # `systemctl reboot`. The reason is free text typed by hand, so it stays
+      # in the log line and not in a label: a label is for values a query can
+      # rely on. Whether one was given is reliable, so `reason_given` is a
+      # label. kube-prometheus-stack.yaml pairs this with the next boot.
+      - record: zerpzorp_host_timestamp_seconds
+        labels:
+          event: shutdown_requested
+        expr: |
+          max by (site, host, action, reason_given, occurrence) (
+            max_over_time({job="systemd-journal", unit="systemd-logind.service"} |= "System is "
+              | regexp `^System is (?P<action>rebooting|powering down|halting)(?: \((?P<reason>.+)\))?\.$`
+              | __error__ = "" | action != ""
+              | label_format reason_given=`{{ if .reason }}true{{ else }}false{{ end }}`,
+                             occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # Carrier lost and regained, from the kernel. Shorter than a scrape is
+      # still seen: node_network_carrier_changes_total only counts it.
+      - record: zerpzorp_host_timestamp_seconds
+        labels:
+          event: link_down
+        expr: |
+          max by (site, host, device, occurrence) (
+            max_over_time({job="systemd-journal", unit=""} |= ": Link is Down"
+              | regexp `(?P<device>[[:alnum:]]+): Link is Down`
+              | __error__ = "" | device != "" | device !~ `veth.*|cni.*|flannel.*|lo`
+              | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+      - record: zerpzorp_host_timestamp_seconds
+        labels:
+          event: link_up
+        expr: |
+          max by (site, host, device, occurrence) (
+            max_over_time({job="systemd-journal", unit=""} |= ": Link is Up"
+              | regexp `(?P<device>[[:alnum:]]+): Link is Up`
+              | __error__ = "" | device != "" | device !~ `veth.*|cni.*|flannel.*|lo`
+              | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # The node's address removed and restored. The node takes its address
+      # from its UDR by DHCP and drops it on carrier loss, which is what
+      # unseats k3s (docs/current-state/host-state.md, *Node address*).
+      # Acquired also fires once at every boot.
+      - record: zerpzorp_host_timestamp_seconds
+        labels:
+          event: address_lost
+        expr: |
+          max by (site, host, device, occurrence) (
+            max_over_time({job="systemd-journal", unit="NetworkManager.service"} |= "activated -> unavailable"
+              | regexp `device \((?P<device>[^)]+)\): state change: activated -> unavailable`
+              | __error__ = "" | device != "" | device !~ `veth.*|cni.*|flannel.*|lo`
+              | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+      - record: zerpzorp_host_timestamp_seconds
+        labels:
+          event: address_acquired
+        expr: |
+          max by (site, host, device, occurrence) (
+            max_over_time({job="systemd-journal", unit="NetworkManager.service"} |= "Activation: successful"
+              | regexp `device \((?P<device>[^)]+)\): Activation: successful`
+              | __error__ = "" | device != "" | device !~ `veth.*|cni.*|flannel.*|lo`
+              | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))

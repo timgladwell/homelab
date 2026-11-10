@@ -1,0 +1,59 @@
+---
+# Gateway events (#648): the site's UniFi console, which routes, serves DHCP
+# and holds the WAN. `booted`, and its pairing with reboot_requested, are
+# Prometheus rules (additionalPrometheusRulesMap in kube-prometheus-stack.yaml):
+# the boot comes only from Unpoller's uptime, since the console's syslog starts
+# after its kernel.
+#
+# Shape, late data and the `occurrence` key as in host.yaml.
+#
+# Two sources, each for what only it has:
+# - The console's own syslog (`unifi-os-log`) for the reboot request: real
+#   time, at the console's own site. `site` is that site; `network_site`
+#   repeats it so the two sources join.
+# - Unpoller for the firmware versions, which the syslog's `fwUpdate` line
+#   lacks. Every console is seen through Eastbank's Unpoller, so `site` is
+#   `eastbank` for all three and `network_site` names the console's site
+#   (naming convention, *Labels*). Unpoller stamps each line with the
+#   console's own event time and polls every 5 minutes, so lines land up to 5
+#   minutes late but at the right moment.
+groups:
+  - name: gateway
+    # 1m because reboot_requested reads all of unifi-os-log (below). It sets
+    # only how soon an event appears, never the time it is recorded at.
+    interval: 1m
+    rules:
+      # The console's OS asks itself to reboot, with its cause: `firmware`
+      # for an update (Eastbank and Lottage 10-29 and 11-05, Akron 11-04). A
+      # console boot with none before it was not asked for (Akron 10-29).
+      # shortcut: reads all of unifi-os-log (~5 MB, ~41k lines a day) per evaluation, as wan.yaml does;
+      # move to the event lines' own label or stream once #420's step 4 gives them one.
+      # shortcut: keyed by network_site, so an access point logging do_reboot would pair with
+      # the console's boot. None has (10-28 to 11-10); add a host filter if one does.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: reboot_requested
+        expr: |
+          max by (site, network_site, host, cause, occurrence) (
+            max_over_time({job="unifi-os-log"} |= "command: do_reboot"
+              | regexp `ubnt-systool\[\d+\]: .*command: do_reboot, process status: (?P<cause>\S+)`
+              | __error__ = "" | cause != ""
+              | label_format network_site=`{{ .site }}`,
+                             occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # The console's own firmware. UniFi logs the same event for the devices
+      # it manages, so keep only the line where the updated device is the
+      # console itself.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: firmware_updated
+        expr: |
+          max by (site, network_site, version, previous_version, occurrence) (
+            max_over_time({job="unpoller", category="SOFTWARE_UPDATES"} |= `"event":"FIRMWARE_UPDATED"`
+              | json device="parameters.DEVICE.name", console="parameters.CONSOLE_NAME.name",
+                     version="parameters.VERSION.name", previous_version="parameters.PREVIOUS_VERSION.name"
+              | __error__ = ""
+              | label_format console_itself=`{{ if eq .device .console }}true{{ end }}` | console_itself = "true"
+              | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))

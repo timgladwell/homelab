@@ -1,0 +1,46 @@
+---
+# WAN events (#648): a site's internet link, as its UniFi console judges it.
+# The console declares a failure only after several failed probes, about 2
+# minutes after the site's collector stops reaching Akron (2026-11-06, #648),
+# and logs nothing while it is itself rebooting. The collector's own
+# remote-write lag covers both, and is already a series:
+# prometheus_remote_storage_highest_timestamp_in_seconds
+#   - prometheus_remote_storage_queue_highest_sent_timestamp_seconds
+#
+# Shape, late data and the `occurrence` key as in host.yaml.
+#
+# From the console's own syslog rather than Unpoller's copy of the same
+# events: it arrives in real time at the console's own site, where Unpoller
+# polls every 5 minutes and sees every console through Eastbank. UniFi
+# Network's CEF events arrive in `unifi-os-log`, not `unifi-events` (#420).
+# `site` is the console's site (naming convention, *Labels*); `network_site`
+# repeats it so these join with Unpoller's gateway events.
+#
+# The time is the console's own UNIFIutcTime, not the arrival time, so it
+# matches UniFi's record to the second.
+#
+# shortcut: reads all of unifi-os-log (~5 MB, ~41k lines a day; 9x kustomize-controller's lines) on every
+# evaluation to use a few lines. #420's step 4 gives UniFi's event lines a
+# label or stream of their own; move the selector to it then, reading both
+# shapes until the old one ages out (#648, *Site shaping and central
+# processing change independently*).
+groups:
+  - name: wan
+    # 1m, not deployment.yaml's 30s, because of the read above. It sets only
+    # how soon an event appears, never the time it is recorded at.
+    interval: 1m
+    rules:
+      # Both events in one rule, so the stream is read once: CEF signature
+      # 100 is Internet Down, 107 Internet Restored.
+      - record: zerpzorp_wan_timestamp_seconds
+        expr: |
+          max by (site, network_site, wan, event, occurrence) (
+            max_over_time({job="unifi-os-log"} |= "|UniFi Network|" |~ `\|(100|107)\|Internet (Down|Restored)\|`
+              | regexp `\|(?P<sig>100|107)\|Internet (Down|Restored)\|`
+              | regexp ` UNIFIwanId=(?P<wan>\S+) .*UNIFIutcTime=(?P<utc>\S+)`
+              | __error__ = "" | utc != ""
+              | label_format event=`{{ if eq .sig "100" }}failed{{ else }}restored{{ end }}`,
+                             network_site=`{{ .site }}`,
+                             occurrence=`{{ toDate "2006-01-02T15:04:05.999Z07:00" .utc | unixEpoch }}`
+              | label_format ts_s=`{{ .occurrence }}`
+              | unwrap ts_s | __error__ = "" [24h]))
