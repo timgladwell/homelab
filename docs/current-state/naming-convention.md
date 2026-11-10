@@ -312,6 +312,12 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
   `zerpzorp_<domain>_timestamp_seconds{event="…"}`, like
   `node_boot_time_seconds`. A Grafana annotation drawn from it lands at the
   moment of the event, whatever the evaluation cadence.
+- **An event that has no key of its own is keyed by its time.** A deployment
+  is one commit, but a link can drop twice in a minute, so each occurrence of
+  a log-derived event without a natural key is its own series, labelled
+  `occurrence` with its time in unix seconds. An event derived from a gauge
+  that already holds the latest time, such as a boot, is one series per
+  machine, and successive events are successive values.
 - **A recording rule that defines a metric records that metric's own name.**
   A rule that aggregates one uses Prometheus's `level:metric:operations`.
 - **An exception** is recorded beside the code that makes it, with its reason,
@@ -324,6 +330,16 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 | `zerpzorp_deployment_kustomization_timestamp_seconds` | `site`, `name`, `revision`, `sha`, `event` = `applied`, `failed` | `sites/akron/monitoring/loki-rules/deployment.yaml` |
 | `zerpzorp_deployment_duration_seconds` | `site`, `revision`, `sha` | `additionalPrometheusRulesMap` |
 | `zerpzorp_deployment_kustomizations` | `site`, `revision`, `sha`, `state` = `expected`, `applied`, `failed` | `additionalPrometheusRulesMap` |
+| `zerpzorp_host_timestamp_seconds` | `site`, `host`, `event` = `booted`, `booted_unrequested` | `additionalPrometheusRulesMap` |
+| | `site`, `host`, `action`, `reason_given`, `occurrence`, `event` = `shutdown_requested` | `sites/akron/monitoring/loki-rules/host.yaml` |
+| | `site`, `host`, `device`, `occurrence`, `event` = `link_down`, `link_up`, `address_lost`, `address_acquired` | `sites/akron/monitoring/loki-rules/host.yaml` |
+| `zerpzorp_host_reboot_duration_seconds` | `site`, `host` | `additionalPrometheusRulesMap` |
+| `zerpzorp_host_address_outage_duration_seconds`, `zerpzorp_host_link_outage_duration_seconds` | `site`, `host`, `device` | `additionalPrometheusRulesMap` |
+| `zerpzorp_gateway_timestamp_seconds` | `site`, `network_site`, `event` = `booted`, `booted_unrequested` | `additionalPrometheusRulesMap` |
+| | `site`, `network_site`, `host`, `cause`, `occurrence`, `event` = `reboot_requested` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
+| | `site`, `network_site`, `version`, `previous_version`, `occurrence`, `event` = `firmware_updated` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
+| `zerpzorp_gateway_reboot_duration_seconds` | `site`, `network_site` | `additionalPrometheusRulesMap` |
+| `zerpzorp_wan_timestamp_seconds` | `site`, `network_site`, `wan`, `occurrence`, `event` = `failed`, `restored` | `sites/akron/monitoring/loki-rules/wan.yaml` |
 
 `revision` is Flux's own, `<branch>@sha1:<sha>`, the same key as
 `gotk_resource_info`'s. `sha` is the revision without its branch, so a

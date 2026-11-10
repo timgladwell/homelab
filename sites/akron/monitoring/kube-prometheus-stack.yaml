@@ -101,6 +101,110 @@ spec:
                   max without (event) (zerpzorp_deployment_timestamp_seconds{event="finished"})
                   - max without (event) (zerpzorp_deployment_timestamp_seconds{event="started"})
 
+      # Host and gateway boots (#648), the halves of loki-rules/host.yaml and
+      # loki-rules/gateway.yaml that come from metrics. Each is one series per
+      # machine, valued at its latest boot, so successive boots are successive
+      # values. Like the Loki events, a series ends 24h after its boot.
+      boots:
+        groups:
+          - name: boots
+            interval: 30s
+            rules:
+              # node_boot_time_seconds already holds it. label_join copies
+              # instance into host (the journal events' label) without a `$`,
+              # which Flux's substitution of this file would take for a
+              # variable (#172).
+              - record: zerpzorp_host_timestamp_seconds
+                labels:
+                  event: booted
+                expr: |
+                  max by (site, host) (
+                    label_join(node_boot_time_seconds > time() - 86400, "host", "", "instance"))
+              # A reboot cycle: the boot minus the latest shutdown request,
+              # when the request came under 30 minutes before. Both 11-07
+              # reboots took 110 s. A request after the boot (a pending
+              # shutdown) and a power-off longer than 30 minutes don't pair.
+              - record: zerpzorp_host_reboot_duration_seconds
+                expr: |
+                  (
+                    max by (site, host) (zerpzorp_host_timestamp_seconds{event="booted"})
+                    - on (site, host)
+                    max by (site, host) (zerpzorp_host_timestamp_seconds{event="shutdown_requested"})
+                  ) > 0 < 1800
+              # A boot nobody asked for: no request paired with it. Recorded
+              # only once the boot is 15 minutes old, so a request line that
+              # lands a little after the boot metric (a site catching up after
+              # an outage) can't record it first and then vanish. The value is
+              # still the boot's own time.
+              - record: zerpzorp_host_timestamp_seconds
+                labels:
+                  event: booted_unrequested
+                expr: |
+                  max by (site, host) (zerpzorp_host_timestamp_seconds{event="booted"})
+                  unless on (site, host) zerpzorp_host_reboot_duration_seconds
+                  and on (site, host)
+                  (time() - max by (site, host) (zerpzorp_host_timestamp_seconds{event="booted"}) > 900)
+              # How long the node was cut off: its latest recovery minus its
+              # latest loss, while the recovery is the later of the two and
+              # under an hour after it. Eastbank's address was gone for 136 s
+              # on 2026-11-05. One value per device at a time, so successive
+              # outages are successive values.
+              # shortcut: pairs the latest down with the latest up, so a burst of flaps records only the
+              # last one (11-05: 18 s then 3 s; this keeps 3 s). Pair per occurrence if bursts matter.
+              # An outage over an hour doesn't pair.
+              - record: zerpzorp_host_address_outage_duration_seconds
+                expr: |
+                  (
+                    max by (site, host, device) (zerpzorp_host_timestamp_seconds{event="address_acquired"})
+                    - on (site, host, device)
+                    max by (site, host, device) (zerpzorp_host_timestamp_seconds{event="address_lost"})
+                  ) > 0 < 3600
+              - record: zerpzorp_host_link_outage_duration_seconds
+                expr: |
+                  (
+                    max by (site, host, device) (zerpzorp_host_timestamp_seconds{event="link_up"})
+                    - on (site, host, device)
+                    max by (site, host, device) (zerpzorp_host_timestamp_seconds{event="link_down"})
+                  ) > 0 < 3600
+              # Uptime only falls at a boot. Unpoller serves a value polled up
+              # to 5 minutes earlier, so sample time minus uptime overstates
+              # the boot by that age; the minimum over the window is the
+              # freshest poll, within ~30 s once a few polls have landed (an
+              # hour or two after the boot, 2026-11-05). The [24h] subquery
+              # also picks up samples that arrive late after an outage.
+              # shortcut: a second boot within 24h of the first is hidden until the first
+              # ages out; the uptime series still shows it. Revisit if consoles reboot that often.
+              - record: zerpzorp_gateway_timestamp_seconds
+                labels:
+                  event: booted
+                expr: |
+                  min by (site, network_site) (
+                    min_over_time((
+                      timestamp(unpoller_device_uptime_seconds{type="udm"}) - unpoller_device_uptime_seconds{type="udm"}
+                      and unpoller_device_uptime_seconds{type="udm"} < 86400
+                    )[24h:30s]))
+              # As for hosts, paired with the console's own reboot request
+              # (loki-rules/gateway.yaml) on network_site, since the two come
+              # from different sites' collectors. Firmware reboots on 11-04 and
+              # 11-05 took 100 s to ~8 minutes from request to boot. The boot
+              # estimate drifts by up to ~30 s in its first hour, and the
+              # duration with it.
+              - record: zerpzorp_gateway_reboot_duration_seconds
+                expr: |
+                  (
+                    max by (site, network_site) (zerpzorp_gateway_timestamp_seconds{event="booted"})
+                    - on (network_site) group_left
+                    max by (network_site) (zerpzorp_gateway_timestamp_seconds{event="reboot_requested"})
+                  ) > 0 < 1800
+              - record: zerpzorp_gateway_timestamp_seconds
+                labels:
+                  event: booted_unrequested
+                expr: |
+                  max by (site, network_site) (zerpzorp_gateway_timestamp_seconds{event="booted"})
+                  unless on (network_site) zerpzorp_gateway_reboot_duration_seconds
+                  and on (network_site)
+                  (time() - max by (site, network_site) (zerpzorp_gateway_timestamp_seconds{event="booted"}) > 900)
+
     grafana:
       enabled: true
       adminPassword: ""
