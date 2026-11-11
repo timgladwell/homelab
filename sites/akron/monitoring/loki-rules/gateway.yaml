@@ -11,6 +11,9 @@
 #
 # Shape, late data and the `occurrence` key as in host.yaml.
 #
+# UniFi's lines are spread over `unifi-os-log` and `unifi-events` without a
+# clean split, so every event is read from both where both can carry it.
+#
 # Two sources, each for what only it has:
 # - The console's own syslog (`unifi-os-log`) for the reboot request: real
 #   time, at the console's own site. `site` is that site; `network_site`
@@ -51,6 +54,25 @@ groups:
               | __error__ = "" | cause != ""
               | label_format network_site=`{{ .site }}`,
                              occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # The same request, from the other stream: UniFi Protect logs "its host
+      # is restarting" to `unifi-events`, with its own millisecond timestamp.
+      # UniFi does not keep its lines apart, so a request can be in either
+      # stream: Lottage's UI reboot at 10:01Z on 2026-11-11 has this line and no
+      # `do_reboot`. A UI reboot normally logs both, 1-2 s apart, so take the
+      # earliest of the two for a request's time. Measured over 7 days, only UI
+      # reboots emitted it: no firmware reboot did.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: reboot_requested
+        expr: |
+          max by (site, network_site, host, cause, occurrence) (
+            max_over_time({job="unifi-events"} |= "eventType=reboot" |= "host is restarting"
+              | regexp `timestamp=(?P<sec>\d{10})\d{3} `
+              | __error__ = ""
+              | label_format network_site=`{{ .site }}`, cause=`protect`,
+                             occurrence=`{{ .sec }}`, ts_s=`{{ .sec }}`
               | unwrap ts_s | __error__ = "" [24h]))
 
       # The console's own firmware. UniFi logs the same event for the devices
