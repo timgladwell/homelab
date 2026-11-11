@@ -58,6 +58,11 @@ spec:
               value: "/sync/pihole-config.yaml"
             - name: STATE_DIR
               value: "/tmp/state"
+            # Metrics are pushed to the site collector's OTLP receiver, which
+            # stamps `site` (ADR 0009). The SDK appends /v1/metrics. Unset, the
+            # program pushes nothing.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://collector.monitoring.svc.cluster.local:4318"
             - name: PYTHONUNBUFFERED
               value: "1"
             - name: PYTHONDONTWRITEBYTECODE

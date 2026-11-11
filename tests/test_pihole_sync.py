@@ -7,9 +7,12 @@ it here is that validation step 13 does.
 import unittest
 
 from loader import load
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+from test_observability import metric_points
 
 # PIHOLE_URL is read at import time and has no default.
 sync = load("base/pihole-sync/sync.py", env={"PIHOLE_URL": "http://pihole.invalid"})
+import observability as obs  # noqa: E402
 
 
 class FakePihole:
@@ -143,6 +146,83 @@ class ProtectedGroups(unittest.TestCase):
     def test_default_group_is_never_removed(self):
         # Deleting Default detaches every list and client from their group.
         self.assertIn("Default", sync._PROTECTED_GROUPS)
+
+
+class ReportsToMetrics(unittest.TestCase):
+    """What a sync run counts, and how main() classifies how it ended."""
+
+    def setUp(self):
+        self.real_log, sync.log = sync.log, lambda *a, **k: None
+        self.real_request = sync._request_with_retry
+        self.real_run = sync._run
+        self.real_metrics = obs.metrics
+        self.reader = InMemoryMetricReader()
+        obs.metrics = obs.Metrics([self.reader])
+        obs.soft_errors.clear()
+        # soft_error and main() log through the module, not through sync.log.
+        obs.logger.disabled = True
+
+    def tearDown(self):
+        obs.logger.disabled = False
+        sync.log = self.real_log
+        sync._request_with_retry = self.real_request
+        sync._run = self.real_run
+        obs.metrics = self.real_metrics
+
+    def changes(self):
+        return metric_points(self.reader, "pihole_sync.changes")
+
+    def test_a_change_is_counted_by_object_kind_and_action(self):
+        sync._request_with_retry = FakePihole(lists=[])
+        cfg = {"block_lists": [{"url": "http://c", "groups": ["Default"]}]}
+        sync.sync_lists(cfg, "", {"Default": 0}, "block", "block_lists")
+        key = frozenset({"object": "list", "kind": "block", "action": "added"}.items())
+        self.assertEqual(self.changes()[key], 1)
+
+    def test_deny_domains_are_reported_as_block(self):
+        sync._request_with_retry = FakePihole()
+        cfg = {"block_domains": [{"domain": "x.example", "groups": ["Default"]}]}
+        sync.sync_domains(cfg, "", {"Default": 0}, "deny", "block_domains")
+        key = frozenset({"object": "domain", "kind": "block", "action": "added"}.items())
+        self.assertEqual(self.changes()[key], 1)
+
+    def run_main(self, run):
+        """Run main() around `run`; return (result, error) it reported."""
+        sync._run = run
+        reported = []
+        real_finished = obs.Metrics.finished
+        obs.Metrics.finished = lambda me, result, error: reported.append((result, error))
+        try:
+            try:
+                sync.main()
+            except Exception:
+                pass  # main() re-raises so the Job's exit status is unchanged
+        finally:
+            obs.Metrics.finished = real_finished
+        return reported
+
+    def test_clean_run_is_success_with_no_error(self):
+        self.assertEqual(self.run_main(lambda: None), [("success", None)])
+
+    def test_a_logged_per_object_failure_makes_the_run_partial(self):
+        def run():
+            obs.soft_error("adding domain 'x' (500): boom")
+        self.assertEqual(self.run_main(run), [("partial", "pihole_api")])
+
+    def test_failures_report_a_code_from_the_closed_list(self):
+        cases = [
+            (obs.SyncError(obs.ErrorCode.AUTH, "no"), "auth"),
+            (obs.SyncError(obs.ErrorCode.GRAVITY, "no"), "gravity"),
+            (OSError("connection refused"), "network"),
+            (KeyError("groups"), "unknown"),
+        ]
+        for exc, code in cases:
+            with self.subTest(code=code):
+                obs.soft_errors.clear()
+
+                def run(exc=exc):
+                    raise exc
+                self.assertEqual(self.run_main(run), [("failure", code)])
 
 
 if __name__ == "__main__":

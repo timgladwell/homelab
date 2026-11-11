@@ -252,6 +252,11 @@ listed gets checked against this convention and added here.
 | --- | --- |
 | `site` | `akron`, `eastbank`, `lottage` |
 | `network_site` | `akron`, `eastbank`, `lottage` |
+| `result` (pihole-sync) | `success`, `partial` (the run finished but some objects failed), `failure` |
+| `error` (pihole-sync; the closed list in `ErrorCode`) | `config`, `auth`, `network`, `pihole_api`, `gravity`, `unknown` |
+| `object` (pihole-sync) | `group`, `client`, `domain`, `list` |
+| `kind` (pihole-sync; domains and lists only) | `allow`, `block` |
+| `action` (pihole-sync) | `added`, `removed`, `updated` (group membership rewritten) |
 
 **Unpoller's WAN metrics report `Default (default)`.** Since Unpoller v5
 (2026-10-21), every `unpoller_wan_*` series carries `site_name="Default
@@ -304,9 +309,15 @@ suffix (`_seconds`, `_bytes`), `_total` on counters, and one number per series,
 with every other fact a label. Third-party metrics keep their own names, apart
 from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.md).
 
-- **`zerpzorp_` prefixes every metric defined here**, whether derived by a rule
-  or emitted by our own software, so they are told apart from third-party
-  series and selected with one regex.
+- **`zerpzorp_` prefixes every metric about this estate that a rule here
+  derives**, so they are told apart from third-party series and selected with
+  one regex.
+- **An application we write owns its own namespace**, `pihole_sync_…`, because
+  it doesn't depend on where it is deployed and may leave this repo. It takes
+  an optional prefix from its environment (`METRIC_NAME_PREFIX`), so a
+  deployment can namespace it without the application knowing about the
+  estate. The shapes below still apply, and an annotation query selects them
+  by shape, `{__name__=~".+_timestamp_seconds", event!=""}`.
 - **Then the domain**: what the metric is about, such as `deployment`.
 - **An event's series has the event's own time as its value**:
   `zerpzorp_<domain>_timestamp_seconds{event="…"}`, like
@@ -340,6 +351,15 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 | | `site`, `network_site`, `version`, `previous_version`, `occurrence`, `event` = `firmware_updated` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
 | `zerpzorp_gateway_reboot_duration_seconds` | `site`, `network_site` | `additionalPrometheusRulesMap` |
 | `zerpzorp_wan_timestamp_seconds` | `site`, `network_site`, `wan`, `occurrence`, `event` = `failed`, `restored` | `sites/akron/monitoring/loki-rules/wan.yaml` |
+
+| `pihole_sync_timestamp_seconds` | `site`, `event` = `run_finished`, `result`, `error` (omitted on success) | `base/pihole-sync/sync.py`, pushed over OTLP |
+| `pihole_sync_changes_total` | `site`, `object`, `kind` (domains and lists), `action` | `base/pihole-sync/sync.py`, pushed over OTLP |
+
+`pihole_sync_timestamp_seconds` has no `occurrence`: a run is keyed by its Job,
+which Kubernetes already reports (`kube_job_status_start_time`), so only what
+the Job can't know is pushed. Its values are in
+[Accepted values](#accepted-values), and the program's own logs repeat the
+same `code` beside the detail.
 
 `revision` is Flux's own, `<branch>@sha1:<sha>`, the same key as
 `gotk_resource_info`'s. `sha` is the revision without its branch, so a
