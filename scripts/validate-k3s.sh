@@ -168,6 +168,9 @@ else
     skip_step "Rendered Security Scan" "chart render failed"
 fi
 
+# Step 17: Requirements lockfiles — independent (reads requirements*.in)
+run_step "Requirements Lockfiles" "$VALIDATE_DIR/17-requirements-lock.sh"
+
 # Summary
 echo ""
 echo "================================================================"

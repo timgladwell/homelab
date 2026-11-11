@@ -4,7 +4,11 @@
     "config:recommended"
   ],
   "labels": ["dependencies"],
-  "enabledManagers": ["flux", "custom.regex", "pip_requirements"],
+  "enabledManagers": ["flux", "custom.regex", "pip-compile"],
+  "pip-compile": {
+    "description": "The lockfiles compiled from requirements*.in by scripts/compile-requirements.sh (uv pip compile). Renovate reads the command from each lockfile's header and re-runs it, so the .txt files are what this matches, not the .in. pip_requirements is left out of enabledManagers: pip-compile already updates the source files, and both would raise the same bumps (Renovate's pip-compile docs).",
+    "managerFilePatterns": ["/(^|/)requirements[^/]*\\.txt$/"]
+  },
   "flux": {
     "managerFilePatterns": [
       "/(^|/)clusters/.+\\.ya?ml$/",
