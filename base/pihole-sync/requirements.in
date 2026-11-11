@@ -1,0 +1,10 @@
+# What pihole-sync imports. Direct dependencies only; requirements.txt, which
+# the Job installs from the same ConfigMap as sync.py, is compiled from this
+# file and pins every version the install needs, with hashes
+# (docs/runbooks/development-environment.md, *Changing a Python dependency*).
+# requirements-dev.in includes this file, so the tests and CI run the versions
+# the Job does.
+#
+# Install with PYYAML_FORCE_LIBYAML=0: pure Python is plenty for two small
+# files and needs no wheel for a newly released Python (#483).
+PyYAML

@@ -6,4 +6,15 @@
 #
 # Install with PYYAML_FORCE_LIBYAML=0: pure Python is plenty here and needs no
 # wheel for a newly released Python (#483).
+
+# What the tests import is the program's own dependencies, held to the versions
+# the pod installs: the constraint makes the compile reuse the pins in the
+# program's lockfile, so the two can't drift. A disagreement fails the compile.
+# Compile that lockfile first (scripts/compile-requirements.sh does, as
+# base/ sorts before this file).
+-r base/pihole-sync/requirements.in
+-c base/pihole-sync/requirements.txt
+
+# substitute.py imports it directly, so it stays listed here even though
+# pihole-sync's requirements bring it in.
 PyYAML

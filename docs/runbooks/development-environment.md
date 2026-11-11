@@ -95,6 +95,11 @@ upgrade command. To hold a dependency back, constrain it in the `.in`
 lockfile doesn't match its `.in`, or when the installed `uv` isn't the version
 `validate.yml` pins. After a lockfile changes, repeat the `pip install` above.
 
+The tests run what the sync Job runs: `requirements-dev.in` includes
+`base/pihole-sync/requirements.in` and is constrained to that program's
+lockfile, so the two can't pin different versions of a shared package. That
+lockfile is also what the Job installs, so a change to it re-runs the Job.
+
 **Validate everything** — the same seventeen steps CI runs, per site:
 
 ```bash
