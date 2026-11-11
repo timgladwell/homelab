@@ -1,0 +1,9 @@
+# Libraries the validation scripts and the tests import: scripts/validate/
+# substitute.py and base/pihole-sync's tests. Direct dependencies only:
+# requirements-dev.txt is compiled from this file and pins every version, with
+# hashes (docs/runbooks/development-environment.md, *Changing a Python
+# dependency*). CI and the local .venv both install from the compiled file.
+#
+# Install with PYYAML_FORCE_LIBYAML=0: pure Python is plenty here and needs no
+# wheel for a newly released Python (#483).
+PyYAML

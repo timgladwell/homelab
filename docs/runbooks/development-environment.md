@@ -15,7 +15,7 @@ here touches a cluster.
 1. **Install the validation tools** at the versions pinned in
    `.github/workflows/validate.yml`, which is what CI runs: `flux`, `kustomize`,
    `kubeconform`, `kube-score`, `trivy`, `conftest`, `yamllint`, `alloy`,
-   `flate`, `helm` and `python3`, plus `sops` and `age`. `helm` is not pinned:
+   `flate`, `helm`, `uv` and `python3`, plus `sops` and `age`. `helm` is not pinned:
    step 15 only reads chart metadata with it, and CI uses the runner's.
    - The `flux` pin tracks what the clusters run, not the newest release; see
      [Flux Upgrades](flux-upgrades.md).
@@ -27,7 +27,7 @@ here touches a cluster.
 
      ```bash
      python3 -m venv .venv
-     PYYAML_FORCE_LIBYAML=0 .venv/bin/pip install -r requirements-dev.txt
+     PYYAML_FORCE_LIBYAML=0 .venv/bin/pip install --require-hashes -r requirements-dev.txt
      ```
 
      `PYYAML_FORCE_LIBYAML=0` builds pure-Python PyYAML, which needs no wheel
@@ -78,7 +78,24 @@ signing or review, and a temp purge leaves a registration for
 `git worktree prune`. The main checkout stays an ordinary clone, since
 worktrees share its hooks, config and `.venv`.
 
-**Validate everything** — the same sixteen steps CI runs, per site:
+**Changing a Python dependency.** Each `requirements*.in` lists a program's
+direct dependencies without versions, and the `requirements*.txt` beside it is
+compiled from it with `uv`: every version the install needs, transitive ones
+included, each with hashes. Never edit a `.txt` by hand. Edit the `.in`, then:
+
+```bash
+./scripts/compile-requirements.sh
+```
+
+That re-locks and keeps every version already pinned. Pins otherwise move
+through Renovate, whose `pip-compile` manager re-runs the command in each
+lockfile's header, so don't remove that header; there is no manual
+upgrade command. To hold a dependency back, constrain it in the `.in`
+(`requests<2.34  # why, #issue`) and re-lock. Validation step 17 fails when a
+lockfile doesn't match its `.in`, or when the installed `uv` isn't the version
+`validate.yml` pins. After a lockfile changes, repeat the `pip install` above.
+
+**Validate everything** — the same seventeen steps CI runs, per site:
 
 ```bash
 ./scripts/validate-k3s.sh

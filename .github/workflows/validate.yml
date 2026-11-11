@@ -54,6 +54,10 @@ jobs:
       CONFTEST_VERSION: 0.71.1
       # renovate: datasource=pypi depName=yamllint
       YAMLLINT_VERSION: 1.38.0
+      # Compiles the requirements*.in files, and checks their lockfiles
+      # (step 17). Renovate runs it too, from the lockfile headers.
+      # renovate: datasource=pypi depName=uv
+      UV_VERSION: 0.13.7
       # No ALLOY_VERSION pin: the next step derives it from the alloy chart.
 
     steps:
@@ -187,11 +191,12 @@ jobs:
           chmod +x "$HOME/.local/bin/alloy"
 
           pipx install "yamllint==${YAMLLINT_VERSION}"
+          pipx install "uv==${UV_VERSION}"
 
           # Libraries, not applications, so they go into the environment
           # substitute.py actually runs in rather than a pipx venv. yamllint's
           # pipx copy of PyYAML is not importable from there.
-          PYYAML_FORCE_LIBYAML=0 pip install -r "$GITHUB_WORKSPACE/requirements-dev.txt"
+          PYYAML_FORCE_LIBYAML=0 pip install --require-hashes -r "$GITHUB_WORKSPACE/requirements-dev.txt"
 
       - name: Tool versions
         run: |
