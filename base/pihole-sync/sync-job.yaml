@@ -40,7 +40,7 @@ spec:
           args:
             - |
               pip install --quiet --no-cache-dir --retries 5 --timeout 60 \
-                --target=/tmp/pydeps pyyaml
+                --require-hashes --target=/tmp/pydeps -r /sync/requirements.txt
               PYTHONPATH=/tmp/pydeps python /sync/sync.py
           env:
             - name: PIHOLE_URL

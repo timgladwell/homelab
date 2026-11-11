@@ -16,3 +16,5 @@ configMapGenerator:
     files:
       - pihole-config.yaml
       - sync.py
+      # The Job installs from this lockfile (compiled from requirements.in).
+      - requirements.txt
