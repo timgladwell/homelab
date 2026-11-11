@@ -1,9 +1,13 @@
 ---
 # Gateway events (#648): the site's UniFi console, which routes, serves DHCP
-# and holds the WAN. `booted`, and its pairing with reboot_requested, are
-# Prometheus rules (additionalPrometheusRulesMap in kube-prometheus-stack.yaml):
-# the boot comes only from Unpoller's uptime, since the console's syslog starts
-# after its kernel.
+# and holds the WAN.
+#
+# A boot is its own event and carries its own cause, so nothing pairs a
+# shutdown request with the boot after it: no id links the two, and the request
+# line is not always shipped (Lottage's UI reboot at 09:57Z on 2026-11-11 left
+# none). The console's own boot hooks say how it booted (`upgradeBoot`), so
+# `booted` and `boot_completed` come from the boot, not from a request.
+# Downtime is the gap between the markers, read on a dashboard.
 #
 # Shape, late data and the `occurrence` key as in host.yaml.
 #
@@ -17,6 +21,13 @@
 #   (naming convention, *Labels*). Unpoller stamps each line with the
 #   console's own event time and polls every 5 minutes, so lines land up to 5
 #   minutes late but at the right moment.
+#
+# The console's syslog starts after its kernel, yet the kernel's own
+# `Linux version` line is shipped once its network is up, which makes it the
+# boot's marker. Both boot rules use Loki's arrival time, because the syslog
+# header has no year or timezone: a boot is recorded up to a few minutes after
+# it happened (2m28s on 2026-11-11). Unpoller's uptime still shows the boot
+# to within its poll interval.
 groups:
   - name: gateway
     # 1m because reboot_requested reads all of unifi-os-log (below). It sets
@@ -56,4 +67,36 @@ groups:
               | __error__ = ""
               | label_format console_itself=`{{ if eq .device .console }}true{{ end }}` | console_itself = "true"
               | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # The console's kernel started: one line per boot, so every boot is its
+      # own series, including a second one within the day.
+      # shortcut: reads all of unifi-os-log (~5 MB, ~41k lines a day) per evaluation, as wan.yaml does;
+      # move to the event lines' own label or stream once #420's step 4 gives them one.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: booted
+        expr: |
+          max by (site, network_site, host, occurrence) (
+            max_over_time({job="unifi-os-log"} |= " kernel: Linux version "
+              | label_format network_site=`{{ .site }}`,
+                             occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # The console's last boot hook ran, with how it booted. `upgrade_boot`
+      # is true when the boot installed a firmware update and false for any
+      # other (a UI reboot, an unrequested one). It is the cause of the boot
+      # nearest before it, and arrives 7 minutes (an ordinary boot) to 28 (an
+      # update) after the kernel line. `resetBoot` and `recoverBoot` are not
+      # recorded: neither has occurred here.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: boot_completed
+        expr: |
+          max by (site, network_site, host, upgrade_boot, occurrence) (
+            max_over_time({job="unifi-os-log"} |= "bootup-bottom/99-reboot-time"
+              | regexp `"upgradeBoot": (?P<upgrade_boot>true|false)`
+              | __error__ = ""
+              | label_format network_site=`{{ .site }}`,
+                             occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
               | unwrap ts_s | __error__ = "" [24h]))
