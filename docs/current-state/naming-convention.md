@@ -335,10 +335,10 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 | | `site`, `host`, `device`, `occurrence`, `event` = `link_down`, `link_up`, `address_lost`, `address_acquired` | `sites/akron/monitoring/loki-rules/host.yaml` |
 | `zerpzorp_host_reboot_duration_seconds` | `site`, `host` | `additionalPrometheusRulesMap` |
 | `zerpzorp_host_address_outage_duration_seconds`, `zerpzorp_host_link_outage_duration_seconds` | `site`, `host`, `device` | `additionalPrometheusRulesMap` |
-| `zerpzorp_gateway_timestamp_seconds` | `site`, `network_site`, `event` = `booted`, `booted_unrequested` | `additionalPrometheusRulesMap` |
-| | `site`, `network_site`, `host`, `cause`, `occurrence`, `event` = `reboot_requested` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
+| `zerpzorp_gateway_timestamp_seconds` | `site`, `network_site`, `host`, `occurrence`, `event` = `booted` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
+| | `site`, `network_site`, `host`, `upgrade_boot`, `occurrence`, `event` = `boot_completed` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
+| | `site`, `network_site`, `host`, `cause`, `occurrence`, `event` = `reboot_requested` (`cause` = `firmware`, `ucore` from `unifi-os-log`; `protect` from `unifi-events`) | `sites/akron/monitoring/loki-rules/gateway.yaml` |
 | | `site`, `network_site`, `version`, `previous_version`, `occurrence`, `event` = `firmware_updated` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
-| `zerpzorp_gateway_reboot_duration_seconds` | `site`, `network_site` | `additionalPrometheusRulesMap` |
 | `zerpzorp_wan_timestamp_seconds` | `site`, `network_site`, `wan`, `occurrence`, `event` = `failed`, `restored` | `sites/akron/monitoring/loki-rules/wan.yaml` |
 
 `revision` is Flux's own, `<branch>@sha1:<sha>`, the same key as
