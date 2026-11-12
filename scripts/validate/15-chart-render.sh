@@ -16,6 +16,7 @@
 #     settings whose silent loss costs something survive into the rendered
 #     objects. That is the only way to catch "the chart stopped reading this
 #     key", which renders cleanly by definition.
+#   - a warning from flate, other than the accepted ones (see below), and
 #   - a chart that no longer moves its app: deprecated by its publisher, or
 #     rendering none of its own appVersion without a tag pinned in values
 #     (scripts/chart_sources.py, #535). This also renders cleanly by
@@ -23,9 +24,9 @@
 #
 # Unlike every other step this one needs the network, to fetch chart indexes
 # and charts. A fetch failure still fails the step, but is labelled as one, so
-# "re-run it" and "fix the PR" never look alike. flate's own on-disk cache
-# (FLATE_CACHE_DIR, which the CI setup action caches across runs) keeps the chart
-# downloads themselves off the network after the first run.
+# "re-run it" and "fix the PR" never look alike. flate's on-disk cache keeps the
+# chart downloads themselves off the network after the first run (see
+# FLATE_CACHE_DIR below).
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 cd "$REPO_ROOT"
@@ -57,6 +58,14 @@ fi
 # would render nothing at all. A k3s bump or a policy change must re-render
 # every release, and the whole tree takes seconds.
 unset FLATE_BASE FLATE_PATH_ORIG
+
+# Cache on disk, locally as in CI. Since 0.7.0 flate caches nothing unless a
+# directory is set (flate#1146); 0.6.5 used this one by default. Without it,
+# every local run downloads every chart again (about 5s more per flate call
+# here) and needs the network. CI sets its own directory through the setup
+# action's `cache: true`, which this leaves alone. A warm cache can hide a
+# chart that has disappeared upstream; CI's cache already accepts that.
+export FLATE_CACHE_DIR="${FLATE_CACHE_DIR:-$HOME/Library/Caches/flate}"
 
 # Render against the Kubernetes version the clusters are pinned to, so a k3s
 # bump PR re-renders every chart at the new version: helm enforces a chart's
@@ -128,19 +137,57 @@ for site in $(sites); do
 
     # Debug logging costs a couple of dozen lines and is only printed on a
     # timeout, where its last lines name the fetch or render still in flight.
-    # Its closing "reconcile complete … helm_releases=N" line is also the
-    # count for CHECKED, so the tree is rendered once rather than asked again.
     #
-    # --concurrency 1: flate's parallel reconcile can livelock, spinning until
-    # the deadline (upstream home-operations/flate#828, here #437). Serial
-    # output is byte-identical and costs about half a second on a cold cache.
+    # --strict-substitutions: Flux v2.9 substitutes in strict mode on the
+    # cluster, so an undefined ${VAR} without a default fails here as it would
+    # there (step 7 checks the same from step 3's build).
     timeout --signal=QUIT --kill-after=10 "$render_timeout" \
         flate build hr -p "clusters/${site}" --kube-version "$kube_version" \
-        --concurrency 1 --no-progress --log-level debug > "$rendered" 2> "$errors"
+        --strict-substitutions --no-progress --log-level debug > "$rendered" 2> "$errors"
     rc=$?
 
-    if [[ $rc -eq 0 ]]; then
+    # flate exits 0 with warnings, printed to stderr as a "⚠ warnings (N)"
+    # block of "[Category] <Kind> <ns/name>: <message>" entries, each possibly
+    # followed by more-indented detail lines. Warnings are errors here, so
+    # anything left on stderr besides debug logging and the accepted entries
+    # fails the step. That also fails, rather than passes, if the format
+    # changes.
+    #
+    # Accepted: SOPSUnreadable. flate cannot decrypt the repo's SOPS Secrets
+    # (CI has no age key, by design) and warns on each. Nothing a render reads
+    # comes from one: no HelmRelease uses valuesFrom, and every substituteFrom
+    # is a ConfigMap. A HelmRelease that starts reading a SOPS Secret through
+    # valuesFrom needs a --supply dummy here, not a wider exception.
+    #
+    # TEMPORARY(until: 2026-12-31, issue: #683): RenderPersistenceDisabled.
+    # flate 0.7.3's release binaries carry no build identity (flate#1515), so
+    # with CI's cache directory set every run warns that rendered output is not
+    # persisted; chart and source caching still work. Retired by the flate
+    # release that ships flate#1516.
+    unexpected=$(grep -v '^time=' "$errors" | awk '
+        /^  ⚠ warnings \([0-9]+\)$/ { next }
+        /^    \[SOPSUnreadable\] / { accepted = 1; next }
+        /^    \[RenderPersistenceDisabled\] / { accepted = 1; next }
+        /^    \[/ { accepted = 0 }
+        accepted && /^      / { next }
+        NF { print }
+    ')
+
+    if [[ $rc -eq 0 && -n "$unexpected" ]]; then
+        fail=1
+        echo "  FAIL: flate rendered, but reported:"
+        echo "$unexpected" | sed 's/^/  /'
+    elif [[ $rc -eq 0 ]]; then
         echo "✓ rendered $(grep -c '^kind:' "$rendered") objects"
+        # The count for CHECKED: flate's own JSON listing of the site's
+        # HelmReleases, rather than text scraped from its logs.
+        hrs=$(timeout 60 flate get hr -p "clusters/${site}" -o json --no-progress 2> /dev/null | jq length)
+        if [[ "$hrs" =~ ^[0-9]+$ ]]; then
+            checked=$((checked + hrs))
+        else
+            fail=1
+            echo "  ERROR: could not count HelmReleases with 'flate get hr -o json'"
+        fi
         conftest test "$rendered" \
             --policy "$REPO_ROOT/policy" \
             --namespace homelab.rendered \
@@ -173,10 +220,6 @@ for site in $(sites); do
         fi
     fi
 
-    # Absent when flate was killed before finishing; the step has failed then
-    # anyway, and the arithmetic must not abort the remaining sites.
-    rendered_hrs=$(sed -n 's/.*msg="reconcile complete".* helm_releases=\([0-9]*\).*/\1/p' "$errors" | tail -1)
-    checked=$((checked + ${rendered_hrs:-0}))
     rm -f "$errors"
 done
 

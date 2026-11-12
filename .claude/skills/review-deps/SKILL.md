@@ -61,6 +61,14 @@ Node runtime, or changed or removed inputs) or on a gating lead. When judged,
 check every `with:` input and `steps.*.outputs` reference the workflows use
 against the new version, and whether its required `permissions:` changed.
 
+**A flate bump** (`home-operations/flate/action`) always gates: flate is
+the renderer, so its PR's render-diff compares the new flate with itself
+and says nothing about the bump. Judge it by rendering the PR's base commit
+with both versions, `flate build all -p clusters/<site>` per site, and
+diffing the output: identical, or every difference explained. Validate's
+step 15 passing is also required, since it parses flate's output and
+warnings, and a format change fails it rather than the render (#681).
+
 Changed defaults, new options and security fixes do not gate on their own:
 Haiku quotes some lead for every PR, so "any lead" sent all seven of the
 first run to judging. A changed default that matters shows up in the

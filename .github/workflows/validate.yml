@@ -150,7 +150,7 @@ jobs:
       # they were this repo's IaC.
       - name: Setup flate
         timeout-minutes: 7
-        uses: home-operations/flate/action@v0.6.5
+        uses: home-operations/flate/action@v0.7.3
         with:
           cache: true
 

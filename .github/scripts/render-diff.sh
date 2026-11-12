@@ -67,9 +67,9 @@ echo "A review aid; Validate's step 15 is the pass/fail check."
 echo "Chart labels (\`helm.sh/chart\`, \`app.kubernetes.io/version\`, \`chart\`, \`checksum/\`) are stripped before diffing, so a chart bump showing only its version renders the same objects with these values. It does not prove every value is still read (#654)."
 
 for site in $(sites); do
-    # Serial, for the same parallel-reconcile livelock as step 15 (#437).
+    # Strict, as Flux substitutes on the cluster; see step 15.
     diff_out="$(cd "$work/head" && flate diff all -p "clusters/${site}" -P "$work/base/clusters/${site}" \
-        --concurrency 1 -o github --no-progress 2> "$errors")"
+        --strict-substitutions -o github --no-progress 2> "$errors")"
     rc=$?
     changes=$(grep -c '^@@ ' <<< "$diff_out")
 
