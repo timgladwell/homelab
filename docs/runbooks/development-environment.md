@@ -34,9 +34,9 @@ here touches a cluster.
      pipx gives each its own venv and links the command into `~/.local/bin`,
      so one install serves the main checkout and every worktree, and the
      validation steps call it by name as before; neither goes into `.venv`.
-     When Renovate moves a pin, rerun its line with `--force`. Step 17 fails
-     on a `uv` that doesn't match its pin; nothing checks `yamllint`'s, so
-     after a bump a stale copy lints by the old rules until it is reinstalled.
+     When Renovate moves a pin, rerun its line with `--force`. Steps 1
+     (`yamllint`) and 17 (`uv`) fail on a copy that doesn't match its pin, and
+     print the command that fixes it.
      `uv`'s wheel is a standalone binary, so a Homebrew Python upgrade does
      not stop it running; `yamllint` runs on pipx's Python, and
      `pipx reinstall yamllint` repairs it if an upgrade breaks it.

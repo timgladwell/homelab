@@ -26,18 +26,8 @@ mode="${1:-compile}"
 # uv's output can change between versions, so a different uv here than in CI
 # can make --check disagree with CI, or re-lock a file CI then calls stale.
 # Equal to the pin or not at all, as the runbook asks for every tool.
-pinned="$(sed -n 's/^ *UV_VERSION: *//p' .github/workflows/validate.yml)"
-if ! command -v uv >/dev/null 2>&1; then
-    echo "ERROR: uv not found on PATH. Install uv $pinned." >&2
-    echo "  e.g. pipx install uv==$pinned — CI pins it in .github/workflows/validate.yml" >&2
-    exit 1
-fi
-have="$(uv --version | awk '{print $2}')"
-if [[ -z "$pinned" || "$have" != "$pinned" ]]; then
-    echo "ERROR: uv $have is installed, but .github/workflows/validate.yml pins ${pinned:-nothing}." >&2
-    echo "  e.g. pipx install --force uv==$pinned" >&2
-    exit 1
-fi
+source scripts/lib-pinned-tool.sh
+require_pinned_tool uv UV_VERSION || exit 1
 
 compile() {
     local in="$1" out="$2"
