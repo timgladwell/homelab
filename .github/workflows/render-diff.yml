@@ -40,7 +40,7 @@ jobs:
       # the script unsets: it diffs two prepared checkouts with -P instead.
       - name: Setup flate
         timeout-minutes: 7
-        uses: home-operations/flate/action@v0.6.5
+        uses: home-operations/flate/action@v0.7.3
         with:
           base: origin/${{ github.base_ref }}
           cache: true
