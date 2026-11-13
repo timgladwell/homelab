@@ -15,13 +15,15 @@ Gravity is triggered when:
 """
 import json
 import os
-import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 
 import yaml
+
+import observability as obs
+from observability import ErrorCode, SyncError, changed, log, soft_error
 
 PIHOLE_URL = os.environ["PIHOLE_URL"]
 PIHOLE_PASSWORD = os.environ.get("PIHOLE_PASSWORD", "")
@@ -35,23 +37,12 @@ STATE_DIR = os.environ.get("STATE_DIR", "/tmp/state")
 _GRAVITY_FLAG = os.path.join(STATE_DIR, "gravity.flag")
 
 _PROTECTED_GROUPS = {"Default"}
+_DOMAIN_KIND = {"allow": "allow", "deny": "block"}  # Pi-hole's name -> ours
 # Named so Pi-hole's own logs attribute these calls to this syncer rather than
 # to "Python-urllib", which every other script would also claim.
 _USER_AGENT = "pihole-sync"
 _MAX_RETRIES = 5
 _RETRY_BASE_DELAY = 2.0  # seconds; doubles on each attempt
-
-
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
-
-def _ts():
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
-def log(msg, *, err=False):
-    print(f"[{_ts()}] {msg}", file=sys.stderr if err else sys.stdout, flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -117,17 +108,17 @@ def _request_with_retry(method, path, body=None, sid=None, timeout=60):
         try:
             status, resp = _request(method, path, body=body, sid=sid, timeout=timeout)
         except urllib.error.URLError as exc:
-            log(f"  {method} {path} network error: {exc}", err=True)
+            log(f"  {method} {path} network error: {exc}", warn=True)
             last_exc = exc
             continue
         if status == 429 or status >= 500:
-            log(f"  {method} {path} transient error ({status}): {resp}", err=True)
-            last_exc = RuntimeError(f"HTTP {status}: {resp}")
+            log(f"  {method} {path} transient error ({status}): {resp}", warn=True)
+            last_exc = SyncError(ErrorCode.PIHOLE_API, f"HTTP {status}: {resp}")
             continue
         return status, resp
     if last_exc:
         raise last_exc
-    raise RuntimeError(f"{method} {path} failed after {_MAX_RETRIES + 1} attempts")
+    raise SyncError(ErrorCode.PIHOLE_API, f"{method} {path} failed after {_MAX_RETRIES + 1} attempts")
 
 
 def authenticate():
@@ -141,10 +132,10 @@ def authenticate():
     log("Authenticating with Pi-hole...")
     status, resp = _request_with_retry("POST", "/api/auth", {"password": PIHOLE_PASSWORD})
     if status not in (200, 201):
-        raise RuntimeError(f"Auth failed ({status}): {resp}")
+        raise SyncError(ErrorCode.AUTH, f"Auth failed ({status}): {resp}")
     session = resp.get("session", {})
     if not session.get("valid"):
-        raise RuntimeError(f"Auth returned invalid session: {resp}")
+        raise SyncError(ErrorCode.AUTH, f"Auth returned invalid session: {resp}")
     sid = session.get("sid") or ""
     log(f"Authenticated (sid={'<none>' if not sid else sid[:8] + '...'}, "
         f"valid={session.get('valid')})")
@@ -161,11 +152,11 @@ def _resolve_group_ids(names, name_to_id):
         if name in name_to_id:
             ids.append(name_to_id[name])
         else:
-            log(f"  WARNING: unknown group '{name}'", err=True)
+            log(f"  unknown group '{name}'", warn=True)
     return ids
 
 
-def _reconcile_groups(existing, entry, name_to_id, path, payload, sid, label):
+def _reconcile_groups(existing, entry, name_to_id, path, payload, sid, label, obj, kind=None):
     """
     Rewrite an existing object when its group membership drifted from config.
 
@@ -181,8 +172,9 @@ def _reconcile_groups(existing, entry, name_to_id, path, payload, sid, label):
     status, resp = _request_with_retry("PUT", path, payload, sid=sid)
     if status in (200, 201):
         log(f"  updated groups for {label}: {sorted(current)} -> {sorted(desired)}")
+        changed(obj, "updated", kind)
         return True
-    log(f"  ERROR updating groups for {label} ({status}): {resp}", err=True)
+    soft_error(f"updating groups for {label} ({status}): {resp}")
     return False
 
 
@@ -190,7 +182,7 @@ def sync_groups(cfg, sid):
     log("--- Syncing groups ---")
     status, resp = _request_with_retry("GET", "/api/groups", sid=sid)
     if status != 200:
-        raise RuntimeError(f"GET /api/groups failed ({status}): {resp}")
+        raise SyncError(ErrorCode.PIHOLE_API, f"GET /api/groups failed ({status}): {resp}")
 
     name_to_id = {g["name"]: g["id"] for g in resp.get("groups", [])}
     log(f"  Existing: {sorted(name_to_id.keys())}")
@@ -205,12 +197,13 @@ def sync_groups(cfg, sid):
         if status in (200, 201) and ("group" in resp or "groups" in resp):
             name_to_id[name] = resp["group"]["id"] if "group" in resp else resp["groups"][0]["id"]
             log(f"  created group '{name}' (id={name_to_id[name]})")
+            changed("group", "added")
         elif status == 409:
             _, resp2 = _request_with_retry("GET", "/api/groups", sid=sid)
             name_to_id = {g["name"]: g["id"] for g in resp2.get("groups", [])}
             log(f"  group '{name}' already existed (race)")
         else:
-            log(f"  ERROR creating group '{name}' ({status}): {resp}", err=True)
+            soft_error(f"creating group '{name}' ({status}): {resp}")
 
     return name_to_id
 
@@ -227,8 +220,9 @@ def remove_extra_groups(cfg, sid, name_to_id):
             "DELETE", f"/api/groups/{urllib.parse.quote(name)}", sid=sid)
         if status in (200, 204):
             log(f"  removed group '{name}'")
+            changed("group", "removed")
         else:
-            log(f"  ERROR removing group '{name}' ({status}): {resp}", err=True)
+            soft_error(f"removing group '{name}' ({status}): {resp}")
 
 
 def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
@@ -244,7 +238,7 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
     log(f"--- Syncing {list_type}lists ---")
     status, resp = _request_with_retry("GET", f"/api/lists?type={list_type}", sid=sid)
     if status != 200:
-        raise RuntimeError(f"GET /api/lists?type={list_type} failed ({status}): {resp}")
+        raise SyncError(ErrorCode.PIHOLE_API, f"GET /api/lists?type={list_type} failed ({status}): {resp}")
 
     # Store full list object so we can check domain counts and IDs.
     existing = {lst["address"]: lst for lst in resp.get("lists", [])}
@@ -278,7 +272,7 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
                     "enabled": lst.get("enabled", True),
                     "comment": entry.get("comment", ""),
                 },
-                sid, f"{list_type}list {url}")
+                sid, f"{list_type}list {url}", "list", list_type)
             continue
         groups = _resolve_group_ids(entry.get("groups", []), name_to_id)
         status, resp = _request_with_retry("POST", f"/api/lists?type={list_type}", {
@@ -289,13 +283,14 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
         }, sid=sid)
         if status in (200, 201):
             if "list" not in resp and "lists" not in resp:
-                log(f"  WARNING: added {list_type}list but response missing 'list'/'lists': {resp}", err=True)
+                log(f"  added {list_type}list but response missing 'list'/'lists': {resp}", warn=True)
             log(f"  added {list_type}list: {url}")
+            changed("list", "added", list_type)
             gravity_needed = True
         elif status == 409:
             log(f"  {list_type}list already existed (race): {url}")
         else:
-            log(f"  ERROR adding {list_type}list ({status}): {url} — {resp}", err=True)
+            soft_error(f"adding {list_type}list ({status}): {url} — {resp}")
 
     # Remove lists no longer in config.
     for url, lst in existing.items():
@@ -306,10 +301,10 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
                 sid=sid)
             if status in (200, 204):
                 log(f"  removed {list_type}list (id={lst['id']}): {url}")
+                changed("list", "removed", list_type)
                 gravity_needed = True
             else:
-                log(f"  ERROR removing {list_type}list id={lst['id']} ({status}): {resp}",
-                    err=True)
+                soft_error(f"removing {list_type}list id={lst['id']} ({status}): {resp}")
 
     return gravity_needed
 
@@ -319,7 +314,8 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
     status, resp = _request_with_retry(
         "GET", f"/api/domains/{domain_type}/exact", sid=sid)
     if status != 200:
-        raise RuntimeError(
+        raise SyncError(
+            ErrorCode.PIHOLE_API,
             f"GET /api/domains/{domain_type}/exact failed ({status}): {resp}")
 
     existing = {d["domain"]: d for d in resp.get("domains", [])}
@@ -340,7 +336,8 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
                     "enabled": dom.get("enabled", True),
                     "comment": entry.get("comment", ""),
                 },
-                sid, f"{domain_type} domain {domain}")
+                sid, f"{domain_type} domain {domain}", "domain",
+                _DOMAIN_KIND[domain_type])
             continue
         groups = _resolve_group_ids(entry.get("groups", []), name_to_id)
         status, resp = _request_with_retry(
@@ -352,12 +349,13 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
             }, sid=sid)
         if status in (200, 201):
             if "domain" not in resp and "domains" not in resp:
-                log(f"  WARNING: added {domain_type} domain but response missing 'domain'/'domains': {resp}", err=True)
+                log(f"  added {domain_type} domain but response missing 'domain'/'domains': {resp}", warn=True)
             log(f"  added {domain_type} domain: {domain}")
+            changed("domain", "added", _DOMAIN_KIND[domain_type])
         elif status == 409:
             log(f"  {domain_type} domain already existed (race): {domain}")
         else:
-            log(f"  ERROR adding {domain_type} domain '{domain}' ({status}): {resp}", err=True)
+            soft_error(f"adding {domain_type} domain '{domain}' ({status}): {resp}")
 
     for domain in existing:
         if domain not in desired:
@@ -367,16 +365,16 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
                 sid=sid)
             if status in (200, 204):
                 log(f"  removed {domain_type} domain: {domain}")
+                changed("domain", "removed", _DOMAIN_KIND[domain_type])
             else:
-                log(f"  ERROR removing {domain_type} domain '{domain}' ({status}): {resp}",
-                    err=True)
+                soft_error(f"removing {domain_type} domain '{domain}' ({status}): {resp}")
 
 
 def sync_clients(cfg, sid, name_to_id):
     log("--- Syncing clients ---")
     status, resp = _request_with_retry("GET", "/api/clients", sid=sid)
     if status != 200:
-        raise RuntimeError(f"GET /api/clients failed ({status}): {resp}")
+        raise SyncError(ErrorCode.PIHOLE_API, f"GET /api/clients failed ({status}): {resp}")
 
     existing = {c["client"]: c for c in resp.get("clients", [])}
     desired = {entry["address"] for entry in cfg.get("clients", [])}
@@ -393,7 +391,7 @@ def sync_clients(cfg, sid, name_to_id):
                     "client": address,
                     "comment": entry.get("comment", ""),
                 },
-                sid, f"client {address}")
+                sid, f"client {address}", "client")
             continue
         groups = _resolve_group_ids(entry.get("groups", []), name_to_id)
         status, resp = _request_with_retry("POST", "/api/clients", {
@@ -403,12 +401,13 @@ def sync_clients(cfg, sid, name_to_id):
         }, sid=sid)
         if status in (200, 201):
             if "client" not in resp and "clients" not in resp:
-                log(f"  WARNING: added client but response missing 'client'/'clients': {resp}", err=True)
+                log(f"  added client but response missing 'client'/'clients': {resp}", warn=True)
             log(f"  added client: {address} ({entry.get('comment', '')})")
+            changed("client", "added")
         elif status == 409:
             log(f"  client already existed (race): {address}")
         else:
-            log(f"  ERROR adding client '{address}' ({status}): {resp}", err=True)
+            soft_error(f"adding client '{address}' ({status}): {resp}")
 
     for address in existing:
         if address not in desired:
@@ -418,8 +417,9 @@ def sync_clients(cfg, sid, name_to_id):
                 sid=sid)
             if status in (200, 204):
                 log(f"  removed client: {address}")
+                changed("client", "removed")
             else:
-                log(f"  ERROR removing client '{address}' ({status}): {resp}", err=True)
+                soft_error(f"removing client '{address}' ({status}): {resp}")
 
 
 def run_gravity(sid):
@@ -440,24 +440,30 @@ def run_gravity(sid):
         log(f"Gravity update complete ({elapsed:.0f}s).")
     except Exception as exc:
         elapsed = time.monotonic() - t0
-        log(f"Gravity update failed after {elapsed:.0f}s: {exc}", err=True)
-        raise
+        raise SyncError(
+            ErrorCode.GRAVITY, f"Gravity update failed after {elapsed:.0f}s: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
-def main():
-    t_start = time.monotonic()
+def _load_config():
+    try:
+        with open(CONFIG_PATH) as f:
+            cfg = yaml.safe_load(f)
+        with open(CLIENTS_PATH) as f:
+            cfg["clients"] = (yaml.safe_load(f) or {}).get("clients") or []
+    except (OSError, yaml.YAMLError, TypeError) as exc:
+        raise SyncError(ErrorCode.CONFIG, f"Cannot load config: {exc}") from exc
+    return cfg
+
+
+def _run():
     log(f"Pi-hole sync starting. Config={CONFIG_PATH} "
         f"Clients={CLIENTS_PATH} URL={PIHOLE_URL}")
 
-    with open(CONFIG_PATH) as f:
-        cfg = yaml.safe_load(f)
-
-    with open(CLIENTS_PATH) as f:
-        cfg["clients"] = (yaml.safe_load(f) or {}).get("clients") or []
+    cfg = _load_config()
 
     log(f"Config summary: {len(cfg.get('groups', []))} groups, "
         f"{len(cfg.get('clients', []))} clients, "
@@ -496,8 +502,32 @@ def main():
     else:
         log("No gravity-triggering changes — skipping gravity update.")
 
-    elapsed = time.monotonic() - t_start
-    log(f"Sync complete ({elapsed:.0f}s).")
+
+
+def main():
+    obs.metrics = obs.Metrics(obs.push_readers())
+    t_start = time.monotonic()
+    result, error = "success", None
+    try:
+        _run()
+        if obs.soft_errors:
+            result, error = "partial", ErrorCode.PIHOLE_API
+    except Exception as exc:
+        result, error = "failure", obs.classify(exc)
+        log(f"Sync failed: {exc}", err=True, code=error, exc=type(exc).__name__)
+        raise
+    finally:
+        # The same fact as the metric, in the log, so each can be found from
+        # the other.
+        log("Sync finished.", event="run_finished", result=result,
+            **({"code": error} if error else {}), errors=len(obs.soft_errors),
+            duration_s=round(time.monotonic() - t_start))
+        obs.metrics.finished(result, error)
+        try:
+            # Flushes the final push; a collector outage must not fail a sync.
+            obs.metrics.provider.shutdown()
+        except Exception as exc:
+            log(f"Metrics push failed: {exc}", warn=True)
 
 
 if __name__ == "__main__":
