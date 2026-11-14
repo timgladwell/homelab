@@ -15,6 +15,7 @@ Text-level replacement per YAML document, not a yaml round-trip: the built
 output is what later steps report line numbers against, so it must come out
 formatted the way kustomize wrote it.
 """
+
 import pathlib
 import sys
 
@@ -26,7 +27,7 @@ docs = raw.split("\n---\n")
 
 DISABLED = "kustomize.toolkit.fluxcd.io/substitute: disabled"
 
-wanted: list[str] = []          # ConfigMap names, in the order Flux applies them
+wanted: list[str] = []  # ConfigMap names, in the order Flux applies them
 available: dict[str, dict] = {}  # name -> data
 
 for doc in docs:
@@ -47,8 +48,7 @@ for doc in docs:
 missing = [n for n in wanted if n not in available]
 if missing:
     # Flux would fail the reconcile outright rather than substitute nothing.
-    print(f"substituteFrom names a ConfigMap not built into this site: {', '.join(missing)}",
-          file=sys.stderr)
+    print(f"substituteFrom names a ConfigMap not built into this site: {', '.join(missing)}", file=sys.stderr)
     sys.exit(1)
 
 if not wanted:

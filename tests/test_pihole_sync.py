@@ -4,6 +4,7 @@ Ported from the `--self-check` that used to live at the bottom of sync.py.
 That check tested the right thing and nothing ever ran it; the point of moving
 it here is that validation step 13 does.
 """
+
 import unittest
 
 from loader import load
@@ -43,15 +44,19 @@ class SyncLists(unittest.TestCase):
         self.real_log, sync.log = sync.log, lambda *a, **k: None
         self.real = sync._request_with_retry
         # id=1 sits in group 0 only; the config below wants it in 0 and 7.
-        self.fake = FakePihole(lists=[
-            {"address": "http://a", "id": 1, "number": 5, "groups": [0]},
-            {"address": "http://b", "id": 2, "number": 5, "groups": [0]},
-        ])
+        self.fake = FakePihole(
+            lists=[
+                {"address": "http://a", "id": 1, "number": 5, "groups": [0]},
+                {"address": "http://b", "id": 2, "number": 5, "groups": [0]},
+            ]
+        )
         sync._request_with_retry = self.fake
-        self.cfg = {"block_lists": [
-            {"url": "http://a", "groups": ["Default", "Extra"]},
-            {"url": "http://b", "groups": ["Default"]},
-        ]}
+        self.cfg = {
+            "block_lists": [
+                {"url": "http://a", "groups": ["Default", "Extra"]},
+                {"url": "http://b", "groups": ["Default"]},
+            ]
+        }
         self.groups = {"Default": 0, "Extra": 7}
 
     def tearDown(self):
@@ -84,8 +89,7 @@ class SyncLists(unittest.TestCase):
         self.assertTrue(gravity, "a list with 0 domains loaded must re-run gravity")
 
     def test_new_list_is_added_with_the_right_body(self):
-        self.cfg["block_lists"].append(
-            {"url": "http://c", "groups": ["Default", "Extra"], "comment": "new one"})
+        self.cfg["block_lists"].append({"url": "http://c", "groups": ["Default", "Extra"], "comment": "new one"})
         gravity = sync.sync_lists(self.cfg, "", self.groups, "block", "block_lists")
 
         posts = self.fake.of("POST")
@@ -94,14 +98,17 @@ class SyncLists(unittest.TestCase):
         # type is a query parameter, not a body field — Pi-hole ignores a
         # blocklist POSTed to the allowlist endpoint rather than erroring.
         self.assertEqual(path, "/api/lists?type=block")
-        self.assertEqual(body, {
-            "address": "http://c",
-            "enabled": True,
-            # Group *ids*, resolved from names. Posting the names silently
-            # creates a list attached to no group.
-            "groups": [0, 7],
-            "comment": "new one",
-        })
+        self.assertEqual(
+            body,
+            {
+                "address": "http://c",
+                "enabled": True,
+                # Group *ids*, resolved from names. Posting the names silently
+                # creates a list attached to no group.
+                "groups": [0, 7],
+                "comment": "new one",
+            },
+        )
         self.assertTrue(gravity, "adding an adlist must re-run gravity")
 
     def test_removed_list_is_deleted_with_an_escaped_url(self):
@@ -116,8 +123,7 @@ class SyncLists(unittest.TestCase):
 
 class ResolveGroupIds(unittest.TestCase):
     def test_maps_names_to_ids(self):
-        self.assertEqual(sync._resolve_group_ids(["Default", "Extra"], {"Default": 0, "Extra": 7}),
-                         [0, 7])
+        self.assertEqual(sync._resolve_group_ids(["Default", "Extra"], {"Default": 0, "Extra": 7}), [0, 7])
 
     def test_unknown_group_is_skipped_not_fatal(self):
         # A typo in the config should not abort a whole sync; sync.py logs a

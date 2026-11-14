@@ -14,6 +14,7 @@ validate() test while sending Pi-hole something it ignores or misreads.
 So these tests run the real Handler on a real socket and fake only _call,
 which is the seam where app.py stops being ours and starts being Pi-hole's.
 """
+
 import http.client
 import json
 import threading
@@ -32,42 +33,42 @@ app = load("base/landing/app.py")
 # re-enable. Kept as raw bytes rather than dicts so a change to how the page
 # serialises a request shows up here.
 REQUESTS = {
-    "preset 1m":   b'{"blocking":false,"minutes":1}',
-    "preset 5m":   b'{"blocking":false,"minutes":5}',
-    "preset 30m":  b'{"blocking":false,"minutes":30}',
-    "custom max":  b'{"blocking":false,"minutes":359}',
-    "re-enable":   b'{"blocking":true}',
+    "preset 1m": b'{"blocking":false,"minutes":1}',
+    "preset 5m": b'{"blocking":false,"minutes":5}',
+    "preset 30m": b'{"blocking":false,"minutes":30}',
+    "custom max": b'{"blocking":false,"minutes":359}',
+    "re-enable": b'{"blocking":true}',
 }
 
 # What Pi-hole must receive for each. Minutes become seconds here and nowhere
 # else, so these numbers are the conversion's only assertion.
 EXPECTED_UPSTREAM = {
-    "preset 1m":   ("POST", "/api/dns/blocking", {"blocking": False, "timer": 60}),
-    "preset 5m":   ("POST", "/api/dns/blocking", {"blocking": False, "timer": 300}),
-    "preset 30m":  ("POST", "/api/dns/blocking", {"blocking": False, "timer": 1800}),
-    "custom max":  ("POST", "/api/dns/blocking", {"blocking": False, "timer": 21540}),
-    "re-enable":   ("POST", "/api/dns/blocking", {"blocking": True, "timer": None}),
+    "preset 1m": ("POST", "/api/dns/blocking", {"blocking": False, "timer": 60}),
+    "preset 5m": ("POST", "/api/dns/blocking", {"blocking": False, "timer": 300}),
+    "preset 30m": ("POST", "/api/dns/blocking", {"blocking": False, "timer": 1800}),
+    "custom max": ("POST", "/api/dns/blocking", {"blocking": False, "timer": 21540}),
+    "re-enable": ("POST", "/api/dns/blocking", {"blocking": True, "timer": None}),
 }
 
 # Bodies the page should never send and a hand-rolled curl might. Every one of
 # these must be refused before app.py touches Pi-hole at all.
 BAD_REQUESTS = {
-    "empty object":        b'{}',
-    "not an object":       b'"blocking"',
-    "array":               b'["blocking"]',
-    "null":                b'null',
-    "malformed json":      b'{"blocking": fals',
-    "blocking as string":  b'{"blocking":"false","minutes":5}',
-    "blocking as int":     b'{"blocking":0,"minutes":5}',
-    "untimed disable":     b'{"blocking":false}',
-    "null minutes":        b'{"blocking":false,"minutes":null}',
-    "zero minutes":        b'{"blocking":false,"minutes":0}',
-    "negative minutes":    b'{"blocking":false,"minutes":-5}',
-    "over the maximum":    b'{"blocking":false,"minutes":360}',
-    "absurd minutes":      b'{"blocking":false,"minutes":100000}',
-    "minutes as string":   b'{"blocking":false,"minutes":"5"}',
-    "fractional minutes":  b'{"blocking":false,"minutes":1.5}',
-    "minutes as true":     b'{"blocking":false,"minutes":true}',
+    "empty object": b"{}",
+    "not an object": b'"blocking"',
+    "array": b'["blocking"]',
+    "null": b"null",
+    "malformed json": b'{"blocking": fals',
+    "blocking as string": b'{"blocking":"false","minutes":5}',
+    "blocking as int": b'{"blocking":0,"minutes":5}',
+    "untimed disable": b'{"blocking":false}',
+    "null minutes": b'{"blocking":false,"minutes":null}',
+    "zero minutes": b'{"blocking":false,"minutes":0}',
+    "negative minutes": b'{"blocking":false,"minutes":-5}',
+    "over the maximum": b'{"blocking":false,"minutes":360}',
+    "absurd minutes": b'{"blocking":false,"minutes":100000}',
+    "minutes as string": b'{"blocking":false,"minutes":"5"}',
+    "fractional minutes": b'{"blocking":false,"minutes":1.5}',
+    "minutes as true": b'{"blocking":false,"minutes":true}',
 }
 
 
@@ -99,8 +100,7 @@ class ServedByRealHandler(unittest.TestCase):
         self.port = self.server.server_address[1]
         # poll_interval, not a timeout: shutdown() waits up to this long, and
         # the default 0.5s is paid once per test method.
-        self.thread = threading.Thread(
-            target=self.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+        self.thread = threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         self.thread.start()
 
     def tearDown(self):
@@ -113,8 +113,7 @@ class ServedByRealHandler(unittest.TestCase):
         req = urllib.request.Request(
             f"http://127.0.0.1:{self.port}{path}",
             data=body,
-            headers={**({"Content-Type": "application/json"} if body else {}),
-                     **(headers or {})},
+            headers={**({"Content-Type": "application/json"} if body else {}), **(headers or {})},
             method=method,
         )
         try:
@@ -159,8 +158,7 @@ class OutgoingRequestShape(ServedByRealHandler):
         # Pi-hole's reply includes fields the page has no business relaying to
         # an unauthenticated caller (took, session detail, and whatever a
         # future version adds).
-        self.reply = (200, {"blocking": "disabled", "timer": 56.599999999999952,
-                            "took": 0.01, "secret": "leak me"})
+        self.reply = (200, {"blocking": "disabled", "timer": 56.599999999999952, "took": 0.01, "secret": "leak me"})
         _, payload = self.json_request("GET", "/api/blocking")
         self.assertEqual(payload, {"blocking": "disabled", "timer": 56.599999999999952})
 
@@ -190,7 +188,7 @@ class RejectedBeforeUpstream(ServedByRealHandler):
                 self.assertEqual(self.calls, [], f"{name} reached Pi-hole")
 
     def test_oversized_body_is_refused(self):
-        big = b'{"blocking":false,"minutes":1,"pad":"' + b'x' * 4096 + b'"}'
+        big = b'{"blocking":false,"minutes":1,"pad":"' + b"x" * 4096 + b'"}'
         status, _ = self.json_request("POST", "/api/blocking", big)
         self.assertEqual(status, 413)
         self.assertEqual(self.calls, [])
@@ -204,8 +202,7 @@ class RejectedBeforeUpstream(ServedByRealHandler):
         self.calls.clear()
         status, _ = self.json_request("POST", "/api/blocking", b'{"blocking":false,"minutes":5}')
         self.assertEqual(status, 200)
-        self.assertEqual(self.calls, [("POST", "/api/dns/blocking",
-                                       {"blocking": False, "timer": 300})])
+        self.assertEqual(self.calls, [("POST", "/api/dns/blocking", {"blocking": False, "timer": 300})])
 
     def test_a_get_with_a_body_does_not_break_the_next_request(self):
         # The same keep-alive failure _read_body prevents for POST: bytes left
@@ -246,10 +243,9 @@ class RejectedBeforeUpstream(ServedByRealHandler):
 
 class OtherRoutes(ServedByRealHandler):
     def test_unknown_paths_are_404(self):
-        for method, path in (("GET", "/api/stats"), ("GET", "/admin/"),
-                             ("POST", "/api/dns/blocking"), ("POST", "/")):
+        for method, path in (("GET", "/api/stats"), ("GET", "/admin/"), ("POST", "/api/dns/blocking"), ("POST", "/")):
             with self.subTest(path=f"{method} {path}"):
-                status, _ = self.json_request(method, path, b'{}' if method == "POST" else None)
+                status, _ = self.json_request(method, path, b"{}" if method == "POST" else None)
                 self.assertEqual(status, 404)
                 self.assertEqual(self.calls, [])
 
@@ -298,8 +294,7 @@ class UpstreamFailures(ServedByRealHandler):
         # operator problem — the caller gets a generic 502, and the detail
         # goes to the log.
         self.reply = (401, {"error": {"key": "unauthorized", "hint": "bad password"}})
-        status, payload = self.json_request("POST", "/api/blocking",
-                                            b'{"blocking":false,"minutes":5}')
+        status, payload = self.json_request("POST", "/api/blocking", b'{"blocking":false,"minutes":5}')
         self.assertEqual(status, 502)
         self.assertNotIn("hint", json.dumps(payload))
 
@@ -308,25 +303,32 @@ class UpstreamFailures(ServedByRealHandler):
 # what activity_rows classifies on, and the extra fields are the ones this page
 # must not relay.
 def queries_reply(rows, filtered, name="laptop"):
-    return (200, {
-        "queries": [
-            {"time": t, "domain": d, "status": st,
-             "client": {"ip": "10.6.2.51", "name": name},
-             "upstream": "10.43.0.53#5335", "list_id": 4,
-             "ede": {"code": 15, "text": "blocked by policy"}}
-            for t, d, st in rows
-        ],
-        "recordsTotal": 99999,
-        "recordsFiltered": filtered,
-        "took": 0.01,
-    })
+    return (
+        200,
+        {
+            "queries": [
+                {
+                    "time": t,
+                    "domain": d,
+                    "status": st,
+                    "client": {"ip": "10.6.2.51", "name": name},
+                    "upstream": "10.43.0.53#5335",
+                    "list_id": 4,
+                    "ede": {"code": 15, "text": "blocked by policy"},
+                }
+                for t, d, st in rows
+            ],
+            "recordsTotal": 99999,
+            "recordsFiltered": filtered,
+            "took": 0.01,
+        },
+    )
 
 
 ACTIVITY_REPLIES = [
     queries_reply([(1789503390.0, "example.com", "FORWARDED")], 1234),
     queries_reply([(1789503395.0, "ads.example.com", "GRAVITY")], 88),
-    queries_reply([(1789503396.0, "api.example.com", "FORWARDED"),
-                   (1789503397.0, "ads.example.com", "GRAVITY")], 2),
+    queries_reply([(1789503396.0, "api.example.com", "FORWARDED"), (1789503397.0, "ads.example.com", "GRAVITY")], 2),
 ]
 
 
@@ -403,8 +405,9 @@ class DeviceActivity(ServedByRealHandler):
         # The upstream rows include the resolver used and EDE text, neither of
         # which belongs in an unauthenticated response.
         _, payload = self.activity()
-        self.assertEqual(payload["recent_blocked"],
-                         [{"time": 1789503395.0, "domain": "ads.example.com", "blocked": True}])
+        self.assertEqual(
+            payload["recent_blocked"], [{"time": 1789503395.0, "domain": "ads.example.com", "blocked": True}]
+        )
         self.assertNotIn("blocked by policy", json.dumps(payload))
         self.assertNotIn("10.43.0.53", json.dumps(payload))
 
@@ -471,22 +474,20 @@ class UnresolvableClient(ServedByRealHandler):
     # The reason text is what a person reads when the panel is blank, so the
     # distinctive part of each is asserted rather than merely "some error".
     BAD = {
-        "no header at all":   ("/api/activity", {}, "missing"),
-        "empty header":       ("/api/activity", {"X-Forwarded-For": ""}, "empty"),
-        "hostname":           ("/api/activity", {"X-Forwarded-For": "laptop.lan"},
-                               "laptop.lan is not an IP address"),
-        "address with port":  ("/api/activity", {"X-Forwarded-For": "10.6.2.51:443"},
-                               "10.6.2.51:443 is not an IP address"),
-        "wildcard override":  ("/api/activity?client=10.6.2.%25", {},
-                               "Query parameter client value 10.6.2.%"),
-        "smuggled parameter": ("/api/activity?client=10.6.2.51%26length%3D9999", {},
-                               "Query parameter client"),
-        "not an address":     ("/api/activity?client=../../api/auth", {},
-                               "not an IP address"),
+        "no header at all": ("/api/activity", {}, "missing"),
+        "empty header": ("/api/activity", {"X-Forwarded-For": ""}, "empty"),
+        "hostname": ("/api/activity", {"X-Forwarded-For": "laptop.lan"}, "laptop.lan is not an IP address"),
+        "address with port": (
+            "/api/activity",
+            {"X-Forwarded-For": "10.6.2.51:443"},
+            "10.6.2.51:443 is not an IP address",
+        ),
+        "wildcard override": ("/api/activity?client=10.6.2.%25", {}, "Query parameter client value 10.6.2.%"),
+        "smuggled parameter": ("/api/activity?client=10.6.2.51%26length%3D9999", {}, "Query parameter client"),
+        "not an address": ("/api/activity?client=../../api/auth", {}, "not an IP address"),
     }
 
-    EMPTY = {"name": None, "queries": None, "blocked": None,
-             "recent_blocked": [], "recent": []}
+    EMPTY = {"name": None, "queries": None, "blocked": None, "recent_blocked": [], "recent": []}
 
     def test_an_unusable_client_is_an_empty_panel_not_an_error(self):
         for name, (path, headers, expected) in self.BAD.items():
@@ -516,8 +517,7 @@ class UnresolvableClient(ServedByRealHandler):
 
     def activity_ok(self):
         self.replies = list(ACTIVITY_REPLIES)
-        return self.json_request("GET", "/api/activity",
-                                 headers={"X-Forwarded-For": "10.6.2.51"})
+        return self.json_request("GET", "/api/activity", headers={"X-Forwarded-For": "10.6.2.51"})
 
 
 class UpstreamUnavailable(ServedByRealHandler):
@@ -537,12 +537,12 @@ class UpstreamUnavailable(ServedByRealHandler):
     def test_a_timeout_says_so_and_names_the_budget(self):
         # urlopen raises TimeoutError directly on a read timeout; a generic
         # "not responding" would hide which of the two it was.
-        self.assertIn(str(app.UPSTREAM_TIMEOUT),
-                      self.reason_for(explode=TimeoutError("timed out")))
+        self.assertIn(str(app.UPSTREAM_TIMEOUT), self.reason_for(explode=TimeoutError("timed out")))
 
     def test_a_connect_timeout_is_unwrapped_from_urlerror(self):
-        self.assertIn(str(app.UPSTREAM_TIMEOUT), self.reason_for(
-            explode=urllib.error.URLError(TimeoutError("timed out"))))
+        self.assertIn(
+            str(app.UPSTREAM_TIMEOUT), self.reason_for(explode=urllib.error.URLError(TimeoutError("timed out")))
+        )
 
     def test_an_unreachable_pihole_is_distinguished_from_a_slow_one(self):
         reason = self.reason_for(explode=urllib.error.URLError("connection refused"))
@@ -553,16 +553,14 @@ class UpstreamUnavailable(ServedByRealHandler):
         self.assertIn("could not read", self.reason_for(explode=ValueError("no json")))
 
     def test_an_error_status_is_shown_without_the_upstream_body(self):
-        reason = self.reason_for(
-            reply=(401, {"error": {"key": "unauthorized", "hint": "bad password"}}))
+        reason = self.reason_for(reply=(401, {"error": {"key": "unauthorized", "hint": "bad password"}}))
         self.assertIn("401", reason)
         self.assertNotIn("hint", reason)
 
     def test_a_row_of_the_wrong_shape_does_not_crash_the_panel(self):
         # A future FTL that sends client as a bare string rather than an
         # object would otherwise be an AttributeError and a 500.
-        self.replies = [(200, {"queries": ["not a row"], "recordsFiltered": 1})] \
-            + ACTIVITY_REPLIES[1:]
+        self.replies = [(200, {"queries": ["not a row"], "recordsFiltered": 1})] + ACTIVITY_REPLIES[1:]
         self.assertIn("could not read", self.reason_for())
 
     def test_a_failed_call_stops_the_rest(self):
@@ -575,8 +573,7 @@ class UpstreamUnavailable(ServedByRealHandler):
         # action, and an action that did not happen must not look like one
         # that did.
         self.explode = OSError("connection refused")
-        status, _ = self.json_request("POST", "/api/blocking",
-                                      b'{"blocking":false,"minutes":5}')
+        status, _ = self.json_request("POST", "/api/blocking", b'{"blocking":false,"minutes":5}')
         self.assertEqual(status, 502)
 
 
@@ -596,9 +593,7 @@ class ClientAddressUnit(unittest.TestCase):
                 self.assertIn(expected, str(caught.exception))
 
     def test_surrounding_whitespace_is_tolerated(self):
-        self.assertEqual(
-            app.client_address({"X-Forwarded-For": "1.2.3.4,  10.6.2.51 "}, {}),
-            "10.6.2.51")
+        self.assertEqual(app.client_address({"X-Forwarded-For": "1.2.3.4,  10.6.2.51 "}, {}), "10.6.2.51")
 
     def test_blocked_statuses_do_not_include_the_permitted_ones(self):
         # A stray FORWARDED or CACHE in the set would mark every ordinary
@@ -638,8 +633,7 @@ class UpstreamRequest(unittest.TestCase):
                 return False
 
         real = app.urllib.request.urlopen
-        app.urllib.request.urlopen = lambda req, timeout=None: (
-            sent.append(req), FakeResponse())[1]
+        app.urllib.request.urlopen = lambda req, timeout=None: (sent.append(req), FakeResponse())[1]
         try:
             app._pihole("POST", "/api/dns/blocking", **kwargs)
         finally:
@@ -671,8 +665,9 @@ class ValidateUnit(unittest.TestCase):
 
     def test_bounds_are_derived_from_max_minutes(self):
         self.assertEqual(app.MAX_MINUTES, 360)
-        self.assertEqual(app.validate({"blocking": False, "minutes": app.MAX_MINUTES - 1}),
-                         (False, (app.MAX_MINUTES - 1) * 60))
+        self.assertEqual(
+            app.validate({"blocking": False, "minutes": app.MAX_MINUTES - 1}), (False, (app.MAX_MINUTES - 1) * 60)
+        )
         with self.assertRaises(ValueError):
             app.validate({"blocking": False, "minutes": app.MAX_MINUTES})
 

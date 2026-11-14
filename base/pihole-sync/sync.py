@@ -13,6 +13,7 @@ Gravity is triggered when:
   - The gravity flag file exists (set by a previous container run in this pod
     before gravity completed, ensuring retries always re-attempt gravity).
 """
+
 import json
 import os
 import sys
@@ -46,6 +47,7 @@ _RETRY_BASE_DELAY = 2.0  # seconds; doubles on each attempt
 # Logging
 # ---------------------------------------------------------------------------
 
+
 def _ts():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -57,6 +59,7 @@ def log(msg, *, err=False):
 # ---------------------------------------------------------------------------
 # Gravity flag (persists across container restarts within a pod via emptyDir)
 # ---------------------------------------------------------------------------
+
 
 def _set_gravity_flag():
     os.makedirs(STATE_DIR, exist_ok=True)
@@ -80,6 +83,7 @@ def _gravity_flag_set():
 # ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
+
 
 def _headers(sid=None):
     headers = {"Content-Type": "application/json", "User-Agent": _USER_AGENT}
@@ -111,8 +115,7 @@ def _request_with_retry(method, path, body=None, sid=None, timeout=60):
     for attempt in range(_MAX_RETRIES + 1):
         if attempt:
             delay = _RETRY_BASE_DELAY * (2 ** (attempt - 1))
-            log(f"  Retrying {method} {path} in {delay:.0f}s "
-                f"(attempt {attempt + 1}/{_MAX_RETRIES + 1})...")
+            log(f"  Retrying {method} {path} in {delay:.0f}s (attempt {attempt + 1}/{_MAX_RETRIES + 1})...")
             time.sleep(delay)
         try:
             status, resp = _request(method, path, body=body, sid=sid, timeout=timeout)
@@ -146,14 +149,14 @@ def authenticate():
     if not session.get("valid"):
         raise RuntimeError(f"Auth returned invalid session: {resp}")
     sid = session.get("sid") or ""
-    log(f"Authenticated (sid={'<none>' if not sid else sid[:8] + '...'}, "
-        f"valid={session.get('valid')})")
+    log(f"Authenticated (sid={'<none>' if not sid else sid[:8] + '...'}, valid={session.get('valid')})")
     return sid
 
 
 # ---------------------------------------------------------------------------
 # Sync functions
 # ---------------------------------------------------------------------------
+
 
 def _resolve_group_ids(names, name_to_id):
     ids = []
@@ -200,8 +203,7 @@ def sync_groups(cfg, sid):
         if name in name_to_id:
             log(f"  group '{name}' exists (id={name_to_id[name]})")
             continue
-        status, resp = _request_with_retry(
-            "POST", "/api/groups", {"name": name, "enabled": True}, sid=sid)
+        status, resp = _request_with_retry("POST", "/api/groups", {"name": name, "enabled": True}, sid=sid)
         if status in (200, 201) and ("group" in resp or "groups" in resp):
             name_to_id[name] = resp["group"]["id"] if "group" in resp else resp["groups"][0]["id"]
             log(f"  created group '{name}' (id={name_to_id[name]})")
@@ -223,8 +225,7 @@ def remove_extra_groups(cfg, sid, name_to_id):
         log("  No extra groups.")
         return
     for name in extras:
-        status, resp = _request_with_retry(
-            "DELETE", f"/api/groups/{urllib.parse.quote(name)}", sid=sid)
+        status, resp = _request_with_retry("DELETE", f"/api/groups/{urllib.parse.quote(name)}", sid=sid)
         if status in (200, 204):
             log(f"  removed group '{name}'")
         else:
@@ -264,29 +265,37 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
         url = entry["url"]
         if url in existing:
             lst = existing[url]
-            log(f"  {list_type}list exists "
-                f"(id={lst['id']}, domains={lst.get('number', '?')}): {url}")
+            log(f"  {list_type}list exists (id={lst['id']}, domains={lst.get('number', '?')}): {url}")
             # No gravity: the domains are already in the `gravity` table
             # tagged with this adlist_id, and `vw_gravity` resolves group
             # membership by joining adlist_by_group at query time. Rewriting
             # that join takes effect immediately.
             _reconcile_groups(
-                lst, entry, name_to_id,
+                lst,
+                entry,
+                name_to_id,
                 f"/api/lists/{urllib.parse.quote(url, safe='')}?type={list_type}",
                 {
                     "address": url,
                     "enabled": lst.get("enabled", True),
                     "comment": entry.get("comment", ""),
                 },
-                sid, f"{list_type}list {url}")
+                sid,
+                f"{list_type}list {url}",
+            )
             continue
         groups = _resolve_group_ids(entry.get("groups", []), name_to_id)
-        status, resp = _request_with_retry("POST", f"/api/lists?type={list_type}", {
-            "address": url,
-            "enabled": True,
-            "groups": groups,
-            "comment": entry.get("comment", ""),
-        }, sid=sid)
+        status, resp = _request_with_retry(
+            "POST",
+            f"/api/lists?type={list_type}",
+            {
+                "address": url,
+                "enabled": True,
+                "groups": groups,
+                "comment": entry.get("comment", ""),
+            },
+            sid=sid,
+        )
         if status in (200, 201):
             if "list" not in resp and "lists" not in resp:
                 log(f"  WARNING: added {list_type}list but response missing 'list'/'lists': {resp}", err=True)
@@ -301,26 +310,22 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
     for url, lst in existing.items():
         if url not in desired:
             status, resp = _request_with_retry(
-                "DELETE",
-                f"/api/lists/{urllib.parse.quote(url, safe='')}?type={list_type}",
-                sid=sid)
+                "DELETE", f"/api/lists/{urllib.parse.quote(url, safe='')}?type={list_type}", sid=sid
+            )
             if status in (200, 204):
                 log(f"  removed {list_type}list (id={lst['id']}): {url}")
                 gravity_needed = True
             else:
-                log(f"  ERROR removing {list_type}list id={lst['id']} ({status}): {resp}",
-                    err=True)
+                log(f"  ERROR removing {list_type}list id={lst['id']} ({status}): {resp}", err=True)
 
     return gravity_needed
 
 
 def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
     log(f"--- Syncing {domain_type} domains ---")
-    status, resp = _request_with_retry(
-        "GET", f"/api/domains/{domain_type}/exact", sid=sid)
+    status, resp = _request_with_retry("GET", f"/api/domains/{domain_type}/exact", sid=sid)
     if status != 200:
-        raise RuntimeError(
-            f"GET /api/domains/{domain_type}/exact failed ({status}): {resp}")
+        raise RuntimeError(f"GET /api/domains/{domain_type}/exact failed ({status}): {resp}")
 
     existing = {d["domain"]: d for d in resp.get("domains", [])}
     desired = {entry["domain"] for entry in cfg.get(cfg_key, [])}
@@ -332,24 +337,31 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
             dom = existing[domain]
             log(f"  {domain_type} domain exists (id={dom['id']}): {domain}")
             _reconcile_groups(
-                dom, entry, name_to_id,
-                f"/api/domains/{domain_type}/exact/"
-                f"{urllib.parse.quote(domain, safe='')}",
+                dom,
+                entry,
+                name_to_id,
+                f"/api/domains/{domain_type}/exact/{urllib.parse.quote(domain, safe='')}",
                 {
                     "domain": domain,
                     "enabled": dom.get("enabled", True),
                     "comment": entry.get("comment", ""),
                 },
-                sid, f"{domain_type} domain {domain}")
+                sid,
+                f"{domain_type} domain {domain}",
+            )
             continue
         groups = _resolve_group_ids(entry.get("groups", []), name_to_id)
         status, resp = _request_with_retry(
-            "POST", f"/api/domains/{domain_type}/exact", {
+            "POST",
+            f"/api/domains/{domain_type}/exact",
+            {
                 "domain": domain,
                 "enabled": True,
                 "groups": groups,
                 "comment": entry.get("comment", ""),
-            }, sid=sid)
+            },
+            sid=sid,
+        )
         if status in (200, 201):
             if "domain" not in resp and "domains" not in resp:
                 log(f"  WARNING: added {domain_type} domain but response missing 'domain'/'domains': {resp}", err=True)
@@ -362,14 +374,12 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
     for domain in existing:
         if domain not in desired:
             status, resp = _request_with_retry(
-                "DELETE",
-                f"/api/domains/{domain_type}/exact/{urllib.parse.quote(domain, safe='')}",
-                sid=sid)
+                "DELETE", f"/api/domains/{domain_type}/exact/{urllib.parse.quote(domain, safe='')}", sid=sid
+            )
             if status in (200, 204):
                 log(f"  removed {domain_type} domain: {domain}")
             else:
-                log(f"  ERROR removing {domain_type} domain '{domain}' ({status}): {resp}",
-                    err=True)
+                log(f"  ERROR removing {domain_type} domain '{domain}' ({status}): {resp}", err=True)
 
 
 def sync_clients(cfg, sid, name_to_id):
@@ -387,20 +397,29 @@ def sync_clients(cfg, sid, name_to_id):
         if address in existing:
             log(f"  client exists: {address} ({entry.get('comment', '')})")
             _reconcile_groups(
-                existing[address], entry, name_to_id,
+                existing[address],
+                entry,
+                name_to_id,
                 f"/api/clients/{urllib.parse.quote(address, safe='')}",
                 {
                     "client": address,
                     "comment": entry.get("comment", ""),
                 },
-                sid, f"client {address}")
+                sid,
+                f"client {address}",
+            )
             continue
         groups = _resolve_group_ids(entry.get("groups", []), name_to_id)
-        status, resp = _request_with_retry("POST", "/api/clients", {
-            "client": address,
-            "groups": groups,
-            "comment": entry.get("comment", ""),
-        }, sid=sid)
+        status, resp = _request_with_retry(
+            "POST",
+            "/api/clients",
+            {
+                "client": address,
+                "groups": groups,
+                "comment": entry.get("comment", ""),
+            },
+            sid=sid,
+        )
         if status in (200, 201):
             if "client" not in resp and "clients" not in resp:
                 log(f"  WARNING: added client but response missing 'client'/'clients': {resp}", err=True)
@@ -413,9 +432,8 @@ def sync_clients(cfg, sid, name_to_id):
     for address in existing:
         if address not in desired:
             status, resp = _request_with_retry(
-                "DELETE",
-                f"/api/clients/{urllib.parse.quote(address, safe='')}",
-                sid=sid)
+                "DELETE", f"/api/clients/{urllib.parse.quote(address, safe='')}", sid=sid
+            )
             if status in (200, 204):
                 log(f"  removed client: {address}")
             else:
@@ -448,10 +466,10 @@ def run_gravity(sid):
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def main():
     t_start = time.monotonic()
-    log(f"Pi-hole sync starting. Config={CONFIG_PATH} "
-        f"Clients={CLIENTS_PATH} URL={PIHOLE_URL}")
+    log(f"Pi-hole sync starting. Config={CONFIG_PATH} Clients={CLIENTS_PATH} URL={PIHOLE_URL}")
 
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
@@ -459,12 +477,14 @@ def main():
     with open(CLIENTS_PATH) as f:
         cfg["clients"] = (yaml.safe_load(f) or {}).get("clients") or []
 
-    log(f"Config summary: {len(cfg.get('groups', []))} groups, "
+    log(
+        f"Config summary: {len(cfg.get('groups', []))} groups, "
         f"{len(cfg.get('clients', []))} clients, "
         f"{len(cfg.get('allow_domains', []))} allow_domains, "
         f"{len(cfg.get('block_domains', []))} block_domains, "
         f"{len(cfg.get('allow_lists', []))} allow_lists, "
-        f"{len(cfg.get('block_lists', []))} block_lists")
+        f"{len(cfg.get('block_lists', []))} block_lists"
+    )
 
     sid = authenticate()
 

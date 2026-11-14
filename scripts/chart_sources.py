@@ -33,6 +33,7 @@ image, and Unpoller's chart moved to OCI and left its HTTP index behind.
 Network: chart metadata comes from `helm show chart`, and the audit reads
 registries anonymously. Findings print one per line, prefixed ✗.
 """
+
 import datetime
 import json
 import pathlib
@@ -49,15 +50,18 @@ import yaml
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 FROZEN_DAYS = 60
 UA = {"User-Agent": "homelab-chart-sources"}  # GitHub Pages refuses urllib's default
-MANIFEST_TYPES = ",".join([  # noqa: FLY002 - one per line reads better
-    "application/vnd.oci.image.index.v1+json",
-    "application/vnd.docker.distribution.manifest.list.v2+json",
-    "application/vnd.oci.image.manifest.v1+json",
-    "application/vnd.docker.distribution.manifest.v2+json",
-])
+MANIFEST_TYPES = ",".join(  # noqa: FLY002 - one per line reads better
+    [
+        "application/vnd.oci.image.index.v1+json",
+        "application/vnd.docker.distribution.manifest.list.v2+json",
+        "application/vnd.oci.image.manifest.v1+json",
+        "application/vnd.docker.distribution.manifest.v2+json",
+    ]
+)
 
 
 # --- pure helpers (tests/test_chart_sources.py) ---------------------------
+
 
 def version(s):
     """(major, minor, patch) from a tag or appVersion, or None. Lenient: v-prefix and suffixes ignored."""
@@ -137,6 +141,7 @@ def bearer_params(header):
 
 # --- inputs ---------------------------------------------------------------
 
+
 def load(path):
     with open(path) as f:
         return [d for d in yaml.safe_load_all(f) if isinstance(d, dict)]
@@ -144,8 +149,11 @@ def load(path):
 
 def releases(built_docs, rendered_docs):
     """[(release, repo spec, chart name, deployed chart version, rendered images)]."""
-    repos = {(d["metadata"].get("namespace"), d["metadata"]["name"]): d["spec"]
-             for d in built_docs if d.get("kind") == "HelmRepository"}
+    repos = {
+        (d["metadata"].get("namespace"), d["metadata"]["name"]): d["spec"]
+        for d in built_docs
+        if d.get("kind") == "HelmRepository"
+    }
     rendered = {}
     for d in rendered_docs:
         labels = (d.get("metadata") or {}).get("labels") or {}
@@ -162,7 +170,9 @@ def releases(built_docs, rendered_docs):
         repo = repos[(src.get("namespace", ns), src["name"])]
         r = rendered.get((ns, name), {"charts": set(), "images": set()})
         prefix = spec["chart"] + "-"
-        deployed = next((c[len(prefix):] for c in r["charts"] if c.startswith(prefix) and version(c[len(prefix):])), None)
+        deployed = next(
+            (c[len(prefix) :] for c in r["charts"] if c.startswith(prefix) and version(c[len(prefix) :])), None
+        )
         out.append((hr, repo, spec["chart"], deployed, r["images"]))
     return out
 
@@ -181,11 +191,13 @@ def show_chart(repo, chart, ver=None):
 
 def cached(fn):
     memo = {}
+
     def wrapper(*args):
         key = json.dumps(args, sort_keys=True, default=str)
         if key not in memo:
             memo[key] = fn(*args)
         return memo[key]
+
     return wrapper
 
 
@@ -193,6 +205,7 @@ show_chart = cached(show_chart)
 
 
 # --- check (step 15) ------------------------------------------------------
+
 
 def check(built, rendered):
     rels = releases(load(built), load(rendered))
@@ -206,23 +219,28 @@ def check(built, rendered):
             failed += 1
             continue
         if meta.get("deprecated"):
-            print(f"  ✗ {rid}: {chart}-{deployed} is marked deprecated by its publisher; "
-                  "find where the chart moved (#533)")
+            print(
+                f"  ✗ {rid}: {chart}-{deployed} is marked deprecated by its publisher; "
+                "find where the chart moved (#533)"
+            )
             failed += 1
             continue
         img, why = judge(meta.get("appVersion"), imgs, set(values_tags(hr["spec"].get("values"))))
         if img:
             print(f"  ✓ {rid}: {chart}-{deployed} appVersion {meta.get('appVersion')}; {img} ({why})")
         else:
-            print(f"  ✗ {rid}: {chart}-{deployed} says appVersion {meta.get('appVersion')}, but renders none of it: "
-                  f"{', '.join(sorted(imgs)) or 'no images'}. The chart may have stopped tracking its app (#533): "
-                  "find what does, or pin the tag in values with a `# renovate:` comment")
+            print(
+                f"  ✗ {rid}: {chart}-{deployed} says appVersion {meta.get('appVersion')}, but renders none of it: "
+                f"{', '.join(sorted(imgs)) or 'no images'}. The chart may have stopped tracking its app (#533): "
+                "find what does, or pin the tag in values with a `# renovate:` comment"
+            )
             failed += 1
     print(f"  {len(rels)} releases checked against their chart metadata")
     return failed
 
 
 # --- audit (weekly) -------------------------------------------------------
+
 
 def http(url, headers=None):
     req = urllib.request.Request(url, headers={**UA, **(headers or {})})
@@ -239,8 +257,9 @@ def registry_get(registry, repo, path, accept="application/json"):
         if e.code != 401:
             raise
         p = bearer_params(e.headers.get("WWW-Authenticate"))
-        q = urllib.parse.urlencode({k: v for k, v in (("service", p.get("service")),
-                                                      ("scope", f"repository:{repo}:pull")) if v})
+        q = urllib.parse.urlencode(
+            {k: v for k, v in (("service", p.get("service")), ("scope", f"repository:{repo}:pull")) if v}
+        )
         token = json.load(http(f"{p['realm']}?{q}"))
         token = token.get("token") or token.get("access_token")
         return http(url, {"Accept": accept, "Authorization": f"Bearer {token}"})
@@ -264,8 +283,10 @@ def source_label(registry, repo, tag):
     idx = json.load(registry_get(registry, repo, f"manifests/{tag}", MANIFEST_TYPES))
     man = idx
     if "manifests" in idx:
-        d = next((m for m in idx["manifests"] if (m.get("platform") or {}).get("architecture") == "arm64"),
-                 idx["manifests"][0])
+        d = next(
+            (m for m in idx["manifests"] if (m.get("platform") or {}).get("architecture") == "arm64"),
+            idx["manifests"][0],
+        )
         man = json.load(registry_get(registry, repo, f"manifests/{d['digest']}", MANIFEST_TYPES))
     cfg = json.load(registry_get(registry, repo, f"blobs/{man['config']['digest']}", "*/*")).get("config") or {}
     labels = cfg.get("Labels") or {}
@@ -331,10 +352,11 @@ def audit(build_dir):
                 registry, irepo, _ = split_image(img)
                 upstream = newest_stable_tag(registry, irepo)
                 age = age_days(created) if created else None
-                frozen = (upstream and version(upstream) > (version(app) or (0,))
-                          and (age is None or age > FROZEN_DAYS))
-                state = f"newest chart {ver} (appVersion {app}, {age if age is not None else '?'}d old); " \
-                        f"newest {registry}/{irepo} is {upstream}"
+                frozen = upstream and version(upstream) > (version(app) or (0,)) and (age is None or age > FROZEN_DAYS)
+                state = (
+                    f"newest chart {ver} (appVersion {app}, {age if age is not None else '?'}d old); "
+                    f"newest {registry}/{irepo} is {upstream}"
+                )
                 if frozen and age is not None:
                     finding(f"{rid}: looks frozen: {state}")
                 elif frozen:
@@ -351,7 +373,9 @@ def audit(build_dir):
     for f in sorted(REPO_ROOT.rglob("*.y*ml")):
         if ".git" in f.parts or ".claude" in f.parts:
             continue
-        pins.update(re.findall(r"# renovate: datasource=docker depName=(\S+)\s+\S+: (\S+)", f.read_text(errors="replace")))
+        pins.update(
+            re.findall(r"# renovate: datasource=docker depName=(\S+)\s+\S+: (\S+)", f.read_text(errors="replace"))
+        )
     for dep, value in sorted(pins):
         registry, repo, _ = split_image(dep)
         tag = split_image(value)[2] or value
@@ -363,8 +387,10 @@ def audit(build_dir):
         if label or dep in with_url:
             print(f"  ✓ {dep}: release notes from {label or 'a renovate.json sourceUrl rule'}")
         else:
-            finding(f"{dep}: no org.opencontainers.image.source label, so Renovate PRs carry no release notes; "
-                    "add a packageRules sourceUrl for it in renovate.json")
+            finding(
+                f"{dep}: no org.opencontainers.image.source label, so Renovate PRs carry no release notes; "
+                "add a packageRules sourceUrl for it in renovate.json"
+            )
     return len(findings)
 
 
