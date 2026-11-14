@@ -15,30 +15,31 @@ here touches a cluster.
 1. **Install the validation tools** at the versions pinned in
    `.github/workflows/validate.yml`, which is what CI runs: `flux`, `kustomize`,
    `kubeconform`, `kube-score`, `trivy`, `conftest`, `yamllint`, `alloy`,
-   `flate`, `helm`, `uv`, `ruff` and `python3`, plus `sops` and `age`. `helm` is not pinned:
+   `flate`, `helm`, `uv`, `ruff`, `shellcheck` and `python3`, plus `sops` and `age`. `helm` is not pinned:
    step 15 only reads chart metadata with it, and CI uses the runner's.
    - The `flux` pin tracks what the clusters run, not the newest release; see
      [Flux Upgrades](flux-upgrades.md).
    - `brew install grafana/grafana/alloy` — plain `brew install alloy` is an
      unrelated package.
-   - `yamllint`, `uv` and `ruff` through pipx (`brew install pipx`, then
+   - `yamllint`, `uv`, `ruff` and `shellcheck` through pipx (`brew install pipx`, then
      `pipx ensurepath` once), as CI installs them. Homebrew only carries the
      latest release of each, not the pin, so uninstall a Homebrew copy
-     (`brew uninstall yamllint uv ruff`). From the checkout:
+     (`brew uninstall yamllint uv ruff shellcheck`). From the checkout:
 
      ```bash
      pipx install "yamllint==$(sed -n 's/^ *YAMLLINT_VERSION: *//p' .github/workflows/validate.yml)"
      pipx install "uv==$(sed -n 's/^ *UV_VERSION: *//p' .github/workflows/validate.yml)"
      pipx install "ruff==$(sed -n 's/^ *RUFF_VERSION: *//p' .github/workflows/validate.yml)"
+     pipx install "shellcheck-py==$(sed -n 's/^ *SHELLCHECK_VERSION: *//p' .github/workflows/validate.yml)"
      ```
 
      pipx gives each its own venv and links the command into `~/.local/bin`,
      so one install serves the main checkout and every worktree, and the
      validation steps call it by name as before; neither goes into `.venv`.
      When Renovate moves a pin, rerun its line with `--force`. Steps 1
-     (`yamllint`), 17 (`uv`) and 18 (`ruff`) fail on a copy that doesn't match its pin, and
+     (`yamllint`), 17 (`uv`), 18 (`ruff`) and 19 (`shellcheck`) fail on a copy that doesn't match its pin, and
      print the command that fixes it.
-     `uv`'s and `ruff`'s wheels are standalone binaries, so a Homebrew Python
+     `uv`'s, `ruff`'s and `shellcheck-py`'s wheels are standalone binaries, so a Homebrew Python
      upgrade does not stop them running; `yamllint` runs on pipx's Python, and
      `pipx reinstall yamllint` repairs it if an upgrade breaks it.
    - The Python libraries the scripts import (`requirements-dev.txt`), into a
@@ -127,8 +128,8 @@ lockfile is also what the Job installs, so a change to it re-runs the Job.
 ```
 
 Or one group of them, as each CI job does: `manifests` (build, schema,
-policy, chart render, the trivy scans), `repo` (yamllint and the repo
-invariants) or `python` (tests and lockfiles). A Python-only change needs only
+policy, chart render, the trivy scans), `repo` (yamllint, shellcheck and the
+repo invariants) or `python` (tests and lockfiles). A Python-only change needs only
 `./scripts/validate-k3s.sh python`, which needs none of the cluster tools.
 
 **Build one layer or component** while iterating. Plain `kustomize build` does

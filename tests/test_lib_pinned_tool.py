@@ -17,9 +17,9 @@ LIB = REPO_ROOT / "scripts" / "lib-pinned-tool.sh"
 BASE_PATH = "/usr/bin:/bin"
 
 
-def run(root, tool, var, path):
+def run(root, tool, var, path, package=""):
     return subprocess.run(
-        ["bash", "-c", f'source "{root}/scripts/lib-pinned-tool.sh" && require_pinned_tool {tool} {var}'],
+        ["bash", "-c", f'source "{root}/scripts/lib-pinned-tool.sh" && require_pinned_tool {tool} {var} {package}'],
         capture_output=True,
         text=True,
         env={"PATH": path, "HOME": str(root)},
@@ -35,14 +35,17 @@ class RequirePinnedTool(unittest.TestCase):
         shutil.copy(LIB, self.root / "scripts")
         wf = self.root / ".github" / "workflows"
         wf.mkdir(parents=True)
-        (wf / "validate.yml").write_text("env:\n  FAKE_VERSION: 1.2.3\n")
+        (wf / "validate.yml").write_text("env:\n  FAKE_VERSION: 1.2.3\n  WRAPPED_VERSION: 0.11.0.1\n")
         self.bin = self.root / "bin"
         self.bin.mkdir()
 
-    def fake(self, version):
+    def fake(self, version, output=None):
         exe = self.bin / "fake"
-        exe.write_text(f"#!/bin/sh\necho 'fake {version}'\n")
+        exe.write_text(f"#!/bin/sh\nprintf '%s\\n' '{output or f'fake {version}'}'\n")
         exe.chmod(0o755)
+
+    # shellcheck --version: a banner, then the version on its own line.
+    BANNER = "ShellCheck - shell script analysis tool\nversion: {}\nlicense: GNU General Public License"
 
     def test_matching_version_passes(self):
         self.fake("1.2.3")
@@ -67,6 +70,25 @@ class RequirePinnedTool(unittest.TestCase):
         # No pipx on this PATH either, so it says how to get one.
         self.assertIn("brew install pipx", r.stderr)
 
+    def test_wrapper_pin_with_its_own_revision_passes(self):
+        # shellcheck-py 0.11.0.1 installs shellcheck 0.11.0.
+        self.fake(None, self.BANNER.format("0.11.0"))
+        r = run(self.root, "fake", "WRAPPED_VERSION", f"{self.bin}:{BASE_PATH}", "fake-py")
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_wrapper_of_another_release_fails_naming_the_package(self):
+        self.fake(None, self.BANNER.format("0.10.0"))
+        r = run(self.root, "fake", "WRAPPED_VERSION", f"{self.bin}:{BASE_PATH}", "fake-py")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("fake 0.10.0 is installed", r.stderr)
+        self.assertIn("pipx install --force fake-py==0.11.0.1", r.stderr)
+
+    def test_shorter_version_is_not_a_match_without_a_wrapper(self):
+        # Only a wrapper's pin may run one component longer than the tool.
+        self.fake("1.2")
+        r = run(self.root, "fake", "FAKE_VERSION", f"{self.bin}:{BASE_PATH}")
+        self.assertEqual(r.returncode, 1)
+
     def test_unknown_pin_fails(self):
         self.fake("1.2.3")
         r = run(self.root, "fake", "NOPE_VERSION", f"{self.bin}:{BASE_PATH}")
@@ -79,10 +101,10 @@ class RealWorkflowPins(unittest.TestCase):
 
     def test_each_pipx_pin_is_defined_once(self):
         text = (REPO_ROOT / ".github" / "workflows" / "validate.yml").read_text()
-        for var in ("YAMLLINT_VERSION", "UV_VERSION", "RUFF_VERSION"):
+        for var in ("YAMLLINT_VERSION", "UV_VERSION", "RUFF_VERSION", "SHELLCHECK_VERSION"):
             with self.subTest(var=var):
                 # Twice would read as a two-line "version" that no tool matches.
-                self.assertEqual(len(re.findall(rf"^ *{var}: *\d+\.\d+\.\d+$", text, re.MULTILINE)), 1)
+                self.assertEqual(len(re.findall(rf"^ *{var}: *\d+(\.\d+)+$", text, re.MULTILINE)), 1)
 
 
 if __name__ == "__main__":

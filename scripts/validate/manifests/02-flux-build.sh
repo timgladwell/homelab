@@ -7,7 +7,7 @@
 # script, a spec.path pointing at a directory that doesn't exist fails here
 # instead of on the cluster after merge.
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 source "$(dirname "$0")/lib-sites.sh"
 
 fail=0

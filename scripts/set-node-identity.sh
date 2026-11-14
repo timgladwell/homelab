@@ -43,7 +43,12 @@ self_test() {
     # Regenerating from its own output must not drift.
     [[ "$out" == "$(render_hosts k3s01.akron.internal.zerpzorp.com)" ]]
     # A short name must not silently produce "host host".
-    ! validate_fqdn k3s01 2>/dev/null
+    # Not `! validate_fqdn`: errexit ignores a `!` command, so that line could
+    # never fail the test (SC2251).
+    if validate_fqdn k3s01 2>/dev/null; then
+        echo "self-test: validate_fqdn accepted the short name k3s01" >&2
+        return 1
+    fi
     validate_fqdn k3s01.akron.internal.zerpzorp.com
 
     # strip_search drops the search list and nothing else — a kubelet

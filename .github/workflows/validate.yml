@@ -53,6 +53,10 @@ env:
   # Lints and format-checks every Python file (step 18).
   # renovate: datasource=pypi depName=ruff
   RUFF_VERSION: 0.17.5
+  # Lints every shell script (step 19). shellcheck-py wraps the shellcheck
+  # binary; its fourth component is the wrapper's revision.
+  # renovate: datasource=pypi depName=shellcheck-py
+  SHELLCHECK_VERSION: 0.11.0.1
   # No ALLOY_VERSION pin: the manifests job derives it from the alloy chart.
 
 # One job per group of scripts/validate-k3s.sh, so each installs only the tools
@@ -65,7 +69,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # pipx and python3 are preinstalled; step 09 needs only the stdlib.
-      - run: pipx install "yamllint==${YAMLLINT_VERSION}"
+      - name: Install tools
+        run: |
+          set -euo pipefail
+          pipx install "yamllint==${YAMLLINT_VERSION}"
+          pipx install "shellcheck-py==${SHELLCHECK_VERSION}"
+          # The runner image ships its own, unpinned /usr/bin/shellcheck; put pipx's
+          # copies first so step 19's pin check sees the one installed here.
+          pipx environment --value PIPX_BIN_DIR >> "$GITHUB_PATH"
       - run: ./scripts/validate-k3s.sh repo
 
   python:

@@ -3,7 +3,7 @@
 # Warnings are errors here too — use kube-score's --ignore-test flags in this
 # script if a specific check doesn't apply, not a passing grade threshold.
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 source "$(dirname "$0")/lib-sites.sh"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 

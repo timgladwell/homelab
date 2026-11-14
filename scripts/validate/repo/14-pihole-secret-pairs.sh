@@ -18,7 +18,7 @@
 # landing page failing every call while Pi-hole itself is healthy — noted in
 # docs/runbooks/pihole-access.md and in the bootstrap runbook.
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 
 fail=0
 found=0
