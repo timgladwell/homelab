@@ -17,7 +17,7 @@
 # substituteFrom lists out of this very output, so it uses whatever each site
 # actually declares (today clusters/common/network-vars.yaml plus that site's
 # cluster-vars.yaml).
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"

@@ -2,7 +2,7 @@
 # Scan for security misconfigurations with Trivy. All severities are errors —
 # use .trivyignore.yaml to suppress checks that don't apply here, not a
 # severity floor (a MEDIUM/LOW finding is still worth knowing about).
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 JSON="$(mktemp)"
 ERR="$(mktemp)"

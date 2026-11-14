@@ -27,7 +27,7 @@
 # "re-run it" and "fix the PR" never look alike. flate's on-disk cache keeps the
 # chart downloads themselves off the network after the first run (see
 # FLATE_CACHE_DIR below).
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"

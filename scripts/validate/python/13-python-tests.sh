@@ -16,7 +16,7 @@
 # stdlib unittest, no pytest: no new pin in .github/workflows/validate.yml and
 # nothing to install, which matters more than any feature pytest would add for
 # twenty tests with no fixtures.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 
 output=$(python3 -m unittest discover --start-directory tests --verbose 2>&1)
