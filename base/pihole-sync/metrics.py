@@ -35,6 +35,7 @@ _OBJECTS = (
 
 
 def _attrs(obj, action, kind=None):
+    """The metric attributes for one kind of change; `kind` is left out when None."""
     attrs = {"object": obj, "action": action}
     if kind:
         attrs["kind"] = kind
@@ -42,7 +43,23 @@ def _attrs(obj, action, kind=None):
 
 
 class Metrics:
+    """The metrics one run reports, over one OpenTelemetry meter provider.
+
+    Attributes:
+        provider: The `MeterProvider`. Shutting it down flushes the final push.
+        changes: Counter of objects added, removed or updated.
+        timestamp: Gauge holding the time of an event, in unix seconds.
+        request_duration: Histogram of how long each Pi-hole request took, in
+            seconds.
+    """
+
     def __init__(self, readers):
+        """Create the instruments, and push a zero for every change series.
+
+        Args:
+            readers: The metric readers to export through. Empty means nothing
+                is pushed, which is what the tests and a local run use.
+        """
         self.provider = MeterProvider(metric_readers=readers, resource=Resource.create({"service.name": "pihole-sync"}))
         meter = self.provider.get_meter("pihole-sync")
         self.changes = meter.create_counter(
@@ -69,6 +86,11 @@ class Metrics:
 
         A failed run has one sample per distinct error code, because a series
         carries one `error` value and a run can end with several kinds.
+
+        Args:
+            result: The finished run's `results.Result`. Its changes are added to
+                the counter, and its errors decide which `run_finished` samples
+                are written.
         """
         for (obj, kind, action), n in result.changes.items():
             self.changes.add(n, _attrs(obj, action, kind))
@@ -80,6 +102,12 @@ class Metrics:
 
 
 def push_readers():
+    """Build the metric readers for this process, from its environment.
+
+    Returns:
+        A list with one periodic OTLP reader when `OTEL_EXPORTER_OTLP_ENDPOINT`
+        is set, and an empty list (nothing is pushed) when it isn't.
+    """
     # The SDK reads OTEL_EXPORTER_OTLP_ENDPOINT itself; unset means no push.
     if not os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
         return []
@@ -96,6 +124,13 @@ current_metrics = contextvars.ContextVar("pihole_sync_metrics", default=None)
 
 
 class Request:
+    """What an observed request tells the block that wraps it.
+
+    Attributes:
+        status: The HTTP status, set by the body once Pi-hole has answered. Left
+            None when the request never got an answer.
+    """
+
     status = None  # set by the body; left None when the request never got an answer
 
 
@@ -114,6 +149,20 @@ def observed_request(method, path, route):
 
     The histogram is cumulative and each run is a new process, so read it per
     run (`max_over_time(..._count[1h])`), not with rate().
+
+    Args:
+        method: The HTTP method, such as "GET". It is a label.
+        path: The full path, including any query string. It goes in the log line
+            and nowhere else.
+        route: The path as a template, such as `/api/groups/{name}`. It is a
+            label.
+
+    Yields:
+        A `Request`; set its `status` once Pi-hole has answered.
+
+    Raises:
+        Whatever the body raises, after the request has been reported with the
+        status `error`.
     """
     request = Request()
     started = time.monotonic()
@@ -136,6 +185,13 @@ def observed_request(method, path, route):
 
 
 class Run:
+    """A run in progress.
+
+    Attributes:
+        result: The `results.Result` the run adds to as it goes.
+        started: When the run began, from `time.monotonic()`.
+    """
+
     def __init__(self):
         self.result = Result()
         self.started = time.monotonic()
@@ -155,6 +211,14 @@ def observed_run():
     when the error is one a restart can fix (`RETRIABLE`). Any other failure
     ends the block normally and the Job exits 0: whether the run succeeded is
     in the metrics and the logs, not the exit status (ADR 0010).
+
+    Yields:
+        A `Run`. The body adds to `run.result`; an exception it raises is turned
+        into one fatal error on the result.
+
+    Raises:
+        Exception: Only the ones in `results.RETRIABLE`, re-raised after the run
+            has been reported. Any other exception is logged and swallowed.
     """
     run = Run()
     metrics = Metrics(push_readers())

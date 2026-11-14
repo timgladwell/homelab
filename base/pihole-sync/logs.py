@@ -18,7 +18,21 @@ def _ts():
 
 
 class JsonFormatter(logging.Formatter):
+    """Writes each log record as one JSON object on one line."""
+
     def format(self, record):
+        """Turn a log record into its JSON line.
+
+        Args:
+            record: The `logging.LogRecord`. Fields passed to `log` travel on it
+                as `record.fields`.
+
+        Returns:
+            One JSON object: `time` (UTC, to the second), `level` (lower case),
+            `msg`, and every extra field. A value that isn't JSON is written as
+            its text, because a line that can't be written can't explain a
+            failure.
+        """
         return json.dumps(
             {
                 "time": _ts(),
@@ -39,15 +53,34 @@ logger.addHandler(_handler)
 
 
 def log(msg, *, err=False, warn=False, **fields):
+    """Write one log line.
+
+    Args:
+        msg: What happened. Surrounding whitespace is dropped.
+        err: Log at error level.
+        warn: Log at warning level. With neither `err` nor `warn`, the level is
+            info.
+        **fields: Extra JSON fields for the line, such as `method` and `path`.
+            Use `error_field` to build the `error` object.
+    """
     level = logging.ERROR if err else logging.WARNING if warn else logging.INFO
     logger.log(level, msg.strip(), extra={"fields": fields})
 
 
 def error_field(code, message, *, exception=None, fatal=False, retry=None):
-    """The `error` object every error and warning line carries.
+    """Build the `error` object that every error and warning line carries.
 
-    `retry` ({"iteration", "max_iterations"}) is present only when the action
-    will be tried again.
+    Args:
+        code: An `ErrorCode`, or its string value.
+        message: The exception's message, or what went wrong.
+        exception: The exception's class name, if there was an exception.
+        fatal: True when the error ended the run.
+        retry: `{"iteration": n, "max_iterations": m}` when the action will be
+            tried again, and None when it won't, in which case the key is left
+            out.
+
+    Returns:
+        `{"error": {...}}`, ready to pass to `log` as `**error_field(...)`.
     """
     error = {"code": str(code), "fatal": fatal, "message": message}
     if exception:
@@ -58,6 +91,13 @@ def error_field(code, message, *, exception=None, fatal=False, retry=None):
 
 
 def log_error(error, msg=None):
+    """Log an `Error` at error level, with its context and its `error` object.
+
+    Args:
+        error: The `results.Error` to log. Its `context` (method, path, status
+            and so on) becomes top-level fields on the line.
+        msg: The line's message. Defaults to the error's own message.
+    """
     fields = dict(error.context)
     fields.update(error_field(error.code, error.message, exception=error.exception, fatal=error.fatal))
     log(msg or error.message, err=True, **fields)

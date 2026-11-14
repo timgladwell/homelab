@@ -26,6 +26,16 @@ _RETRY_BASE_DELAY = 2.0  # seconds; doubles on each attempt
 
 
 def _headers(sid=None):
+    """The headers for a request to Pi-hole's API.
+
+    Args:
+        sid: The session id from `authenticate`. Left out when None or empty,
+            as before authenticating and when Pi-hole has no password.
+
+    Returns:
+        JSON content type, the program's own User-Agent so Pi-hole's logs
+        attribute the calls to it, and `X-FTL-SID` when there is a session.
+    """
     headers = {"Content-Type": "application/json", "User-Agent": _USER_AGENT}
     if sid:
         headers["X-FTL-SID"] = sid
@@ -44,6 +54,16 @@ _ROUTES = (
 
 
 def route(path):
+    """Turn a Pi-hole API path into the template its metric is labelled with.
+
+    Args:
+        path: The path as requested, such as `/api/domains/deny/exact/ads.example`.
+
+    Returns:
+        The path without its query string, and with any domain name, list URL,
+        group name or client address replaced by a placeholder, such as
+        `/api/domains/deny/exact/{domain}`.
+    """
     for pattern, template in _ROUTES:
         if pattern.match(path):
             return pattern.sub(template, path.split("?")[0])
@@ -51,6 +71,27 @@ def route(path):
 
 
 def request(method, path, body=None, sid=None, timeout=60):
+    """Make one request to Pi-hole's API, observed.
+
+    This is the only place the program calls the API (apart from the gravity
+    stream), so every request gets a log line and a latency sample.
+
+    Args:
+        method: The HTTP method.
+        path: The API path, including any query string.
+        body: A value to send as JSON, or None for no body.
+        sid: The session id from `authenticate`, or None.
+        timeout: Seconds to wait for Pi-hole before giving up.
+
+    Returns:
+        A tuple of `(status, body)`: the HTTP status and the parsed JSON body.
+        An error status is returned, not raised; a body that isn't JSON comes
+        back as `{"error": <the text>}`.
+
+    Raises:
+        urllib.error.URLError: If Pi-hole can't be reached at all. The caller,
+            `request_with_retry`, decides what to do about it.
+    """
     url = f"{PIHOLE_URL}{path}"
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, headers=_headers(sid), method=method)
@@ -72,14 +113,43 @@ def request(method, path, body=None, sid=None, timeout=60):
 
 
 def _retry(attempt):
-    """The `retry` part of an error line: omitted once no attempts are left."""
+    """The `retry` part of an error line: omitted once no attempts are left.
+
+    Args:
+        attempt: The attempt that just failed, counting from 0.
+
+    Returns:
+        `{"iteration": n, "max_iterations": m}`, or None when that was the last
+        attempt.
+    """
     if attempt >= _MAX_RETRIES:
         return None
     return {"iteration": attempt + 1, "max_iterations": _MAX_RETRIES + 1}
 
 
 def request_with_retry(method, path, body=None, sid=None, timeout=60):
-    """Call request with exponential backoff on network errors and 5xx/429."""
+    """Call `request`, retrying with exponential backoff.
+
+    It retries on a network error and on a 429 or 5xx answer, waiting twice as
+    long after each failure, and logs a warning for every failed attempt.
+    Anything else Pi-hole answers, an error status included, is returned for
+    the caller to judge.
+
+    Args:
+        method: The HTTP method.
+        path: The API path, including any query string.
+        body: A value to send as JSON, or None for no body.
+        sid: The session id from `authenticate`, or None.
+        timeout: Seconds to wait for each attempt.
+
+    Returns:
+        A tuple of `(status, body)`, as `request` does.
+
+    Raises:
+        urllib.error.URLError: If every attempt failed to reach Pi-hole.
+        SyncError: With `ErrorCode.PIHOLE_API`, if every attempt got a 429 or
+            5xx answer.
+    """
     last_exc = None
     for attempt in range(_MAX_RETRIES + 1):
         if attempt:
@@ -121,6 +191,16 @@ def request_with_retry(method, path, body=None, sid=None, timeout=60):
 
 
 def authenticate():
+    """Get a session id from Pi-hole.
+
+    Returns:
+        The session id to pass as `sid` to every later call, or an empty string
+        when Pi-hole has no password set and needs no session.
+
+    Raises:
+        SyncError: With `ErrorCode.AUTH`, if Pi-hole refuses the password or
+            doesn't return a valid session.
+    """
     log(f"Checking auth requirements at {PIHOLE_URL}...")
     status, resp = request_with_retry("GET", "/api/auth")
     session = resp.get("session", {})
@@ -141,6 +221,18 @@ def authenticate():
 
 
 def run_gravity(sid):
+    """Ask Pi-hole to rebuild its gravity database, and wait for it to finish.
+
+    This takes several minutes. Pi-hole streams its progress, and each line is
+    logged as it arrives.
+
+    Args:
+        sid: The session id from `authenticate`.
+
+    Raises:
+        SyncError: With `ErrorCode.GRAVITY`, if the rebuild fails or goes five
+            minutes without a line of output.
+    """
     log("--- Running gravity update (may take several minutes) ---")
     t0 = time.monotonic()
     url = f"{PIHOLE_URL}/api/action/gravity"

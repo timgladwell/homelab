@@ -47,14 +47,34 @@ RETRIABLE = {
 
 
 class SyncError(Exception):
-    """Raised when the run can't go on: it ends there, and is one fatal Error."""
+    """Raised when the run can't go on: it ends there, and is one fatal Error.
+
+    Attributes:
+        code: The `ErrorCode` that says what kind of failure it was.
+    """
 
     def __init__(self, code, message):
+        """Create the error.
+
+        Args:
+            code: The `ErrorCode` for this failure.
+            message: What went wrong, for the log.
+        """
         super().__init__(message)
         self.code = code
 
 
 def classify(exc):
+    """Say which `ErrorCode` an exception stands for.
+
+    Args:
+        exc: Any exception that ended a run.
+
+    Returns:
+        The exception's own code if it is a `SyncError`, `NETWORK` for an
+        `OSError` (which covers `URLError` and socket timeouts), and `UNKNOWN`
+        for anything else, which is a bug.
+    """
     if isinstance(exc, SyncError):
         return exc.code
     if isinstance(exc, OSError):  # URLError and socket timeouts
@@ -64,6 +84,17 @@ def classify(exc):
 
 @dataclasses.dataclass
 class Error:
+    """One thing that went wrong in a run.
+
+    Attributes:
+        code: What kind of failure it was.
+        message: What went wrong, for the log.
+        fatal: True when it ended the run, False when the run went on.
+        exception: The exception's class name, if there was an exception.
+        context: Where it happened, such as `method`, `path` and `status`. It
+            becomes top-level fields on the log line.
+    """
+
     code: ErrorCode
     message: str
     fatal: bool = False
@@ -78,6 +109,13 @@ class Result:
     A run is a success when it has no errors, and a failure when it has one or
     more. There is no in-between: something that doesn't matter is a warning in
     the log, not an error here.
+
+    Attributes:
+        changes: How many objects were changed, keyed by
+            `(object, kind, action)`, such as `("domain", "block", "added")`.
+        errors: Every `Error` that came up, fatal or not.
+        gravity_needed: True when what changed means Pi-hole must rebuild its
+            gravity database.
     """
 
     changes: Counter = dataclasses.field(default_factory=Counter)  # (object, kind, action) -> n
@@ -86,18 +124,41 @@ class Result:
 
     @property
     def ok(self):
+        """True when the run has no errors."""
         return not self.errors
 
     def change(self, obj, action, kind=None):
+        """Count one object as changed.
+
+        Args:
+            obj: What kind of object: "group", "client", "domain" or "list".
+            action: "added", "removed" or "updated".
+            kind: "allow" or "block" for a domain or a list, and None for the
+                objects that have no such split.
+        """
         self.changes[(obj, kind, action)] += 1
 
     def fail(self, code, message, **context):
-        """Record an error and log it where it happened."""
+        """Record a non-fatal error and log it where it happened.
+
+        Args:
+            code: The `ErrorCode` for this failure.
+            message: What went wrong.
+            **context: Where it happened, such as `method`, `path` and `status`.
+        """
         error = Error(code, message, context=context)
         self.errors.append(error)
         log_error(error)
 
     def merge(self, other):
+        """Add another result's changes and errors to this one.
+
+        Args:
+            other: The `Result` of one step, such as syncing the groups.
+
+        Returns:
+            This result, so a call can be chained.
+        """
         self.changes.update(other.changes)
         self.errors.extend(other.errors)
         self.gravity_needed |= other.gravity_needed

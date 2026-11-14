@@ -47,6 +47,7 @@ _GRAVITY_FLAG = os.path.join(STATE_DIR, "gravity.flag")
 
 
 def _set_gravity_flag():
+    """Write the flag that makes the next attempt in this pod re-run gravity."""
     os.makedirs(STATE_DIR, exist_ok=True)
     with open(_GRAVITY_FLAG, "w") as f:
         f.write("1")
@@ -54,6 +55,7 @@ def _set_gravity_flag():
 
 
 def _clear_gravity_flag():
+    """Remove the gravity flag once the rebuild has finished."""
     try:
         os.remove(_GRAVITY_FLAG)
         log("Gravity flag cleared.")
@@ -62,10 +64,23 @@ def _clear_gravity_flag():
 
 
 def _gravity_flag_set():
+    """True when a previous attempt in this pod set the flag and didn't clear it."""
     return os.path.exists(_GRAVITY_FLAG)
 
 
 def _load_config():
+    """Read the config and the site's clients file.
+
+    The clients file is required, not optional: a missing one would look like
+    "no clients wanted" and remove every client the site has.
+
+    Returns:
+        The config as a dict, with the clients under `clients`.
+
+    Raises:
+        SyncError: With `ErrorCode.CONFIG`, if either file is missing or isn't
+            valid YAML.
+    """
     try:
         with open(CONFIG_PATH) as f:
             cfg = yaml.safe_load(f)
@@ -77,8 +92,21 @@ def _load_config():
 
 
 def _run(result):
-    """Do the sync, adding to `result` as it goes, so that if a fatal error ends
-    the run part-way, what was already changed is still reported."""
+    """Do the sync, adding to `result` as it goes.
+
+    The steps run in order: load the config, authenticate, then sync the groups,
+    the lists, the domains and the clients, then remove the groups no longer in
+    the config, then rebuild gravity if the changes (or a previous attempt)
+    need it. Adding to `result` as it goes means that if a fatal error ends the
+    run part-way, what was already changed is still reported.
+
+    Args:
+        result: The run's `results.Result`, which every step adds to.
+
+    Raises:
+        SyncError: When a step can't go on, such as an unreadable config, a
+            refused password or a failed gravity rebuild.
+    """
     log(f"Pi-hole sync starting. Config={CONFIG_PATH} Clients={CLIENTS_PATH} URL={api.PIHOLE_URL}")
 
     cfg = _load_config()
@@ -123,6 +151,14 @@ def _run(result):
 
 
 def main():
+    """Run the sync, and report how it went.
+
+    Raises:
+        Exception: Only for a failure a restart can fix (see `RETRIABLE` in
+            results.py), so the Job exits non-zero and is retried. Any other
+            outcome, failure included, returns normally and the Job exits 0; the
+            result is in the metrics and the logs (ADR 0010).
+    """
     with observed_run() as run:
         _run(run.result)
 

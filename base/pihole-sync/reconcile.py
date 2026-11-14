@@ -18,6 +18,16 @@ _DOMAIN_KIND = {"allow": "allow", "deny": "block"}  # Pi-hole's name -> ours
 
 
 def _resolve_group_ids(names, name_to_id):
+    """Turn group names into the ids Pi-hole's API takes.
+
+    Args:
+        names: Group names from the config.
+        name_to_id: `{group name: id}` for the groups Pi-hole has.
+
+    Returns:
+        The ids, in the order of `names`. A name Pi-hole doesn't have is
+        skipped with a warning: a typo in the config shouldn't stop the sync.
+    """
     ids = []
     for name in names:
         if name in name_to_id:
@@ -28,17 +38,41 @@ def _resolve_group_ids(names, name_to_id):
 
 
 def _fail(result, message, method, path, status, resp):
-    """Record a per-object failure: the run goes on, and ends as a failure."""
+    """Record a per-object failure: the run goes on, and ends as a failure.
+
+    Args:
+        result: The `Result` to record it on.
+        message: What failed, such as "adding domain 'x' failed".
+        method: The HTTP method of the request that failed.
+        path: The path of the request that failed.
+        status: The HTTP status Pi-hole answered with.
+        resp: Pi-hole's response body, kept to 500 characters in the log.
+    """
     result.fail(ErrorCode.PIHOLE_API, message, method=method, path=path, status=status, response=str(resp)[:500])
 
 
 def _reconcile_groups(existing, entry, name_to_id, path, payload, sid, label, obj, kind=None):
-    """
-    Rewrite an existing object when its group membership drifted from config.
+    """Rewrite an existing object when its group membership drifted from config.
 
     Pi-hole only accepts group membership in an object's own body, so an object
     that already exists keeps whatever groups it was created with until it is
-    explicitly PUT back. Returns the Result of the PUT, empty if none was needed.
+    explicitly PUT back.
+
+    Args:
+        existing: The object as Pi-hole has it, with its current `groups` (ids).
+        entry: The object's entry in the config, with the group names it wants.
+        name_to_id: `{group name: id}` for the groups Pi-hole has.
+        path: The API path of the object, for the PUT.
+        payload: The body to PUT, without its `groups`, which are filled in here.
+        sid: The Pi-hole session id.
+        label: Names the object in the log, such as "blocklist http://...".
+        obj: The kind of object, for the change count: "list", "domain" or
+            "client".
+        kind: "allow" or "block" for a domain or a list, and None for a client.
+
+    Returns:
+        A `Result` with one "updated" change if the PUT was sent and accepted, an
+        error if it was refused, and nothing if the groups already matched.
     """
     result = Result()
     desired = _resolve_group_ids(entry.get("groups", []), name_to_id)
@@ -56,7 +90,22 @@ def _reconcile_groups(existing, entry, name_to_id, path, payload, sid, label, ob
 
 
 def sync_groups(cfg, sid):
-    """Returns ({group name: id}, Result)."""
+    """Create the groups the config names that Pi-hole doesn't have.
+
+    Args:
+        cfg: The config, loaded from pihole-config.yaml (and the site's clients
+            file), as a dict.
+        sid: The Pi-hole session id from `pihole_api.authenticate`.
+
+    Returns:
+        A tuple of `({group name: id}, Result)`: every group Pi-hole now has,
+        and what was created or failed. The mapping is what the other
+        reconcilers use to turn group names into ids.
+
+    Raises:
+        SyncError: If Pi-hole refuses to list its groups, because nothing else
+            can be reconciled without them.
+    """
     log("--- Syncing groups ---")
     result = Result()
     status, resp = api.request_with_retry("GET", "/api/groups", sid=sid)
@@ -87,6 +136,21 @@ def sync_groups(cfg, sid):
 
 
 def remove_extra_groups(cfg, sid, name_to_id):
+    """Remove the groups Pi-hole has that the config doesn't name.
+
+    This runs last, so nothing still refers to a group when it goes. The
+    protected groups (Default) are never removed.
+
+    Args:
+        cfg: The config, loaded from pihole-config.yaml (and the site's clients
+            file), as a dict.
+        sid: The Pi-hole session id from `pihole_api.authenticate`.
+        name_to_id: `{group name: id}` for the groups Pi-hole has.
+
+    Returns:
+        A `Result` with one "removed" change per group, or an error for each one
+        Pi-hole refused to remove.
+    """
     log("--- Removing extra groups ---")
     result = Result()
     desired = {grp["name"] for grp in cfg.get("groups", [])} | _PROTECTED_GROUPS
@@ -106,14 +170,27 @@ def remove_extra_groups(cfg, sid, name_to_id):
 
 
 def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
-    """
-    Add/remove adlists and fix drifted group membership. Returns a Result whose
-    gravity_needed says whether a gravity update is needed.
+    """Add and remove adlists, and fix drifted group membership.
 
     Gravity is needed if any list is added or removed, or if any desired list
     has 0 domains loaded (gravity was not completed for that list previously).
     A group change is not enough: `vw_gravity` joins adlist_by_group at query
     time, so regrouping an already-downloaded list applies immediately.
+
+    Args:
+        cfg: The config, loaded from pihole-config.yaml (and the site's clients
+            file), as a dict.
+        sid: The Pi-hole session id from `pihole_api.authenticate`.
+        name_to_id: `{group name: id}` for the groups Pi-hole has.
+        list_type: "block" or "allow", which kind of list this call syncs.
+        cfg_key: The config key holding the desired lists, such as "block_lists".
+
+    Returns:
+        A `Result` with each list added, removed or regrouped, any per-list
+        errors, and `gravity_needed` set when the lists need a gravity rebuild.
+
+    Raises:
+        SyncError: If Pi-hole refuses to list its lists.
     """
     log(f"--- Syncing {list_type}lists ---")
     result = Result()
@@ -200,6 +277,25 @@ def sync_lists(cfg, sid, name_to_id, list_type, cfg_key):
 
 
 def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
+    """Add, remove and regroup the exact domains of one type.
+
+    Args:
+        cfg: The config, loaded from pihole-config.yaml (and the site's clients
+            file), as a dict.
+        sid: The Pi-hole session id from `pihole_api.authenticate`.
+        name_to_id: `{group name: id}` for the groups Pi-hole has.
+        domain_type: Pi-hole's name for the type: "allow" or "deny". It is
+            reported as the `kind` "allow" or "block".
+        cfg_key: The config key holding the desired domains, such as
+            "block_domains".
+
+    Returns:
+        A `Result` with each domain added, removed or regrouped, and any
+        per-domain errors.
+
+    Raises:
+        SyncError: If Pi-hole refuses to list its domains.
+    """
     log(f"--- Syncing {domain_type} domains ---")
     result = Result()
     kind = _DOMAIN_KIND[domain_type]
@@ -270,6 +366,24 @@ def sync_domains(cfg, sid, name_to_id, domain_type, cfg_key):
 
 
 def sync_clients(cfg, sid, name_to_id):
+    """Add, remove and regroup the clients, which are keyed by address.
+
+    A missing clients file would look like "no clients wanted" and remove every
+    client the site has, so the entry point refuses to run without one.
+
+    Args:
+        cfg: The config, loaded from pihole-config.yaml (and the site's clients
+            file), as a dict.
+        sid: The Pi-hole session id from `pihole_api.authenticate`.
+        name_to_id: `{group name: id}` for the groups Pi-hole has.
+
+    Returns:
+        A `Result` with each client added, removed or regrouped, and any
+        per-client errors.
+
+    Raises:
+        SyncError: If Pi-hole refuses to list its clients.
+    """
     log("--- Syncing clients ---")
     result = Result()
     status, resp = api.request_with_retry("GET", "/api/clients", sid=sid)
