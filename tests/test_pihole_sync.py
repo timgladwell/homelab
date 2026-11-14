@@ -5,12 +5,14 @@ That check tested the right thing and nothing ever ran it; the point of moving
 it here is that validation step 13 does.
 """
 
+import contextlib
 import unittest
 
 from loader import load
 
 # PIHOLE_URL is read at import time and has no default.
 sync = load("base/pihole-sync/sync.py", env={"PIHOLE_URL": "http://pihole.invalid"})
+import observability as obs
 
 
 class FakePihole:
@@ -71,12 +73,12 @@ class SyncLists(unittest.TestCase):
         self.assertEqual(sorted(puts[0][2]["groups"]), [0, 7])
 
     def test_regrouping_does_not_trigger_gravity(self):
-        gravity = sync.sync_lists(self.cfg, "", self.groups, "block", "block_lists")
+        gravity = sync.sync_lists(self.cfg, "", self.groups, "block", "block_lists").gravity_needed
         self.assertFalse(gravity, "a regroup alone must not trigger gravity")
 
     def test_no_drift_means_no_writes(self):
         self.cfg["block_lists"][0]["groups"] = ["Default"]
-        gravity = sync.sync_lists(self.cfg, "", self.groups, "block", "block_lists")
+        gravity = sync.sync_lists(self.cfg, "", self.groups, "block", "block_lists").gravity_needed
         self.assertEqual(self.fake.of("PUT"), [])
         self.assertEqual(self.fake.of("POST"), [])
         self.assertFalse(gravity)
@@ -85,12 +87,12 @@ class SyncLists(unittest.TestCase):
         # number == 0 means a previous gravity run did not finish for that list.
         self.fake.lists[1]["number"] = 0
         self.cfg["block_lists"][0]["groups"] = ["Default"]
-        gravity = sync.sync_lists(self.cfg, "", self.groups, "block", "block_lists")
+        gravity = sync.sync_lists(self.cfg, "", self.groups, "block", "block_lists").gravity_needed
         self.assertTrue(gravity, "a list with 0 domains loaded must re-run gravity")
 
     def test_new_list_is_added_with_the_right_body(self):
         self.cfg["block_lists"].append({"url": "http://c", "groups": ["Default", "Extra"], "comment": "new one"})
-        gravity = sync.sync_lists(self.cfg, "", self.groups, "block", "block_lists")
+        gravity = sync.sync_lists(self.cfg, "", self.groups, "block", "block_lists").gravity_needed
 
         posts = self.fake.of("POST")
         self.assertEqual(len(posts), 1, f"expected one POST, got {posts}")
@@ -149,6 +151,136 @@ class ProtectedGroups(unittest.TestCase):
     def test_default_group_is_never_removed(self):
         # Deleting Default detaches every list and client from their group.
         self.assertIn("Default", sync._PROTECTED_GROUPS)
+
+
+class FailingPost(FakePihole):
+    """Answers every POST with an error, and everything else normally."""
+
+    def __call__(self, method, path, body=None, sid=None, timeout=60):
+        if method == "POST":
+            self.calls.append((method, path, body))
+            return 400, {"error": {"message": "nope"}}
+        return super().__call__(method, path, body=body, sid=sid, timeout=timeout)
+
+
+class RunResult(unittest.TestCase):
+    """What a sync returns: what it changed, and everything that went wrong.
+
+    Outcomes are values returned by the sync functions, not state kept beside
+    them, so these tests assert on what they return.
+    """
+
+    def setUp(self):
+        self.real_log, sync.log = sync.log, lambda *a, **k: None
+        self.real_request = sync._request_with_retry
+        obs.logger.disabled = True  # Result.fail logs through the module
+
+    def tearDown(self):
+        obs.logger.disabled = False
+        sync.log = self.real_log
+        sync._request_with_retry = self.real_request
+
+    def test_a_change_is_counted_by_object_kind_and_action(self):
+        sync._request_with_retry = FakePihole(lists=[])
+        cfg = {"block_lists": [{"url": "http://c", "groups": ["Default"]}]}
+        result = sync.sync_lists(cfg, "", {"Default": 0}, "block", "block_lists")
+        self.assertEqual(result.changes[("list", "block", "added")], 1)
+        self.assertTrue(result.ok)
+
+    def test_deny_domains_are_reported_as_block(self):
+        sync._request_with_retry = FakePihole()
+        cfg = {"block_domains": [{"domain": "x.example", "groups": ["Default"]}]}
+        result = sync.sync_domains(cfg, "", {"Default": 0}, "deny", "block_domains")
+        self.assertEqual(result.changes[("domain", "block", "added")], 1)
+
+    def test_a_failed_object_is_an_error_and_the_rest_still_run(self):
+        fake = sync._request_with_retry = FailingPost()
+        cfg = {
+            "block_domains": [
+                {"domain": "a.example", "groups": ["Default"]},
+                {"domain": "b.example", "groups": ["Default"]},
+            ]
+        }
+        result = sync.sync_domains(cfg, "", {"Default": 0}, "deny", "block_domains")
+        self.assertFalse(result.ok)
+        self.assertEqual([e.code for e in result.errors], [obs.ErrorCode.PIHOLE_API] * 2)
+        self.assertEqual(len(fake.of("POST")), 2, "the second domain must still be tried")
+        self.assertEqual(result.errors[0].context["status"], 400)
+        self.assertFalse(result.errors[0].fatal)
+        self.assertEqual(sum(result.changes.values()), 0)
+
+    def test_results_merge(self):
+        a, b = obs.Result(), obs.Result()
+        a.change("domain", "added", "block")
+        b.change("domain", "added", "block")
+        b.fail(obs.ErrorCode.PIHOLE_API, "boom")
+        b.gravity_needed = True
+        a.merge(b)
+        self.assertEqual(a.changes[("domain", "block", "added")], 2)
+        self.assertEqual(len(a.errors), 1)
+        self.assertTrue(a.gravity_needed)
+
+
+class ObservedRun(unittest.TestCase):
+    """main() hands the run's Result to the metrics, however the run ends."""
+
+    def setUp(self):
+        self.real_run = sync._run
+        self.real_record = obs.Metrics.record
+        obs.logger.disabled = True
+
+    def tearDown(self):
+        obs.logger.disabled = False
+        sync._run = self.real_run
+        obs.Metrics.record = self.real_record
+
+    def run_main(self, run):
+        """Run main() around `run`; return the Result it recorded."""
+        sync._run = run
+        recorded = []
+        obs.Metrics.record = lambda me, result: recorded.append(result)
+        # main() re-raises so the Job's exit status is unchanged.
+        with contextlib.suppress(Exception):
+            sync.main()
+        self.assertEqual(len(recorded), 1, "the metrics must be recorded exactly once")
+        return recorded[0]
+
+    def test_a_clean_run_is_ok(self):
+        self.assertTrue(self.run_main(lambda result: None).ok)
+
+    def test_an_error_along_the_way_makes_the_run_a_failure(self):
+        def run(result):
+            result.fail(obs.ErrorCode.PIHOLE_API, "adding domain 'x' failed")
+
+        result = self.run_main(run)
+        self.assertFalse(result.ok)
+        self.assertEqual([e.fatal for e in result.errors], [False])
+
+    def test_a_fatal_error_reports_a_code_from_the_closed_list(self):
+        cases = [
+            (obs.SyncError(obs.ErrorCode.AUTH, "no"), "auth"),
+            (obs.SyncError(obs.ErrorCode.GRAVITY, "no"), "gravity"),
+            (OSError("connection refused"), "network"),
+            (KeyError("groups"), "unknown"),
+        ]
+        for exc, code in cases:
+            with self.subTest(code=code):
+
+                def run(result, exc=exc):
+                    raise exc
+
+                (error,) = self.run_main(run).errors
+                self.assertEqual((error.code, error.fatal), (code, True))
+                self.assertEqual(error.exception, type(exc).__name__)
+
+    def test_what_was_changed_before_a_fatal_error_is_still_reported(self):
+        def run(result):
+            result.change("domain", "added", "block")
+            raise obs.SyncError(obs.ErrorCode.PIHOLE_API, "GET /api/clients failed")
+
+        result = self.run_main(run)
+        self.assertEqual(result.changes[("domain", "block", "added")], 1)
+        self.assertFalse(result.ok)
 
 
 if __name__ == "__main__":

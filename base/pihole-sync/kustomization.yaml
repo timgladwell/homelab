@@ -16,5 +16,8 @@ configMapGenerator:
     files:
       - pihole-config.yaml
       - sync.py
+      # Imported by sync.py: Python puts the script's own directory (/sync) on
+      # its import path, so a sibling file in the ConfigMap needs no packaging.
+      - observability.py
       # The Job installs from this lockfile (compiled from requirements.in).
       - requirements.txt
