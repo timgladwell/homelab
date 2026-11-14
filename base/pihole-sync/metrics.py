@@ -1,172 +1,25 @@
-"""What pihole-sync reports about itself: errors, logs and metrics.
+"""Metrics: pushed over OTLP to the site collector.
 
-A run produces one Result: what it changed, and every error that came up. The
-metrics carry the overall story with fixed values (ErrorCode), and the logs
-carry the detail. observed_run() is the one block that owns the rest, so a run
-can't forget to log how it ended or push its metrics.
+The collector translates the names (dots to underscores, the unit and `_total`
+as suffixes) and stamps `site`. The metrics say what a run did and how it ended;
+Kubernetes already reports when the Job started and finished.
 
-Nothing here knows about Pi-hole, so it can leave with the program if that
-becomes its own image.
+Two blocks live here, because each owns something that must not be forgotten:
+`observed_run` owns the end of a run, and `observed_request` owns each HTTP
+request to Pi-hole.
 """
 
 import contextlib
 import contextvars
-import dataclasses
-import enum
-import json
-import logging
 import os
-import sys
 import time
-from collections import Counter
 
+from logs import error_field, log, log_error
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
-
-# ---------------------------------------------------------------------------
-# Errors and the Result of a run
-# ---------------------------------------------------------------------------
-
-
-class ErrorCode(enum.StrEnum):
-    """The closed list of failure types.
-
-    Metrics carry only these (the `error` label on pihole_sync_timestamp), and
-    logs carry the same value as `error.code` beside the detail. A new value is
-    a change to the accepted values in docs/current-state/naming-convention.md.
-    """
-
-    CONFIG = "config"  # config or clients file unreadable or invalid
-    AUTH = "auth"  # Pi-hole refused the password or gave no session
-    NETWORK = "network"  # Pi-hole unreachable after every retry
-    PIHOLE_API = "pihole_api"  # Pi-hole answered, but not with what was needed
-    GRAVITY = "gravity"  # the gravity rebuild failed
-    UNKNOWN = "unknown"  # anything not classified above: a bug
-
-
-class SyncError(Exception):
-    """Raised when the run can't go on: it ends there, and is one fatal Error."""
-
-    def __init__(self, code, message):
-        super().__init__(message)
-        self.code = code
-
-
-def classify(exc):
-    if isinstance(exc, SyncError):
-        return exc.code
-    if isinstance(exc, OSError):  # URLError and socket timeouts
-        return ErrorCode.NETWORK
-    return ErrorCode.UNKNOWN
-
-
-@dataclasses.dataclass
-class Error:
-    code: ErrorCode
-    message: str
-    fatal: bool = False
-    exception: str | None = None  # the exception class name, if there was one
-    context: dict = dataclasses.field(default_factory=dict)  # method, path, status...
-
-
-@dataclasses.dataclass
-class Result:
-    """The outcome of the processing: what changed, and everything that went wrong.
-
-    A run is a success when it has no errors, and a failure when it has one or
-    more. There is no in-between: something that doesn't matter is a warning in
-    the log, not an error here.
-    """
-
-    changes: Counter = dataclasses.field(default_factory=Counter)  # (object, kind, action) -> n
-    errors: list = dataclasses.field(default_factory=list)
-    gravity_needed: bool = False
-
-    @property
-    def ok(self):
-        return not self.errors
-
-    def change(self, obj, action, kind=None):
-        self.changes[(obj, kind, action)] += 1
-
-    def fail(self, code, message, **context):
-        """Record an error and log it where it happened."""
-        error = Error(code, message, context=context)
-        self.errors.append(error)
-        log_error(error)
-
-    def merge(self, other):
-        self.changes.update(other.changes)
-        self.errors.extend(other.errors)
-        self.gravity_needed |= other.gravity_needed
-        return self
-
-
-# ---------------------------------------------------------------------------
-# Logging: one JSON object per line, so a line is parsed and filtered by field
-# (`| json` in Loki) rather than matched by text. Metrics say what happened; the
-# detail, errors especially, is here.
-# ---------------------------------------------------------------------------
-
-
-def _ts():
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
-class JsonFormatter(logging.Formatter):
-    def format(self, record):
-        return json.dumps(
-            {
-                "time": _ts(),
-                "level": record.levelname.lower(),
-                "msg": record.getMessage(),
-                **getattr(record, "fields", {}),
-            },
-            default=str,
-        )
-
-
-logger = logging.getLogger("pihole-sync")
-logger.setLevel(logging.INFO)
-logger.propagate = False
-_handler = logging.StreamHandler(sys.stdout)
-_handler.setFormatter(JsonFormatter())
-logger.addHandler(_handler)
-
-
-def log(msg, *, err=False, warn=False, **fields):
-    level = logging.ERROR if err else logging.WARNING if warn else logging.INFO
-    logger.log(level, msg.strip(), extra={"fields": fields})
-
-
-def error_field(code, message, *, exception=None, fatal=False, retry=None):
-    """The `error` object every error and warning line carries.
-
-    `retry` ({"iteration", "max_iterations"}) is present only when the action
-    will be tried again.
-    """
-    error = {"code": str(code), "fatal": fatal, "message": message}
-    if exception:
-        error["exception"] = exception
-    if retry:
-        error["retry"] = retry
-    return {"error": error}
-
-
-def log_error(error, msg=None):
-    fields = dict(error.context)
-    fields.update(error_field(error.code, error.message, exception=error.exception, fatal=error.fatal))
-    log(msg or error.message, err=True, **fields)
-
-
-# ---------------------------------------------------------------------------
-# Metrics: pushed over OTLP to the site collector, which translates the names
-# (dots to underscores, the unit and _total as suffixes) and stamps `site`.
-# They say what a run did and how it ended; Kubernetes already reports when
-# the Job started and finished.
-# ---------------------------------------------------------------------------
+from results import Error, ErrorCode, Result, classify
 
 # Set to e.g. "zerpzorp." to namespace every metric for a deployment; empty
 # by default so the program has no opinion about where it runs.
@@ -239,7 +92,7 @@ def push_readers():
 
 # The metrics of the run in progress, so a request can report itself without
 # every function between it and main() carrying them.
-_current_metrics = contextvars.ContextVar("pihole_sync_metrics", default=None)
+current_metrics = contextvars.ContextVar("pihole_sync_metrics", default=None)
 
 
 class Request:
@@ -277,7 +130,7 @@ def observed_request(method, path, route):
             status=status,
             duration_ms=round(seconds * 1000),
         )
-        metrics = _current_metrics.get()
+        metrics = current_metrics.get()
         if metrics:
             metrics.request_duration.record(seconds, {"method": method, "route": route, "status": str(status)})
 
@@ -301,7 +154,7 @@ def observed_run():
     """
     run = Run()
     metrics = Metrics(push_readers())
-    token = _current_metrics.set(metrics)
+    token = current_metrics.set(metrics)
     try:
         yield run
     except Exception as exc:
@@ -310,7 +163,7 @@ def observed_run():
         log_error(error, "Sync failed.")
         raise
     finally:
-        _current_metrics.reset(token)
+        current_metrics.reset(token)
         result = run.result
         # The same fact as the metrics, in the log, so each can be found from
         # the other.

@@ -9,11 +9,10 @@ import contextlib
 import io
 import unittest
 
-from loader import load
-
-# PIHOLE_URL is read at import time and has no default.
-sync = load("base/pihole-sync/sync.py", env={"PIHOLE_URL": "http://pihole.invalid"})
-import observability as obs
+import logs
+import metrics
+import results
+import sync
 
 
 class FakePihole:
@@ -249,10 +248,10 @@ class RunResult(unittest.TestCase):
     def setUp(self):
         self.real_log, sync.log = sync.log, lambda *a, **k: None
         self.real_request = sync._request_with_retry
-        obs.logger.disabled = True  # Result.fail logs through the module
+        logs.logger.disabled = True  # Result.fail logs through the module
 
     def tearDown(self):
-        obs.logger.disabled = False
+        logs.logger.disabled = False
         sync.log = self.real_log
         sync._request_with_retry = self.real_request
 
@@ -279,17 +278,17 @@ class RunResult(unittest.TestCase):
         }
         result = sync.sync_domains(cfg, "", {"Default": 0}, "deny", "block_domains")
         self.assertFalse(result.ok)
-        self.assertEqual([e.code for e in result.errors], [obs.ErrorCode.PIHOLE_API] * 2)
+        self.assertEqual([e.code for e in result.errors], [results.ErrorCode.PIHOLE_API] * 2)
         self.assertEqual(len(fake.of("POST")), 2, "the second domain must still be tried")
         self.assertEqual(result.errors[0].context["status"], 400)
         self.assertFalse(result.errors[0].fatal)
         self.assertEqual(sum(result.changes.values()), 0)
 
     def test_results_merge(self):
-        a, b = obs.Result(), obs.Result()
+        a, b = results.Result(), results.Result()
         a.change("domain", "added", "block")
         b.change("domain", "added", "block")
-        b.fail(obs.ErrorCode.PIHOLE_API, "boom")
+        b.fail(results.ErrorCode.PIHOLE_API, "boom")
         b.gravity_needed = True
         a.merge(b)
         self.assertEqual(a.changes[("domain", "block", "added")], 2)
@@ -302,19 +301,19 @@ class ObservedRun(unittest.TestCase):
 
     def setUp(self):
         self.real_run = sync._run
-        self.real_record = obs.Metrics.record
-        obs.logger.disabled = True
+        self.real_record = metrics.Metrics.record
+        logs.logger.disabled = True
 
     def tearDown(self):
-        obs.logger.disabled = False
+        logs.logger.disabled = False
         sync._run = self.real_run
-        obs.Metrics.record = self.real_record
+        metrics.Metrics.record = self.real_record
 
     def run_main(self, run):
         """Run main() around `run`; return the Result it recorded."""
         sync._run = run
         recorded = []
-        obs.Metrics.record = lambda me, result: recorded.append(result)
+        metrics.Metrics.record = lambda me, result: recorded.append(result)
         # main() re-raises so the Job's exit status is unchanged.
         with contextlib.suppress(Exception):
             sync.main()
@@ -326,7 +325,7 @@ class ObservedRun(unittest.TestCase):
 
     def test_an_error_along_the_way_makes_the_run_a_failure(self):
         def run(result):
-            result.fail(obs.ErrorCode.PIHOLE_API, "adding domain 'x' failed")
+            result.fail(results.ErrorCode.PIHOLE_API, "adding domain 'x' failed")
 
         result = self.run_main(run)
         self.assertFalse(result.ok)
@@ -334,8 +333,8 @@ class ObservedRun(unittest.TestCase):
 
     def test_a_fatal_error_reports_a_code_from_the_closed_list(self):
         cases = [
-            (obs.SyncError(obs.ErrorCode.AUTH, "no"), "auth"),
-            (obs.SyncError(obs.ErrorCode.GRAVITY, "no"), "gravity"),
+            (results.SyncError(results.ErrorCode.AUTH, "no"), "auth"),
+            (results.SyncError(results.ErrorCode.GRAVITY, "no"), "gravity"),
             (OSError("connection refused"), "network"),
             (KeyError("groups"), "unknown"),
         ]
@@ -352,7 +351,7 @@ class ObservedRun(unittest.TestCase):
     def test_what_was_changed_before_a_fatal_error_is_still_reported(self):
         def run(result):
             result.change("domain", "added", "block")
-            raise obs.SyncError(obs.ErrorCode.PIHOLE_API, "GET /api/clients failed")
+            raise results.SyncError(results.ErrorCode.PIHOLE_API, "GET /api/clients failed")
 
         result = self.run_main(run)
         self.assertEqual(result.changes[("domain", "block", "added")], 1)

@@ -22,9 +22,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-import observability as obs
 import yaml
-from observability import ErrorCode, Result, SyncError, error_field, log
+from logs import error_field, log
+from metrics import observed_request, observed_run
+from results import ErrorCode, Result, SyncError
 
 PIHOLE_URL = os.environ["PIHOLE_URL"]
 PIHOLE_PASSWORD = os.environ.get("PIHOLE_PASSWORD", "")
@@ -104,7 +105,7 @@ def _request(method, path, body=None, sid=None, timeout=60):
     url = f"{PIHOLE_URL}{path}"
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, headers=_headers(sid), method=method)
-    with obs.observed_request(method, path, _route(path)) as request:
+    with observed_request(method, path, _route(path)) as request:
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 request.status = resp.status
@@ -595,7 +596,7 @@ def _run(result):
 
 
 def main():
-    with obs.observed_run() as run:
+    with observed_run() as run:
         _run(run.result)
 
 
