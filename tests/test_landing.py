@@ -666,9 +666,8 @@ class ValidateUnit(unittest.TestCase):
         # bool subclasses int, so True passes isinstance(x, int) and would be
         # accepted as 1 minute by a naive range check.
         for value in (True, False):
-            with self.subTest(minutes=value):
-                with self.assertRaises(ValueError):
-                    app.validate({"blocking": False, "minutes": value})
+            with self.subTest(minutes=value), self.assertRaises(ValueError):
+                app.validate({"blocking": False, "minutes": value})
 
     def test_bounds_are_derived_from_max_minutes(self):
         self.assertEqual(app.MAX_MINUTES, 360)

@@ -67,7 +67,7 @@ out = []
 for doc in docs:
     if DISABLED not in doc:
         for key, value in variables.items():
-            doc = doc.replace("${%s}" % key, value)
+            doc = doc.replace("${" + key + "}", value)
     out.append(doc)
 
 built.write_text("\n---\n".join(out))

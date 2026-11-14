@@ -90,7 +90,7 @@ class SyncLists(unittest.TestCase):
 
         posts = self.fake.of("POST")
         self.assertEqual(len(posts), 1, f"expected one POST, got {posts}")
-        method, path, body = posts[0]
+        _, path, body = posts[0]
         # type is a query parameter, not a body field — Pi-hole ignores a
         # blocklist POSTed to the allowlist endpoint rather than erroring.
         self.assertEqual(path, "/api/lists?type=block")

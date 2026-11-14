@@ -100,7 +100,7 @@ def _request(method, path, body=None, sid=None, timeout=60):
         raw = e.read().decode(errors="replace")
         try:
             return e.code, json.loads(raw)
-        except Exception:
+        except ValueError:
             return e.code, {"error": raw}
     # urllib.error.URLError propagates — _request_with_retry handles it
 
