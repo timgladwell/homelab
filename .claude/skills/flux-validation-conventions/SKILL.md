@@ -11,6 +11,13 @@ Run the full pipeline from the repo root:
 ./scripts/validate-k3s.sh
 ```
 
+With no arguments it runs every group. When the caller names one or more
+groups, pass them through and run only those, as CI's jobs do:
+`manifests` (build, schema, policy, chart render, trivy), `repo` (yamllint,
+shellcheck, repo invariants) or `python` (tests, ruff, lockfiles). For
+example, `./scripts/validate-k3s.sh python` for a Python-only change. Don't
+pick a group yourself: run everything unless told otherwise.
+
 Run it in the foreground with the Bash tool's `timeout` set to its maximum,
 `600000`. A full run can take longer than the default two-minute timeout, so
 a default call is killed partway through. Backgrounding it instead is what went wrong once: the run finished,
@@ -18,9 +25,9 @@ but the output was then followed with `tail -f`, which never exits, and the
 subagent sat on it indefinitely. The rule behind that: every command you run
 must end on its own. Nothing that follows, streams or waits for input.
 
-Do not run individual `validate/NN-*.sh` scripts standalone unless asked — the
-top-level script encodes the correct gating order (steps 2 and 3 gate later
-steps; `scripts/validate-k3s.sh` lists every step and its gating).
+Do not run individual `validate/<group>/NN-*.sh` scripts standalone unless
+asked — the top-level script encodes the correct gating order (steps 2 and 3
+gate later steps; `scripts/validate-k3s.sh` lists every step and its gating).
 
 ## Reporting format
 
@@ -31,15 +38,18 @@ is the only list of steps. This example shows the shape, not the steps:
 ```
 | Step | Result |
 |---|---|
-| YAML Lint | PASS |
 | Flux Build | PASS |
+| Kustomize Build | PASS |
 | … | … |
 | Security Scan | FAIL |
 | … | … |
+| YAML Lint | PASS |
+| … | … |
 ```
 
-The order is not numeric: the steps that need the build run as a block
-straight after it, ahead of the independent steps. Follow the output, not
+The order is not numeric: groups run in the order given (all of them:
+`manifests`, then `repo`, then `python`), and within `manifests` the steps
+that need the build run as a block straight after it. Follow the output, not
 the file numbers.
 
 Below the table:
