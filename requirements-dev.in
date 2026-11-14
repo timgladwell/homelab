@@ -18,3 +18,7 @@
 # substitute.py imports it directly, so it stays listed here even though
 # pihole-sync's requirements bring it in.
 PyYAML
+
+# The test runner (step 13). It runs the unittest-style tests in tests/ as
+# they are, with better failure output and --lf / -k / -x for iterating.
+pytest

@@ -50,6 +50,9 @@ env:
   # (step 17). Renovate runs it too, from the lockfile headers.
   # renovate: datasource=pypi depName=uv
   UV_VERSION: 0.13.7
+  # Lints and format-checks every Python file (step 18).
+  # renovate: datasource=pypi depName=ruff
+  RUFF_VERSION: 0.17.5
   # No ALLOY_VERSION pin: the manifests job derives it from the alloy chart.
 
 # One job per group of scripts/validate-k3s.sh, so each installs only the tools
@@ -81,6 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           pipx install "uv==${UV_VERSION}"
+          pipx install "ruff==${RUFF_VERSION}"
           PYYAML_FORCE_LIBYAML=0 pip install --require-hashes -r requirements-dev.txt
       - run: ./scripts/validate-k3s.sh python
 

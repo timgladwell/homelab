@@ -9,7 +9,7 @@
 #   manifests  builds the manifests and checks what would deploy (flux,
 #              kustomize, kubeconform, kube-score, conftest, alloy, flate, trivy)
 #   repo       repo invariants no build is needed for (yamllint, stdlib python)
-#   python     the Python tests and the lockfiles (the .venv, uv)
+#   python     ruff, the Python tests and the lockfiles (the .venv, ruff, uv)
 #
 # Conventions for every step:
 # - Warnings are errors. A step fails on any finding at any severity. A check
@@ -178,6 +178,7 @@ group_repo() {
 group_python() {
     local VALIDATE_DIR="$VALIDATE_DIR/python"
     run_step "Python Tests" "$VALIDATE_DIR/13-python-tests.sh"
+    run_step "Python Lint" "$VALIDATE_DIR/18-python-lint.sh"
     # Reads requirements*.in
     run_step "Requirements Lockfiles" "$VALIDATE_DIR/17-requirements-lock.sh"
 }
