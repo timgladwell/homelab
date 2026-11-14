@@ -1,0 +1,1551 @@
+{
+  "uid": "estate-summary-draft",
+  "title": "Estate summary (draft)",
+  "tags": [
+    "estate",
+    "draft"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "editable": true,
+  "refresh": "1m",
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "selected": false,
+          "text": "default",
+          "value": "default"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "options": [],
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false
+      },
+      {
+        "name": "site",
+        "label": "site",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "definition": "label_values(kube_node_info, site)",
+        "query": {
+          "query": "label_values(kube_node_info, site)",
+          "refId": "site"
+        },
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "refresh": 1,
+        "sort": 1,
+        "hide": 0,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "regex": "",
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Now",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "Alerts firing",
+      "description": "Firing alerts for the selected sites, by severity. Watchdog and InfoInhibitor (severity none) always fire by design and are left out. Info never turns red: CPUThrottlingHigh lives there until #618.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(ALERTS{alertstate=\"firing\", severity=\"critical\", site=~\"$site\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "critical",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(ALERTS{alertstate=\"firing\", severity=\"warning\", site=~\"$site\"}) or vector(0)",
+          "refId": "B",
+          "legendFormat": "warning",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(ALERTS{alertstate=\"firing\", severity=\"info\", site=~\"$site\"}) or vector(0)",
+          "refId": "C",
+          "legendFormat": "info",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "text",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 3,
+      "title": "Should be zero",
+      "description": "Everything here is 0 almost all the time, so anything else is a spike. Restarts and delivery failures are counted per 5 minutes. Delivery failures are estate-wide (Alertmanager runs only at Akron, #630) and ignore the site picker.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(sum(increase(alertmanager_notifications_failed_total[5m])) or vector(0)) + (sum(increase(prometheus_notifications_errors_total[5m])) or vector(0))",
+          "refId": "A",
+          "legendFormat": "alert delivery failures (estate)",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site) (round(increase(kube_pod_container_status_restarts_total{site=~\"$site\"}[5m]))) or count by (site) (kube_node_info{site=~\"$site\"}) * 0",
+          "refId": "B",
+          "legendFormat": "{{site}} restarts",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (site) (kube_job_failed{condition=\"true\", site=~\"$site\"} == 1) or count by (site) (kube_node_info{site=~\"$site\"}) * 0",
+          "refId": "C",
+          "legendFormat": "{{site}} failed Jobs",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (site) (kube_pod_status_phase{phase=~\"Pending|Failed|Unknown\", site=~\"$site\"} == 1) or count by (site) (kube_node_info{site=~\"$site\"}) * 0",
+          "refId": "D",
+          "legendFormat": "{{site}} pods not running",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 18,
+        "x": 6,
+        "y": 1
+      }
+    },
+    {
+      "type": "row",
+      "id": 4,
+      "title": "Deploy",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "panels": []
+    },
+    {
+      "type": "table",
+      "id": 5,
+      "title": "Deployment",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "description": "One row per site and applied commit: two rows for a site means it is part-way through a rollout. Commit is yellow when Akron, the canary, has neither fetched nor applied it: the site is behind (ADR 0002), a mild signal until promotion. A new commit gets its row as soon as the GitRepository fetches it. Status, for the commit the site has fetched: In progress while a Kustomization hasn't applied it or waits on a dependency; Failed while any Flux object is Ready=False for another reason. Older commits read Complete. To come from Flux events eventually (#615). Not good: Flux objects Ready=False, excluding DependencyNotReady.",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (site, commit) (label_join(label_replace((((((count by (site) (gotk_resource_info{ready=\"False\", reason!=\"DependencyNotReady\", site=~\"$site\"}) * 0 + 2) or (count by (site) (gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"} unless on (site, revision) gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}) * 0 + 1) or (count by (site) (gotk_resource_info{ready=\"False\", reason=\"DependencyNotReady\", site=~\"$site\"}) * 0 + 1) or (count by (site) (gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}) * 0))) * on (site) group_right () (((count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\")) or count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\"))) and on (site, sha) label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")) * 0 + 1)) or (((count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\")) or count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\"))) unless on (site, sha) label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")) * 0)) unless on (sha) count by (sha) (label_replace(gotk_resource_info{customresource_kind=~\"Kustomization|GitRepository\", site=\"akron\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")), \"drift\", \"drift\", \"\", \"\"), \"commit\", \":\", \"branch\", \"sha\", \"drift\") or label_join((((((count by (site) (gotk_resource_info{ready=\"False\", reason!=\"DependencyNotReady\", site=~\"$site\"}) * 0 + 2) or (count by (site) (gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"} unless on (site, revision) gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}) * 0 + 1) or (count by (site) (gotk_resource_info{ready=\"False\", reason=\"DependencyNotReady\", site=~\"$site\"}) * 0 + 1) or (count by (site) (gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}) * 0))) * on (site) group_right () (((count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\")) or count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\"))) and on (site, sha) label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")) * 0 + 1)) or (((count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\")) or count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\"))) unless on (site, sha) label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")) * 0)) and on (sha) count by (sha) (label_replace(gotk_resource_info{customresource_kind=~\"Kustomization|GitRepository\", site=\"akron\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")), \"commit\", \":\", \"branch\", \"sha\"))",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "(count by (site) (gotk_resource_info{ready=\"False\", reason!=\"DependencyNotReady\", site=~\"$site\"}) or count by (site) (gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}) * 0) * on (site) group_right () (max by (site, commit) (label_join(label_replace((((((count by (site) (gotk_resource_info{ready=\"False\", reason!=\"DependencyNotReady\", site=~\"$site\"}) * 0 + 2) or (count by (site) (gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"} unless on (site, revision) gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}) * 0 + 1) or (count by (site) (gotk_resource_info{ready=\"False\", reason=\"DependencyNotReady\", site=~\"$site\"}) * 0 + 1) or (count by (site) (gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}) * 0))) * on (site) group_right () (((count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\")) or count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\"))) and on (site, sha) label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")) * 0 + 1)) or (((count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\")) or count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\"))) unless on (site, sha) label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")) * 0)) unless on (sha) count by (sha) (label_replace(gotk_resource_info{customresource_kind=~\"Kustomization|GitRepository\", site=\"akron\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")), \"drift\", \"drift\", \"\", \"\"), \"commit\", \":\", \"branch\", \"sha\", \"drift\") or label_join((((((count by (site) (gotk_resource_info{ready=\"False\", reason!=\"DependencyNotReady\", site=~\"$site\"}) * 0 + 2) or (count by (site) (gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"} unless on (site, revision) gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}) * 0 + 1) or (count by (site) (gotk_resource_info{ready=\"False\", reason=\"DependencyNotReady\", site=~\"$site\"}) * 0 + 1) or (count by (site) (gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}) * 0))) * on (site) group_right () (((count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\")) or count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\"))) and on (site, sha) label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")) * 0 + 1)) or (((count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"Kustomization\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\")) or count by (site, branch, sha) (label_replace(label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\"), \"branch\", \"$1\", \"revision\", \"(.*)@sha1:.*\"))) unless on (site, sha) label_replace(gotk_resource_info{customresource_kind=\"GitRepository\", site=~\"$site\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")) * 0)) and on (sha) count by (sha) (label_replace(gotk_resource_info{customresource_kind=~\"Kustomization|GitRepository\", site=\"akron\"}, \"sha\", \"$1\", \"revision\", \".*@sha1:(.{7}).*\")), \"commit\", \":\", \"branch\", \"sha\")) * 0 + 1)",
+          "refId": "B",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "site": 0,
+              "commit": 1,
+              "Value #A": 2,
+              "Value #B": 3
+            },
+            "renameByName": {
+              "site": "Site",
+              "commit": "Commit",
+              "Value #A": "Status",
+              "Value #B": "Not good"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Site"
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Commit"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": "^(.*):drift$",
+                      "result": {
+                        "text": "$1",
+                        "color": "yellow"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Complete",
+                        "color": "green"
+                      },
+                      "1": {
+                        "text": "In progress",
+                        "color": "blue"
+                      },
+                      "2": {
+                        "text": "Failed",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not good"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 6,
+      "title": "Kustomization reconcile time",
+      "description": "Mean reconcile duration. A proxy for deploy time (merge-to-applied has no source yet, #623); a candidate source for deploy markers and periods (#615).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (site) (rate(gotk_reconcile_duration_seconds_sum{kind=\"Kustomization\", site=~\"$site\"}[5m]) / rate(gotk_reconcile_duration_seconds_count{kind=\"Kustomization\", site=~\"$site\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{site}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      }
+    },
+    {
+      "type": "row",
+      "id": 7,
+      "title": "Budget",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 8,
+      "title": "Root disk",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "1 - sum by (site) (node_filesystem_avail_bytes{mountpoint=\"/\", site=~\"$site\"}) / sum by (site) (node_filesystem_size_bytes{mountpoint=\"/\", site=~\"$site\"})",
+          "refId": "A",
+          "legendFormat": "{{site}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 15
+      }
+    },
+    {
+      "type": "stat",
+      "id": 9,
+      "title": "Containers > 80% memory limit",
+      "description": "Page cache plus process memory against the limit (memory-sizing runbook). List on Estate overview.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count by (site) (max by (site, namespace, pod, container) (container_memory_cache{container!=\"\", container!=\"POD\", site=~\"$site\"} + container_memory_rss{container!=\"\", container!=\"POD\", site=~\"$site\"}) / max by (site, namespace, pod, container) (kube_pod_container_resource_limits{resource=\"memory\", site=~\"$site\"}) > 0.8) or count by (site) (kube_node_info{site=~\"$site\"}) * 0",
+          "refId": "A",
+          "legendFormat": "{{site}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 15
+      }
+    },
+    {
+      "type": "state-timeline",
+      "id": 10,
+      "title": "Node pressure conditions",
+      "description": "Red while the kubelet reports MemoryPressure, DiskPressure or PIDPressure: it is about to evict.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (site, condition) (kube_node_status_condition{condition=~\".*Pressure\", status=\"true\", site=~\"$site\"})",
+          "refId": "A",
+          "legendFormat": "{{site}} {{condition}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK"
+                },
+                "1": {
+                  "text": "Pressure"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "legend": {
+          "showLegend": false
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 11,
+      "title": "CPU by node",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "1 - avg by (site) (rate(node_cpu_seconds_total{mode=\"idle\", site=~\"$site\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{site}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "max": 1,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 19
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 12,
+      "title": "Memory by node",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "1 - sum by (site) (node_memory_MemAvailable_bytes{site=~\"$site\"}) / sum by (site) (node_memory_MemTotal_bytes{site=~\"$site\"})",
+          "refId": "A",
+          "legendFormat": "{{site}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "max": 1,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 19
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 13,
+      "title": "Disk IOPS by node",
+      "description": "Reads plus writes completed per second. Thrash shows as spikes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site) (rate(node_disk_reads_completed_total{device!~\"loop.*|ram.*\", site=~\"$site\"}[5m]) + rate(node_disk_writes_completed_total{device!~\"loop.*|ram.*\", site=~\"$site\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{site}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "iops",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 19
+      }
+    },
+    {
+      "type": "row",
+      "id": 14,
+      "title": "Needing more than allocated",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 15,
+      "title": "CPU throttled, by container",
+      "description": "Share of CFS periods in which the container hit its CPU limit. Above 5% shown. CPUThrottlingHigh fires at 25% for 15m.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site, namespace, container) (rate(container_cpu_cfs_throttled_periods_total{container!=\"\", container!=\"POD\", site=~\"$site\"}[5m])) / sum by (site, namespace, container) (rate(container_cpu_cfs_periods_total{container!=\"\", container!=\"POD\", site=~\"$site\"}[5m])) > 0.05",
+          "refId": "A",
+          "legendFormat": "{{site}} {{namespace}}/{{container}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "max": 1,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 27
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 16,
+      "title": "Memory: page-cache refaults, OOM events",
+      "description": "Pages/s re-read soon after eviction (above 1/s shown): a container near its limit re-reads its own files (memory-sizing runbook). OOM events as bars, right axis.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site, namespace, container) (rate(container_memory_workingset_refault_file_total{container!=\"\", container!=\"POD\", site=~\"$site\"}[5m])) > 1",
+          "refId": "A",
+          "legendFormat": "{{site}} {{namespace}}/{{container}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site, namespace, container) (increase(container_oom_events_total{container!=\"\", container!=\"POD\", site=~\"$site\"}[5m])) > 0",
+          "refId": "B",
+          "legendFormat": "OOM {{site}} {{namespace}}/{{container}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 60
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 27
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 17,
+      "title": "Pressure stall by node",
+      "description": "PSI 'some': the share of wall time at least one task was stalled.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site) (rate(node_pressure_cpu_waiting_seconds_total{site=~\"$site\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{site}} cpu",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site) (rate(node_pressure_memory_waiting_seconds_total{site=~\"$site\"}[5m]))",
+          "refId": "B",
+          "legendFormat": "{{site}} memory",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site) (rate(node_pressure_io_waiting_seconds_total{site=~\"$site\"}[5m]))",
+          "refId": "C",
+          "legendFormat": "{{site}} io",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 35
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 18,
+      "title": "Pressure stall by container (above 1%)",
+      "description": "The same per container: which one is waiting. CPU waiting includes time throttled at its limit.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site, namespace, container) (rate(container_pressure_cpu_waiting_seconds_total{container!=\"\", container!=\"POD\", site=~\"$site\"}[5m])) > 0.01",
+          "refId": "A",
+          "legendFormat": "{{site}} cpu {{namespace}}/{{container}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site, namespace, container) (rate(container_pressure_memory_waiting_seconds_total{container!=\"\", container!=\"POD\", site=~\"$site\"}[5m])) > 0.01",
+          "refId": "B",
+          "legendFormat": "{{site}} memory {{namespace}}/{{container}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site, namespace, container) (rate(container_pressure_io_waiting_seconds_total{container!=\"\", container!=\"POD\", site=~\"$site\"}[5m])) > 0.01",
+          "refId": "C",
+          "legendFormat": "{{site}} io {{namespace}}/{{container}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      }
+    },
+    {
+      "type": "row",
+      "id": 19,
+      "title": "Observability flowing",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 20,
+      "title": "Samples sent to Akron, per site",
+      "description": "Samples/s each site's collector forwards; flat at zero means the site has gone quiet. Failed samples as bars, right axis.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site) (rate(prometheus_remote_storage_samples_total{site=~\"$site\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{site}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site) (increase(prometheus_remote_storage_samples_failed_total{site=~\"$site\"}[5m])) > 0",
+          "refId": "B",
+          "legendFormat": "{{site}} failed",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 60
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 43
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 21,
+      "title": "Log bytes sent to Akron, per site",
+      "description": "Dropped log bytes as bars, right axis.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site) (rate(loki_write_sent_bytes_total{site=~\"$site\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{site}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (site) (increase(loki_write_dropped_bytes_total{site=~\"$site\"}[5m])) > 0",
+          "refId": "B",
+          "legendFormat": "{{site}} dropped",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "bars"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 60
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 43
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 22,
+      "title": "Send lag (WAL backlog)",
+      "description": "How far behind the forwarder is (forwarding-path-recovery runbook). A silent site's lag goes stale, not up.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max by (site) (prometheus_remote_storage_highest_timestamp_in_seconds{site=~\"$site\"} - ignoring(remote_name, url) group_right prometheus_remote_storage_queue_highest_sent_timestamp_seconds{site=~\"$site\"})",
+          "refId": "A",
+          "legendFormat": "{{site}}",
+          "instant": false,
+          "range": true,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 43
+      }
+    }
+  ]
+}

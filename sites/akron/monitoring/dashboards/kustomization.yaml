@@ -60,6 +60,9 @@ configMapGenerator:
   - name: dashboard-estate-overview
     files:
       - estate-overview-dashboard.json
+  - name: dashboard-estate-summary
+    files:
+      - estate-summary-dashboard.json
   - name: dashboard-node-exporter-full
     files:
       - node-exporter-full.json
