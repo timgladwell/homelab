@@ -13,7 +13,7 @@ updates:
   # controller images, upgraded via the Flux CLI (docs/runbooks/flux-upgrades.md).
   # Letting Dependabot bump them would fight the bootstrap process.
   #
-  # This list is enforced by scripts/validate/09-dependabot-coverage.sh, which
+  # This list is enforced by scripts/validate/repo/09-dependabot-coverage.sh, which
   # fails if any directory gains a pinned image without being listed. That check
   # exists because this config silently went stale once when directories moved,
   # and nobody noticed Dependabot had stopped covering most of the repo.

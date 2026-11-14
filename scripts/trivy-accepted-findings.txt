@@ -15,7 +15,7 @@
 # read only by the audit; step 6 reads that object's twin in .trivyignore.yaml.
 # Step 16 makes a chart finding fail the PR that introduces it instead of
 # waiting for the next audit cycle. See scripts/trivy-audit-diff.sh,
-# scripts/validate/16-rendered-security-scan.sh and
+# scripts/validate/manifests/16-rendered-security-scan.sh and
 # docs/runbooks/trivy-operator-audit.md.
 #
 # Accepted means decided: we looked, and the answer is no. It does NOT mean

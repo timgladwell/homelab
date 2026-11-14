@@ -17,6 +17,7 @@ idle almost all of the time.
 
 Tested by tests/test_landing.py, which validation step 13 runs.
 """
+
 import ipaddress
 import json
 import os
@@ -60,12 +61,21 @@ MAX_ROWS = max(RECENT_MAX, BLOCKED_MAX)
 # rows in the RECENT_WINDOW feed — the blocked *count* comes from Pi-hole's own
 # `upstream=blocklist` filter, so this set falling behind a future release
 # costs a label on one row, never a number.
-BLOCKED_STATUSES = frozenset({
-    "GRAVITY", "REGEX", "DENYLIST", "SPECIAL_DOMAIN",
-    "GRAVITY_CNAME", "REGEX_CNAME", "DENYLIST_CNAME",
-    "EXTERNAL_BLOCKED_IP", "EXTERNAL_BLOCKED_NULL",
-    "EXTERNAL_BLOCKED_NXRA", "EXTERNAL_BLOCKED_EDE15",
-})
+BLOCKED_STATUSES = frozenset(
+    {
+        "GRAVITY",
+        "REGEX",
+        "DENYLIST",
+        "SPECIAL_DOMAIN",
+        "GRAVITY_CNAME",
+        "REGEX_CNAME",
+        "DENYLIST_CNAME",
+        "EXTERNAL_BLOCKED_IP",
+        "EXTERNAL_BLOCKED_NULL",
+        "EXTERNAL_BLOCKED_NXRA",
+        "EXTERNAL_BLOCKED_EDE15",
+    }
+)
 
 _sid = None
 _sid_lock = threading.Lock()
@@ -79,6 +89,7 @@ def log(msg, *, err=False):
 # ---------------------------------------------------------------------------
 # Pi-hole client
 # ---------------------------------------------------------------------------
+
 
 def _pihole(method, path, body=None, sid=None):
     headers = {"Content-Type": "application/json", "User-Agent": _USER_AGENT}
@@ -137,6 +148,7 @@ def _call(method, path, body=None):
 # Request validation
 # ---------------------------------------------------------------------------
 
+
 def validate(payload):
     """Map a request body to (blocking, timer_seconds), or raise ValueError.
 
@@ -145,7 +157,7 @@ def validate(payload):
     and "stop blocking for 1..MAX_MINUTES-1 minutes".
     """
     if not isinstance(payload, dict):
-        raise ValueError("body must be a JSON object")
+        raise ValueError("body must be a JSON object")  # noqa: TRY004 - callers catch ValueError only
     blocking = payload.get("blocking")
     if blocking is not True and blocking is not False:
         raise ValueError("blocking must be true or false")
@@ -154,7 +166,7 @@ def validate(payload):
     minutes = payload.get("minutes")
     # bool is a subclass of int, so `True` would otherwise pass as 1 minute.
     if isinstance(minutes, bool) or not isinstance(minutes, int):
-        raise ValueError("minutes must be a whole number")
+        raise ValueError("minutes must be a whole number")  # noqa: TRY004 - as above
     if not 1 <= minutes < MAX_MINUTES:
         raise ValueError(f"minutes must be between 1 and {MAX_MINUTES - 1}")
     return False, minutes * 60
@@ -184,8 +196,7 @@ def _parse_address(raw, source):
     try:
         return str(ipaddress.ip_address(raw.strip()))
     except ValueError:
-        raise Unavailable(
-            f"{source} value {_excerpt(raw)} is not an IP address") from None
+        raise Unavailable(f"{source} value {_excerpt(raw)} is not an IP address") from None
 
 
 def client_address(headers, query):
@@ -220,7 +231,8 @@ def client_address(headers, query):
     if raw is None:
         raise Unavailable(
             "Request header X-Forwarded-For is missing — nothing identified "
-            "this device. Is Traefik in front of this page?")
+            "this device. Is Traefik in front of this page?"
+        )
     # .rsplit on the raw header rather than a full parse: every element but
     # the last is discarded, so there is nothing to parse.
     raw = raw.rsplit(",", 1)[-1]
@@ -266,6 +278,7 @@ def activity_rows(queries, limit):
 # ---------------------------------------------------------------------------
 # HTTP
 # ---------------------------------------------------------------------------
+
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -317,20 +330,18 @@ class Handler(BaseHTTPRequestHandler):
         """
         try:
             status, resp = _call(method, path, body)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - any failure is a 502 or an empty panel; see above
             log(f"{method} {path} failed: {exc}", err=True)
             # urlopen raises TimeoutError directly on a read timeout and wraps
             # it in URLError on a connect timeout, so unwrap before testing.
             reason = getattr(exc, "reason", exc)
             if isinstance(reason, TimeoutError):
-                raise Unavailable(
-                    f"Pi-hole did not answer within {UPSTREAM_TIMEOUT}s") from None
+                raise Unavailable(f"Pi-hole did not answer within {UPSTREAM_TIMEOUT}s") from None
             if isinstance(exc, urllib.error.URLError):
                 raise Unavailable("Could not reach Pi-hole") from None
             if isinstance(exc, ValueError):
                 # json.loads, from _pihole.
-                raise Unavailable(
-                    "Pi-hole sent a response this page could not read") from None
+                raise Unavailable("Pi-hole sent a response this page could not read") from None
             raise Unavailable("Pi-hole is not responding") from None
         if status >= 400:
             # The status is safe to show; the body can carry detail this page
@@ -355,8 +366,7 @@ class Handler(BaseHTTPRequestHandler):
         call site is exactly where the next zero would appear.
         """
         length = min(max(int(length), 1), MAX_ROWS)
-        return self._read(
-            "GET", "/api/queries?" + urllib.parse.urlencode({"length": length, **params}))
+        return self._read("GET", "/api/queries?" + urllib.parse.urlencode({"length": length, **params}))
 
     def _activity(self, query):
         """Answer "what has this device been resolving?" in three calls.
@@ -381,9 +391,16 @@ class Handler(BaseHTTPRequestHandler):
         every way this can come up empty is reported as an empty panel plus
         `reason`, rather than as a failed request.
         """
-        empty = {"client": None, "name": None, "window": RECENT_WINDOW,
-                 "queries": None, "blocked": None,
-                 "recent_blocked": [], "recent": [], "reason": None}
+        empty = {
+            "client": None,
+            "name": None,
+            "window": RECENT_WINDOW,
+            "queries": None,
+            "blocked": None,
+            "recent_blocked": [],
+            "recent": [],
+            "reason": None,
+        }
         try:
             ip = client_address(self.headers, query)
         except Unavailable as exc:
@@ -399,8 +416,7 @@ class Handler(BaseHTTPRequestHandler):
         totals = self._queries(1, client_ip=ip)
         blocked = self._queries(BLOCKED_MAX, client_ip=ip, upstream="blocklist")
         now = int(time.time())
-        recent = self._queries(
-            RECENT_MAX, client_ip=ip, until=now, **{"from": now - RECENT_WINDOW})
+        recent = self._queries(RECENT_MAX, client_ip=ip, until=now, **{"from": now - RECENT_WINDOW})
         try:
             return {
                 "client": ip,

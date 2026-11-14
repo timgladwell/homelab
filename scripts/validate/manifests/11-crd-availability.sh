@@ -20,7 +20,7 @@
 # on CRDs from the layers they depend on, and resolving that properly would mean
 # walking the dependency graph for little benefit — the first layer is where
 # this bug actually happens.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"
 

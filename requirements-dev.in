@@ -1,4 +1,4 @@
-# Libraries the validation scripts and the tests import: scripts/validate/
+# Libraries the validation scripts and the tests import: scripts/validate/manifests/
 # substitute.py and base/pihole-sync's tests. Direct dependencies only:
 # requirements-dev.txt is compiled from this file and pins every version, with
 # hashes (docs/runbooks/development-environment.md, *Changing a Python
@@ -18,3 +18,7 @@
 # substitute.py imports it directly, so it stays listed here even though
 # pihole-sync's requirements bring it in.
 PyYAML
+
+# The test runner (step 13). It runs the unittest-style tests in tests/ as
+# they are, with better failure output and --lf / -k / -x for iterating.
+pytest

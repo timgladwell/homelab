@@ -8,7 +8,7 @@
 # envsubst syntax the substitution pass does not implement (${VAR:=default}).
 # Any of the three fails the whole Kustomization on the cluster: Flux v2.9
 # substitutes in strict mode.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"

@@ -9,7 +9,7 @@
 #
 # Checks the whole tree rather than a diff: a file that was never encrypted does
 # not stop being a problem just because this PR did not touch it.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 
 fail=0

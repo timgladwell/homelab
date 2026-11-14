@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run conftest against each site's built manifest using policies in policy/.
 # Depends on the kustomize build output from 03-kustomize-build.sh.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"
