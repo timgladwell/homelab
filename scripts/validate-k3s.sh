@@ -8,7 +8,8 @@
 # With no arguments every group runs, which is what "validate" means locally.
 #   manifests  builds the manifests and checks what would deploy (flux,
 #              kustomize, kubeconform, kube-score, conftest, alloy, flate, trivy)
-#   repo       repo invariants no build is needed for (yamllint, stdlib python)
+#   repo       repo invariants no build is needed for (yamllint, shellcheck,
+#              stdlib python)
 #   python     ruff, the Python tests and the lockfiles (the .venv, ruff, uv)
 #
 # Conventions for every step:
@@ -173,6 +174,7 @@ group_repo() {
     run_step "Dependency Coverage" "$VALIDATE_DIR/09-dependabot-coverage.sh"
     run_step "Secrets Encrypted" "$VALIDATE_DIR/10-secrets-encrypted.sh"
     run_step "Pi-hole Secret Pairs" "$VALIDATE_DIR/14-pihole-secret-pairs.sh"
+    run_step "Shellcheck" "$VALIDATE_DIR/19-shellcheck.sh"
 }
 
 group_python() {
