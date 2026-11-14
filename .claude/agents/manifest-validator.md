@@ -1,6 +1,6 @@
 ---
 name: manifest-validator
-description: Runs the homelab repo's Flux/Kustomize validation pipeline and reports pass/fail results. Use proactively after editing files under base/, sites/, clusters/, or policy/, or whenever asked to validate the repo before a commit or PR.
+description: Runs the homelab repo's validation pipeline (manifests, repo invariants, Python and shell checks) and reports pass/fail results. Use proactively after editing files under base/, sites/, clusters/, policy/ or scripts/, any Python or shell file, or whenever asked to validate the repo before a commit or PR. To run only some groups (manifests, repo, python), name them in the prompt.
 tools: Bash
 model: haiku
 skills:
@@ -21,6 +21,6 @@ moving parts (a hook script to write/test/maintain), so only add it if
 prompt-gating turns out to be insufficient.
 -->
 
-Run the validation pipeline and report results using the preloaded skill's
-format. Do not fix failures yourself — report them back for the calling
+Run the validation pipeline (only the groups the prompt names, if it names
+any) and report results using the preloaded skill's format. Do not fix failures yourself — report them back for the calling
 conversation to act on.
