@@ -1,6 +1,5 @@
 """base/pihole-sync/sync.py — main() hands the run's Result to the metrics, however the run ends."""
 
-import contextlib
 import unittest
 
 import logs
@@ -27,14 +26,40 @@ class ObservedRun(unittest.TestCase):
         sync._run = run
         recorded = []
         metrics.Metrics.record = lambda me, result: recorded.append(result)
-        # main() re-raises so the Job's exit status is unchanged.
-        with contextlib.suppress(Exception):
+        # A raised exception is the Job exiting non-zero, so keep it to assert on.
+        self.raised = None
+        try:
             sync.main()
+        except Exception as exc:  # noqa: BLE001 - whichever it is, the test inspects it
+            self.raised = exc
         self.assertEqual(len(recorded), 1, "the metrics must be recorded exactly once")
         return recorded[0]
 
     def test_a_clean_run_is_ok(self):
         self.assertTrue(self.run_main(lambda result: None).ok)
+
+    def test_the_job_exits_non_zero_only_when_a_restart_can_fix_the_failure(self):
+        # ADR 0010: a non-zero exit is "retry me", never "I failed". Every code is
+        # checked, so a new one can't be added without being decided.
+        for code in results.ErrorCode:
+            with self.subTest(code=str(code)):
+
+                def run(result, code=code):
+                    raise results.SyncError(code, "boom")
+
+                result = self.run_main(run)
+                self.assertEqual(self.raised is not None, code in results.RETRIABLE)
+                # Either way the run is reported as the failure it was.
+                self.assertFalse(result.ok)
+                self.assertEqual([e.code for e in result.errors], [code])
+
+    def test_an_error_on_one_object_exits_zero(self):
+        def run(result):
+            result.fail(results.ErrorCode.PIHOLE_API, "adding domain 'x' failed")
+
+        result = self.run_main(run)
+        self.assertIsNone(self.raised)
+        self.assertFalse(result.ok)
 
     def test_an_error_along_the_way_makes_the_run_a_failure(self):
         def run(result):

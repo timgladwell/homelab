@@ -83,6 +83,7 @@ monorepo pattern):
 | A product's own integration before glue; improvements to third-party tools tracked here, not upstream | [0005](docs/adr/0005-third-party-integration.md) |
 | What alerts and at what level (by response needed, apart from event severity and from delivery); every alert specific and actionable; dashboards summary → detail | [0006](docs/adr/0006-how-observability-is-used.md) |
 | Alertmanager routes every alert, to Slack; the alerting path is watched from outside the estate | [0007](docs/adr/0007-how-alerts-reach-the-operator.md) |
+| A job exits non-zero only when it is designed to be retried; its result comes from observability, not its exit code | [0010](docs/adr/0010-how-a-job-reports-its-outcome.md) |
 
 **`base/` never contains anything site-specific.** A site opts into a component
 by listing it; a `$patch: delete` against `base/` means the layering is wrong.

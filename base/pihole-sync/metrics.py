@@ -19,7 +19,7 @@ from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExp
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
-from results import Error, ErrorCode, Result, classify
+from results import RETRIABLE, Error, ErrorCode, Result, classify
 
 # Set to e.g. "zerpzorp." to namespace every metric for a deployment; empty
 # by default so the program has no opinion about where it runs.
@@ -149,8 +149,12 @@ def observed_run():
             do_the_work(run.result)
 
     However the body ends, an exception becomes one fatal error, then the log
-    line, the metrics and the flush happen. The exception still propagates, so
-    the Job's exit status is the program's own.
+    line, the metrics and the flush happen.
+
+    The exception propagates, and the Job exits non-zero so it is retried, only
+    when the error is one a restart can fix (`RETRIABLE`). Any other failure
+    ends the block normally and the Job exits 0: whether the run succeeded is
+    in the metrics and the logs, not the exit status (ADR 0010).
     """
     run = Run()
     metrics = Metrics(push_readers())
@@ -158,10 +162,24 @@ def observed_run():
     try:
         yield run
     except Exception as exc:
-        error = Error(classify(exc), str(exc), fatal=True, exception=type(exc).__name__)
+        code = classify(exc)
+        retry = code in RETRIABLE
+        error = Error(
+            code,
+            str(exc),
+            fatal=True,
+            exception=type(exc).__name__,
+            context={"exit_status": "non-zero" if retry else "zero"},
+        )
         run.result.errors.append(error)
-        log_error(error, "Sync failed.")
-        raise
+        log_error(
+            error,
+            "Sync failed; exiting non-zero so the Job is retried."
+            if retry
+            else "Sync failed; exiting 0, because a restart can't fix it.",
+        )
+        if retry:
+            raise
     finally:
         current_metrics.reset(token)
         result = run.result

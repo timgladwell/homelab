@@ -12,6 +12,13 @@ class Errors(unittest.TestCase):
             {str(c) for c in results.ErrorCode}, {"config", "auth", "network", "pihole_api", "gravity", "unknown"}
         )
 
+    def test_every_retriable_failure_says_why_a_restart_can_fix_it(self):
+        self.assertTrue(set(results.RETRIABLE) <= set(results.ErrorCode))
+        self.assertTrue(all(reason.strip() for reason in results.RETRIABLE.values()))
+        # What a restart can't fix exits 0 (ADR 0010).
+        for code in (results.ErrorCode.CONFIG, results.ErrorCode.AUTH, results.ErrorCode.UNKNOWN):
+            self.assertNotIn(code, results.RETRIABLE)
+
     def test_classify(self):
         self.assertEqual(results.classify(results.SyncError(results.ErrorCode.AUTH, "x")), "auth")
         self.assertEqual(results.classify(OSError("refused")), "network")

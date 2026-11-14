@@ -32,6 +32,20 @@ class ErrorCode(enum.StrEnum):
     UNKNOWN = "unknown"  # anything not classified above: a bug
 
 
+# The failures a prompt restart can fix, each with why. A run that ends on any
+# other code exits 0: the Job is not retried, because the outcome is in the
+# metrics and the logs, not in the exit status (docs/adr/0010-how-a-job-reports-
+# its-outcome.md). Decide a new ErrorCode here when it is added, not later.
+#
+# Not retriable: CONFIG (the ConfigMap is wrong, and a restart reads the same
+# one), AUTH (the password doesn't change when the Job does), UNKNOWN (a bug).
+RETRIABLE = {
+    ErrorCode.NETWORK: "Pi-hole may be restarting or briefly unreachable",
+    ErrorCode.PIHOLE_API: "Pi-hole answered with an error, often while it restarts or rebuilds",
+    ErrorCode.GRAVITY: "the gravity flag file makes the next attempt re-run the rebuild",
+}
+
+
 class SyncError(Exception):
     """Raised when the run can't go on: it ends there, and is one fatal Error."""
 

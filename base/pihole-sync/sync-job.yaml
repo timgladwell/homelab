@@ -14,6 +14,10 @@ spec:
   # changes; see the kustomization). The 7-day TTL prevents completed
   # pods accumulating indefinitely.
   ttlSecondsAfterFinished: 604800
+  # A retry happens only when the program exits non-zero, and it does that only
+  # for a failure a restart can fix (RETRIABLE in results.py). Every other run
+  # exits 0, failed or not, so this Job being Complete says nothing about the
+  # sync's result: read the run_finished metric and log line (ADR 0010).
   backoffLimit: 2
   # Gravity takes ~10 min; 45 min gives 3 full sync+gravity attempts.
   activeDeadlineSeconds: 2700
