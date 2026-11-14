@@ -20,7 +20,7 @@ while read -r file; do
     found=$((found + 1))
 
     # $patch: delete manifests carry no data — nothing to encrypt.
-    if grep -q '^\$patch: delete' "$file"; then
+    if grep -q '^[$]patch: delete' "$file"; then
         echo "✓ $file (delete-only patch, no data)"
         continue
     fi

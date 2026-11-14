@@ -164,10 +164,10 @@ echo "$notes"
 # A monorepo tag that doesn't name this dependency means the notes are another
 # chart's (2 of 7 in the first run: pyroscope's for alloy, blackbox-exporter's
 # for kube-state-metrics). Plain `vX.Y.Z` tags are single-project repos.
-for tag in $(grep -oE 'releases/tag/[^)]+' <<<"$notes" | sed 's#releases/tag/##' | sort -u); do
+while IFS= read -r tag; do
   [[ "$tag" == v[0-9]* || "$tag" == [0-9]* || "$tag" == *"${name##*/}"* ]] ||
     echo "> ⚠ WRONG PACKAGE? release tag \`$tag\` does not name \`${name##*/}\`"
-done
+done < <(grep -oE 'releases/tag/[^)]+' <<<"$notes" | sed 's#releases/tag/##' | sort -u)
 
 echo
 echo '## PR diff'
@@ -179,6 +179,9 @@ echo
 echo '## Rendered manifest diff (render-diff.yml)'
 rendered=$(jq -r '[.comments[] | select(.body | startswith("<!-- flate-render-diff -->"))]
                   | last | .body // empty' <<<"$json")
+# SC2143 for the elif: not `! ... | grep -q`, since under pipefail grep -q
+# exiting early can SIGPIPE gh and flip the answer.
+# shellcheck disable=SC2143
 if [[ -n "$rendered" ]]; then
   echo "$rendered"
 elif [[ -z "$(gh pr diff "$pr" --name-only | grep -v '^\.github/')" ]]; then

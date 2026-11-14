@@ -4,10 +4,6 @@ set -euo pipefail
 # Helper script for secrets management operations
 # This script provides common secrets management workflows
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SECRETS_DIR="${PROJECT_ROOT}/secrets"
-
 usage() {
     cat <<USAGE
 Secrets Management Helper

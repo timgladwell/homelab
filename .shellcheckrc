@@ -1,0 +1,10 @@
+# Read by shellcheck (and editors) from any file below here.
+# Follow `source "$(dirname "$0")/lib.sh"` and `source scripts/lib.sh` to the
+# file they name, so the sourced functions and variables are checked too.
+external-sources=true
+source-path=SCRIPTDIR
+source-path=.
+
+# SC2001: `sed 's/^/  /'` indents every line of a multi-line value; the
+# parameter expansion it suggests cannot anchor per line, and is less clear.
+disable=SC2001
