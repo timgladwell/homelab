@@ -15,30 +15,31 @@ here touches a cluster.
 1. **Install the validation tools** at the versions pinned in
    `.github/workflows/validate.yml`, which is what CI runs: `flux`, `kustomize`,
    `kubeconform`, `kube-score`, `trivy`, `conftest`, `yamllint`, `alloy`,
-   `flate`, `helm`, `uv` and `python3`, plus `sops` and `age`. `helm` is not pinned:
+   `flate`, `helm`, `uv`, `ruff` and `python3`, plus `sops` and `age`. `helm` is not pinned:
    step 15 only reads chart metadata with it, and CI uses the runner's.
    - The `flux` pin tracks what the clusters run, not the newest release; see
      [Flux Upgrades](flux-upgrades.md).
    - `brew install grafana/grafana/alloy` — plain `brew install alloy` is an
      unrelated package.
-   - `yamllint` and `uv` through pipx (`brew install pipx`, then
+   - `yamllint`, `uv` and `ruff` through pipx (`brew install pipx`, then
      `pipx ensurepath` once), as CI installs them. Homebrew only carries the
      latest release of each, not the pin, so uninstall a Homebrew copy
-     (`brew uninstall yamllint uv`). From the checkout:
+     (`brew uninstall yamllint uv ruff`). From the checkout:
 
      ```bash
      pipx install "yamllint==$(sed -n 's/^ *YAMLLINT_VERSION: *//p' .github/workflows/validate.yml)"
      pipx install "uv==$(sed -n 's/^ *UV_VERSION: *//p' .github/workflows/validate.yml)"
+     pipx install "ruff==$(sed -n 's/^ *RUFF_VERSION: *//p' .github/workflows/validate.yml)"
      ```
 
      pipx gives each its own venv and links the command into `~/.local/bin`,
      so one install serves the main checkout and every worktree, and the
      validation steps call it by name as before; neither goes into `.venv`.
      When Renovate moves a pin, rerun its line with `--force`. Steps 1
-     (`yamllint`) and 17 (`uv`) fail on a copy that doesn't match its pin, and
+     (`yamllint`), 17 (`uv`) and 18 (`ruff`) fail on a copy that doesn't match its pin, and
      print the command that fixes it.
-     `uv`'s wheel is a standalone binary, so a Homebrew Python upgrade does
-     not stop it running; `yamllint` runs on pipx's Python, and
+     `uv`'s and `ruff`'s wheels are standalone binaries, so a Homebrew Python
+     upgrade does not stop them running; `yamllint` runs on pipx's Python, and
      `pipx reinstall yamllint` repairs it if an upgrade breaks it.
    - The Python libraries the scripts import (`requirements-dev.txt`), into a
      venv in the main checkout. `validate-k3s.sh` uses it from every worktree,
@@ -174,10 +175,16 @@ alloy fmt base/collector/collector.alloy
 alloy validate base/collector/collector.alloy
 ```
 
-**Run the Python tests** for `base/landing/app.py` and `base/pihole-sync/sync.py`:
+**Run the Python tests and lint** while iterating. The tests cover the
+programs that ship (Python beside a `kustomization.yaml`) and the repo's own
+tooling. They are `unittest`-style classes, run by pytest (config in
+`pyproject.toml`):
 
 ```bash
-python3 -m unittest discover -s tests
+.venv/bin/python3 -m pytest              # from the main checkout's .venv; in a worktree, ../../homelab/.venv
+.venv/bin/python3 -m pytest --lf -x      # only what failed last time, stopping at the first failure
+.venv/bin/python3 -m pytest -k landing   # tests whose name matches
+ruff check --fix . && ruff format .      # what step 18 checks, fixed in place
 ```
 
 ## Post-checks

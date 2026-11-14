@@ -3,10 +3,10 @@
 #
 # Fails unless the <tool> on PATH is the version .github/workflows/validate.yml
 # pins as <VAR>, so a local run can't disagree with CI because of a different
-# tool. For tools CI installs with pipx (yamllint, uv), as the
+# tool. For tools CI installs with pipx (yamllint, uv, ruff), as the
 # development-environment runbook does too; each failure prints the exact
 # command that fixes it. Assumes "<tool> --version" prints the version as its
-# second field, as both do.
+# second field, as all three do.
 require_pinned_tool() {
     local tool="$1" var="$2" root pinned path have
     root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
