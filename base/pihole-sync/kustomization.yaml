@@ -18,7 +18,11 @@ configMapGenerator:
       - sync.py
       # Imported by sync.py: Python puts the script's own directory (/sync) on
       # its import path, so a sibling file in the ConfigMap needs no packaging.
-      # Each is one responsibility: the outcome of a run, its logs, its metrics.
+      # Each is one responsibility, named in its own docstring: talking to
+      # Pi-hole, reconciling the config, the outcome of a run, its logs, its
+      # metrics.
+      - pihole_api.py
+      - reconcile.py
       - results.py
       - logs.py
       - metrics.py

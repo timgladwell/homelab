@@ -363,7 +363,7 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 
 | `pihole_sync_timestamp_seconds` | `site`, `event` = `run_finished`, `result`, `error` (omitted on success; one series per distinct error code in a failed run) | `base/pihole-sync/metrics.py`, pushed over OTLP |
 | `pihole_sync_changes_total` | `site`, `object`, `kind` (domains and lists), `action` | `base/pihole-sync/metrics.py`, pushed over OTLP |
-| `pihole_sync_request_duration_seconds` (histogram) | `site`, `method`, `route`, `status` | `base/pihole-sync/metrics.py`, pushed over OTLP |
+| `pihole_sync_request_duration_seconds` (histogram) | `site`, `method`, `route`, `status` | `base/pihole-sync/metrics.py`, pushed over OTLP; the route templates are in `base/pihole-sync/pihole_api.py` |
 
 `pihole_sync_request_duration_seconds` is one facet of the run: how Pi-hole's API behaved. The details of each request, its full path included, are in the program's log lines. Each run is a new process and the histogram is cumulative, so read it per run (`max_over_time(…_count[1h])`), not with `rate()`.
 

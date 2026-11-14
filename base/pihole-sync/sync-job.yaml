@@ -10,7 +10,8 @@ metadata:
     kube-score/ignore: pod-networkpolicy,container-image-pull-policy
 spec:
   # Flux force-recreates this Job when the ConfigMap hash changes (i.e. when
-  # pihole-config.yaml or sync.py changes). The 7-day TTL prevents completed
+  # pihole-config.yaml, sync.py, a module beside it, or requirements.txt
+  # changes; see the kustomization). The 7-day TTL prevents completed
   # pods accumulating indefinitely.
   ttlSecondsAfterFinished: 604800
   backoffLimit: 2
