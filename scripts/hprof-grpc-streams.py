@@ -16,7 +16,7 @@ import mmap
 import struct
 import sys
 
-f = open(sys.argv[1], 'rb')
+f = open(sys.argv[1], 'rb')  # noqa: SIM115 - mapped for the whole run
 m = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
 i = m.find(b'\0') + 1
 ids = struct.unpack_from('>I', m, i)[0]

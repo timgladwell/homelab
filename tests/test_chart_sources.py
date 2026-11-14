@@ -43,7 +43,7 @@ class Judge(unittest.TestCase):
         self.assertEqual(cs.judge("3.6.16", {"docker.io/grafana/loki:3.6.11"}, set()), (None, None))
 
     def test_pinned_tag_passes(self):
-        img, why = cs.judge("v5.5.0", {"ghcr.io/unpoller/unpoller:v5.8.1"}, {"v5.8.1"})
+        _, why = cs.judge("v5.5.0", {"ghcr.io/unpoller/unpoller:v5.8.1"}, {"v5.8.1"})
         self.assertEqual(why, "tag pinned in values")
 
 

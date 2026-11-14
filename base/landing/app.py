@@ -145,7 +145,7 @@ def validate(payload):
     and "stop blocking for 1..MAX_MINUTES-1 minutes".
     """
     if not isinstance(payload, dict):
-        raise ValueError("body must be a JSON object")
+        raise ValueError("body must be a JSON object")  # noqa: TRY004 - callers catch ValueError only
     blocking = payload.get("blocking")
     if blocking is not True and blocking is not False:
         raise ValueError("blocking must be true or false")
@@ -154,7 +154,7 @@ def validate(payload):
     minutes = payload.get("minutes")
     # bool is a subclass of int, so `True` would otherwise pass as 1 minute.
     if isinstance(minutes, bool) or not isinstance(minutes, int):
-        raise ValueError("minutes must be a whole number")
+        raise ValueError("minutes must be a whole number")  # noqa: TRY004 - as above
     if not 1 <= minutes < MAX_MINUTES:
         raise ValueError(f"minutes must be between 1 and {MAX_MINUTES - 1}")
     return False, minutes * 60
@@ -317,7 +317,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         try:
             status, resp = _call(method, path, body)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - any failure is a 502 or an empty panel; see above
             log(f"{method} {path} failed: {exc}", err=True)
             # urlopen raises TimeoutError directly on a read timeout and wraps
             # it in URLError on a connect timeout, so unwrap before testing.

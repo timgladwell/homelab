@@ -49,7 +49,7 @@ import yaml
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 FROZEN_DAYS = 60
 UA = {"User-Agent": "homelab-chart-sources"}  # GitHub Pages refuses urllib's default
-MANIFEST_TYPES = ",".join([
+MANIFEST_TYPES = ",".join([  # noqa: FLY002 - one per line reads better
     "application/vnd.oci.image.index.v1+json",
     "application/vnd.docker.distribution.manifest.list.v2+json",
     "application/vnd.oci.image.manifest.v1+json",
@@ -127,7 +127,7 @@ def index_entries(text, chart):
     """One chart's entries from a repo index.yaml, without parsing the whole multi-MB file."""
     # Helm writes each chart's list at the same indent as its key, so the
     # block ends at the next two-space key that is not a `- ` item.
-    m = re.search(rf"^  {re.escape(chart)}:\n(.*?)(?=^  [^\s-]|^\S|\Z)", text, re.M | re.S)
+    m = re.search(rf"^  {re.escape(chart)}:\n(.*?)(?=^  [^\s-]|^\S|\Z)", text, re.MULTILINE | re.DOTALL)
     return (yaml.safe_load(m.group(1)) or []) if m else []
 
 
@@ -173,7 +173,7 @@ def show_chart(repo, chart, ver=None):
     else:
         ref = [chart, "--repo", repo["url"]]
     cmd = ["helm", "show", "chart", *ref] + (["--version", ver] if ver else [])
-    p = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=180, check=False)
     if p.returncode:
         raise RuntimeError(f"{' '.join(cmd)}: {p.stderr.strip()}")
     return yaml.safe_load(p.stdout)
@@ -293,8 +293,8 @@ def newest_chart(repo, chart):
 
 
 def age_days(stamp):
-    when = datetime.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
-    return (datetime.datetime.now(datetime.timezone.utc) - when).days
+    when = datetime.datetime.fromisoformat(str(stamp))
+    return (datetime.datetime.now(datetime.UTC) - when).days
 
 
 def audit(build_dir):
@@ -341,7 +341,7 @@ def audit(build_dir):
                     finding(f"{rid}: cannot date the newest chart, and the app has moved past it: {state}")
                 else:
                     print(f"  ✓ {rid}: {state}")
-            except Exception as e:  # one unreachable source must not hide the others
+            except Exception as e:  # noqa: BLE001 - one unreachable source must not hide the others
                 finding(f"{rid}: could not audit: {e}")
 
     print("--- renovate docker pins ---")
@@ -357,7 +357,7 @@ def audit(build_dir):
         tag = split_image(value)[2] or value
         try:
             label = source_label(registry, repo, tag)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - as above
             finding(f"{dep}: could not read its labels: {e}")
             continue
         if label or dep in with_url:
