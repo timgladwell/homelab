@@ -16,6 +16,7 @@ Gravity is triggered when:
 
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -81,21 +82,43 @@ def _headers(sid=None):
     return headers
 
 
+# Pi-hole paths that carry a name, as the template a metric is labelled with. A
+# path itself has a domain name or a list URL in it, which would make one series
+# per object; the log line keeps the full path.
+_ROUTES = (
+    (re.compile(r"^/api/lists/[^/?]+"), "/api/lists/{url}"),
+    (re.compile(r"^/api/domains/(allow|deny)/exact/[^/?]+"), r"/api/domains/\1/exact/{domain}"),
+    (re.compile(r"^/api/groups/[^/?]+"), "/api/groups/{name}"),
+    (re.compile(r"^/api/clients/[^/?]+"), "/api/clients/{address}"),
+)
+
+
+def _route(path):
+    for pattern, template in _ROUTES:
+        if pattern.match(path):
+            return pattern.sub(template, path.split("?")[0])
+    return path.split("?")[0]
+
+
 def _request(method, path, body=None, sid=None, timeout=60):
     url = f"{PIHOLE_URL}{path}"
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, headers=_headers(sid), method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read()
-            return resp.status, json.loads(raw) if raw else {}
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode(errors="replace")
+    with obs.observed_request(method, path, _route(path)) as request:
         try:
-            return e.code, json.loads(raw)
-        except ValueError:
-            return e.code, {"error": raw}
-    # urllib.error.URLError propagates — _request_with_retry handles it
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                request.status = resp.status
+                raw = resp.read()
+                return resp.status, json.loads(raw) if raw else {}
+        except urllib.error.HTTPError as e:
+            request.status = e.code
+            with e:  # closes the response; an HTTPError holds the connection open
+                raw = e.read().decode(errors="replace")
+            try:
+                return e.code, json.loads(raw)
+            except ValueError:
+                return e.code, {"error": raw}
+        # urllib.error.URLError propagates — _request_with_retry handles it
 
 
 def _retry(attempt):

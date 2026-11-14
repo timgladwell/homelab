@@ -257,6 +257,9 @@ listed gets checked against this convention and added here.
 | `object` (pihole-sync) | `group`, `client`, `domain`, `list` |
 | `kind` (pihole-sync; domains and lists only) | `allow`, `block` |
 | `action` (pihole-sync) | `added`, `removed`, `updated` (group membership rewritten) |
+| `method` (pihole-sync) | `GET`, `POST`, `PUT`, `DELETE` |
+| `route` (pihole-sync) | the Pi-hole API path as a template, such as `/api/domains/deny/exact/{domain}`: never a path with a name in it, which would be a series per domain or list URL |
+| `status` (pihole-sync) | the HTTP status, or `error` when the request got no answer |
 
 **Unpoller's WAN metrics report `Default (default)`.** Since Unpoller v5
 (2026-10-21), every `unpoller_wan_*` series carries `site_name="Default
@@ -360,6 +363,9 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 
 | `pihole_sync_timestamp_seconds` | `site`, `event` = `run_finished`, `result`, `error` (omitted on success; one series per distinct error code in a failed run) | `base/pihole-sync/sync.py`, pushed over OTLP |
 | `pihole_sync_changes_total` | `site`, `object`, `kind` (domains and lists), `action` | `base/pihole-sync/sync.py`, pushed over OTLP |
+| `pihole_sync_request_duration_seconds` (histogram) | `site`, `method`, `route`, `status` | `base/pihole-sync/sync.py`, pushed over OTLP |
+
+`pihole_sync_request_duration_seconds` is one facet of the run: how Pi-hole's API behaved. The details of each request, its full path included, are in the program's log lines. Each run is a new process and the histogram is cumulative, so read it per run (`max_over_time(…_count[1h])`), not with `rate()`.
 
 `pihole_sync_timestamp_seconds` has no `occurrence`: a run is keyed by its Job,
 which Kubernetes already reports (`kube_job_status_start_time`), so only what

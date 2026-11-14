@@ -10,6 +10,7 @@ becomes its own image.
 """
 
 import contextlib
+import contextvars
 import dataclasses
 import enum
 import json
@@ -197,6 +198,13 @@ class Metrics:
         self.timestamp = meter.create_gauge(
             f"{_METRIC_PREFIX}pihole_sync.timestamp", unit="s", description="Time of a sync event, in unix seconds"
         )
+        # The SDK's default buckets are sized for milliseconds.
+        self.request_duration = meter.create_histogram(
+            f"{_METRIC_PREFIX}pihole_sync.request.duration",
+            unit="s",
+            description="How long each HTTP request to Pi-hole took",
+            explicit_bucket_boundaries_advisory=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60],
+        )
         # A counter's first sample is its baseline: without a 0 here, the
         # first change a run makes would be invisible to increase().
         for obj, kind in _OBJECTS:
@@ -226,8 +234,52 @@ def push_readers():
 
 
 # ---------------------------------------------------------------------------
-# The block that owns the end of a run
+# The blocks that own what must not be forgotten
 # ---------------------------------------------------------------------------
+
+# The metrics of the run in progress, so a request can report itself without
+# every function between it and main() carrying them.
+_current_metrics = contextvars.ContextVar("pihole_sync_metrics", default=None)
+
+
+class Request:
+    status = None  # set by the body; left None when the request never got an answer
+
+
+@contextlib.contextmanager
+def observed_request(method, path, route):
+    """Time one HTTP request and report it however it ends.
+
+        with observed_request("GET", path, route) as request:
+            ...
+            request.status = status
+
+    It writes one log line with the details (the full path, the status and the
+    duration), and one latency sample labelled by `route`, a template of the
+    path. Never label by the path itself: it carries domain names and list
+    URLs, and each would be a series of its own.
+
+    The histogram is cumulative and each run is a new process, so read it per
+    run (`max_over_time(..._count[1h])`), not with rate().
+    """
+    request = Request()
+    started = time.monotonic()
+    try:
+        yield request
+    finally:
+        seconds = time.monotonic() - started
+        status = "error" if request.status is None else request.status
+        log(
+            f"{method} {path}",
+            warn=status == "error",
+            method=method,
+            path=path,
+            status=status,
+            duration_ms=round(seconds * 1000),
+        )
+        metrics = _current_metrics.get()
+        if metrics:
+            metrics.request_duration.record(seconds, {"method": method, "route": route, "status": str(status)})
 
 
 class Run:
@@ -249,6 +301,7 @@ def observed_run():
     """
     run = Run()
     metrics = Metrics(push_readers())
+    token = _current_metrics.set(metrics)
     try:
         yield run
     except Exception as exc:
@@ -257,6 +310,7 @@ def observed_run():
         log_error(error, "Sync failed.")
         raise
     finally:
+        _current_metrics.reset(token)
         result = run.result
         # The same fact as the metrics, in the log, so each can be found from
         # the other.

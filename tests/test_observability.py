@@ -25,7 +25,8 @@ def metric_points(reader, name):
             for metric in sm.metrics:
                 if metric.name == name:
                     for dp in metric.data.data_points:
-                        found[frozenset(dp.attributes.items())] = dp.value
+                        # A histogram's point has a count, not a value.
+                        found[frozenset(dp.attributes.items())] = dp.value if hasattr(dp, "value") else dp.count
     return found
 
 
@@ -79,6 +80,56 @@ class Metrics(unittest.TestCase):
         self.metrics.record(obs.Result())
         (value,) = metric_points(self.reader, "pihole_sync.timestamp").values()
         self.assertGreater(value, 1_700_000_000)
+
+
+class ObservedRequest(unittest.TestCase):
+    def setUp(self):
+        self.reader = InMemoryMetricReader()
+        self.token = obs._current_metrics.set(obs.Metrics([self.reader]))
+
+    def tearDown(self):
+        obs._current_metrics.reset(self.token)
+
+    def samples(self):
+        return metric_points(self.reader, "pihole_sync.request.duration")
+
+    def test_a_request_is_one_log_line_with_its_details_and_one_latency_sample(self):
+        with (
+            self.assertLogs("pihole-sync", level="INFO") as logs,
+            obs.observed_request("GET", "/api/groups/Kids", "/api/groups/{name}") as request,
+        ):
+            request.status = 200
+        (record,) = logs.records
+        self.assertEqual(
+            {k: record.fields[k] for k in ("method", "path", "status")},
+            {"method": "GET", "path": "/api/groups/Kids", "status": 200},
+        )
+        self.assertIn("duration_ms", record.fields)
+        # The series is labelled by the route, never the path.
+        self.assertEqual(
+            self.samples(), {frozenset({"method": "GET", "route": "/api/groups/{name}", "status": "200"}.items()): 1}
+        )
+
+    def test_a_request_that_gets_no_answer_is_reported_as_an_error_and_still_raises(self):
+        with (
+            self.assertLogs("pihole-sync", level="INFO") as logs,
+            self.assertRaises(OSError),
+            obs.observed_request("POST", "/api/auth", "/api/auth"),
+        ):
+            raise OSError("connection refused")
+        self.assertEqual((logs.records[0].levelname, logs.records[0].fields["status"]), ("WARNING", "error"))
+        self.assertEqual(
+            set(self.samples()), {frozenset({"method": "POST", "route": "/api/auth", "status": "error"}.items())}
+        )
+
+    def test_outside_a_run_it_logs_and_records_nothing(self):
+        obs._current_metrics.set(None)  # no run in progress; tearDown restores
+        with (
+            self.assertLogs("pihole-sync", level="INFO"),
+            obs.observed_request("GET", "/api/auth", "/api/auth") as request,
+        ):
+            request.status = 200
+        self.assertEqual(self.samples(), {})
 
 
 class Errors(unittest.TestCase):
