@@ -17,7 +17,7 @@
 # accepted line covers the rendered Deployment and the live ReplicaSet.
 # Splitting also gives each finding its object in the name, which a scan of the
 # one multi-document file does not.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"

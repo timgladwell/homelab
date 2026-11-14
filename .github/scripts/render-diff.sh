@@ -34,7 +34,7 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
-source scripts/validate/lib-sites.sh
+source scripts/validate/manifests/lib-sites.sh
 
 base="${1:?usage: render-diff.sh <base-rev>}"
 # The setup action exports FLATE_BASE, which flate refuses alongside -P.

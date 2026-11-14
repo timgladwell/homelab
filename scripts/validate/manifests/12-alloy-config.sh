@@ -14,7 +14,7 @@
 # this file. They come from the built output rather than straight from the
 # .alloy files in the repo because that is where they are already hydrated with
 # each site's cluster-vars (step 3) — without that every ${VAR} is a parse error.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"

@@ -28,3 +28,5 @@ Thumbs.db
 
 # Byte-compiled sync.py (running its --self-check locally leaves these)
 __pycache__/
+.pytest_cache/
+.ruff_cache/

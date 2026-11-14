@@ -23,43 +23,78 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Pinned so CI and a developer's machine reach the same verdict. Only
+  # kustomize/kubeconform/kube-score/conftest are installed by hand — flux
+  # and trivy have first-party setup actions, and there is no first-party
+  # action for the other four.
+  #
+  # The `# renovate:` comments are what keeps these current — see the
+  # customManagers entry in renovate.json. Dependabot cannot cover them:
+  # its github-actions ecosystem bumps `uses:` refs, not version strings
+  # in env vars or action inputs. extractVersion strips the upstream tag
+  # down to the bare version these URLs interpolate.
+  # kustomize tags as `kustomize/v5.8.1`; no trailing `$` here only to stay
+  # inside yamllint's 120-column limit — anchoring the start is what matters.
+  # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.+)
+  KUSTOMIZE_VERSION: 5.8.3
+  # renovate: datasource=github-releases depName=yannh/kubeconform extractVersion=^v(?<version>.+)$
+  KUBECONFORM_VERSION: 0.8.0
+  # renovate: datasource=github-releases depName=zegl/kube-score extractVersion=^v(?<version>.+)$
+  KUBE_SCORE_VERSION: 1.20.0
+  # renovate: datasource=github-releases depName=open-policy-agent/conftest extractVersion=^v(?<version>.+)$
+  CONFTEST_VERSION: 0.71.1
+  # renovate: datasource=pypi depName=yamllint
+  YAMLLINT_VERSION: 1.38.0
+  # Compiles the requirements*.in files, and checks their lockfiles
+  # (step 17). Renovate runs it too, from the lockfile headers.
+  # renovate: datasource=pypi depName=uv
+  UV_VERSION: 0.13.7
+  # Lints and format-checks every Python file (step 18).
+  # renovate: datasource=pypi depName=ruff
+  RUFF_VERSION: 0.17.5
+  # No ALLOY_VERSION pin: the manifests job derives it from the alloy chart.
+
+# One job per group of scripts/validate-k3s.sh, so each installs only the tools
+# its steps use and the three run in parallel. Promote to stable reads this
+# workflow's overall conclusion, so every job still gates promotion.
 jobs:
-  validate:
+  repo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      # pipx and python3 are preinstalled; step 09 needs only the stdlib.
+      - run: pipx install "yamllint==${YAMLLINT_VERSION}"
+      - run: ./scripts/validate-k3s.sh repo
+
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      # The minor the pods run: base/landing/deployment.yaml and
+      # base/pihole-sync/sync-job.yaml both pin python:3.15.x. Also gives pip a
+      # writable environment: the runner's system python is PEP 668
+      # externally-managed (docs/runbooks/development-environment.md).
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.15'
+      - name: Install tools
+        run: |
+          set -euo pipefail
+          pipx install "uv==${UV_VERSION}"
+          pipx install "ruff==${RUFF_VERSION}"
+          PYYAML_FORCE_LIBYAML=0 pip install --require-hashes -r requirements-dev.txt
+      - run: ./scripts/validate-k3s.sh python
+
+  manifests:
     runs-on: ubuntu-latest
     # A full run takes under a minute. Without this, a hang runs to GitHub's
     # 6-hour default before anyone is told; step 15 has hung once already.
     # Room for the five download steps' 7-minute caps (see "Retry transient
     # download failures") to all run slow and still finish.
     timeout-minutes: 40
-    env:
-      # Pinned so CI and a developer's machine reach the same verdict. Only
-      # kustomize/kubeconform/kube-score/conftest are installed by hand — flux
-      # and trivy have first-party setup actions, and there is no first-party
-      # action for the other four.
-      #
-      # The `# renovate:` comments are what keeps these current — see the
-      # customManagers entry in renovate.json. Dependabot cannot cover them:
-      # its github-actions ecosystem bumps `uses:` refs, not version strings
-      # in env vars or action inputs. extractVersion strips the upstream tag
-      # down to the bare version these URLs interpolate.
-      # kustomize tags as `kustomize/v5.8.1`; no trailing `$` here only to stay
-      # inside yamllint's 120-column limit — anchoring the start is what matters.
-      # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.+)
-      KUSTOMIZE_VERSION: 5.8.3
-      # renovate: datasource=github-releases depName=yannh/kubeconform extractVersion=^v(?<version>.+)$
-      KUBECONFORM_VERSION: 0.8.0
-      # renovate: datasource=github-releases depName=zegl/kube-score extractVersion=^v(?<version>.+)$
-      KUBE_SCORE_VERSION: 1.20.0
-      # renovate: datasource=github-releases depName=open-policy-agent/conftest extractVersion=^v(?<version>.+)$
-      CONFTEST_VERSION: 0.71.1
-      # renovate: datasource=pypi depName=yamllint
-      YAMLLINT_VERSION: 1.38.0
-      # Compiles the requirements*.in files, and checks their lockfiles
-      # (step 17). Renovate runs it too, from the lockfile headers.
-      # renovate: datasource=pypi depName=uv
-      UV_VERSION: 0.13.7
-      # No ALLOY_VERSION pin: the next step derives it from the alloy chart.
-
     steps:
       - uses: actions/checkout@v7
 
@@ -115,13 +150,12 @@ jobs:
           echo "alloy chart $ranges deploys Alloy $app"
           echo "ALLOY_VERSION=$app" >> "$GITHUB_ENV"
 
-      # Pinned to the minor the clusters run — base/landing/deployment.yaml and
-      # base/pihole-sync/sync-job.yaml both pin python:3.15.x, and step 13's
-      # tests should run on the interpreter the pods will. Also gives pip a
-      # writable environment: the runner's system python is PEP 668
-      # externally-managed, so installing into it needs --break-system-packages,
-      # which leaves an interpreter in a state no file here describes; a last
-      # resort (docs/runbooks/development-environment.md).
+      # For substitute.py (step 3) and chart_sources.py (step 15), at the minor
+      # the python job tests them on. Also gives pip a writable environment:
+      # the runner's system python is PEP 668 externally-managed, so installing
+      # into it needs --break-system-packages, which leaves an interpreter in a
+      # state no file here describes; a last resort
+      # (docs/runbooks/development-environment.md).
       - name: Setup Python
         uses: actions/setup-python@v7
         with:
@@ -190,12 +224,8 @@ jobs:
           unzip -q alloy.zip && mv alloy-linux-amd64 "$HOME/.local/bin/alloy"
           chmod +x "$HOME/.local/bin/alloy"
 
-          pipx install "yamllint==${YAMLLINT_VERSION}"
-          pipx install "uv==${UV_VERSION}"
-
           # Libraries, not applications, so they go into the environment
-          # substitute.py actually runs in rather than a pipx venv. yamllint's
-          # pipx copy of PyYAML is not importable from there.
+          # substitute.py actually runs in rather than a pipx venv.
           PYYAML_FORCE_LIBYAML=0 pip install --require-hashes -r "$GITHUB_WORKSPACE/requirements-dev.txt"
 
       - name: Tool versions
@@ -206,7 +236,6 @@ jobs:
           kube-score version
           trivy --version | head -1
           conftest --version | head -1
-          yamllint --version
           alloy --version | head -1
           flate --version
           python3 --version
@@ -219,7 +248,7 @@ jobs:
       - name: Validate
         env:
           K3S_BUILD_DIR: ${{ runner.temp }}/k3s-build
-        run: ./scripts/validate-k3s.sh
+        run: ./scripts/validate-k3s.sh manifests
 
       # Whether each chart source still moves its app: redirects, frozen
       # sources, deprecated charts, Renovate pins without release notes. See

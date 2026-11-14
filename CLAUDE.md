@@ -103,7 +103,7 @@ docs/current-state/      state that code does not define
 docs/adr/                one decision per system-level design question
 docs/runbooks/           procedures for a specific outcome, indexed in
                          docs/runbooks.md by kind
-scripts/validate-k3s.sh  the validation pipeline; steps in scripts/validate/
+scripts/validate-k3s.sh  the validation pipeline; steps in scripts/validate/<group>/
 ```
 
 ## Before changing…

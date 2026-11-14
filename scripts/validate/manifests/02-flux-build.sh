@@ -6,7 +6,7 @@
 # Because the path comes from the object rather than a copy kept in this
 # script, a spec.path pointing at a directory that doesn't exist fails here
 # instead of on the cluster after merge.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 source "$(dirname "$0")/lib-sites.sh"
 

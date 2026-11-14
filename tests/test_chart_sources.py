@@ -1,4 +1,5 @@
 """Tests for scripts/chart_sources.py's offline logic. The network parts are exercised by step 15 and the audit."""
+
 import unittest
 
 from loader import load
@@ -27,8 +28,10 @@ class SplitImage(unittest.TestCase):
     def test_forms(self):
         self.assertEqual(cs.split_image("traefik:v3.7.16"), ("docker.io", "library/traefik", "v3.7.16"))
         self.assertEqual(cs.split_image("docker.io/grafana/loki:3.7.9"), ("docker.io", "grafana/loki", "3.7.9"))
-        self.assertEqual(cs.split_image("registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0"),
-                         ("registry.k8s.io", "kube-state-metrics/kube-state-metrics", "v2.20.0"))
+        self.assertEqual(
+            cs.split_image("registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0"),
+            ("registry.k8s.io", "kube-state-metrics/kube-state-metrics", "v2.20.0"),
+        )
         self.assertEqual(cs.split_image("localhost:5000/app:1.0@sha256:ff"), ("localhost:5000", "app", "1.0"))
         self.assertEqual(cs.split_image("grafana/loki"), ("docker.io", "grafana/loki", ""))
 
@@ -43,14 +46,16 @@ class Judge(unittest.TestCase):
         self.assertEqual(cs.judge("3.6.16", {"docker.io/grafana/loki:3.6.11"}, set()), (None, None))
 
     def test_pinned_tag_passes(self):
-        img, why = cs.judge("v5.5.0", {"ghcr.io/unpoller/unpoller:v5.8.1"}, {"v5.8.1"})
+        _, why = cs.judge("v5.5.0", {"ghcr.io/unpoller/unpoller:v5.8.1"}, {"v5.8.1"})
         self.assertEqual(why, "tag pinned in values")
 
 
 class Walkers(unittest.TestCase):
     def test_images_and_values_tags(self):
-        pod = {"spec": {"containers": [{"image": "a:1"}], "initContainers": [{"image": "b:2"}]},
-               "metadata": {"annotations": {"image": "c:3"}}}
+        pod = {
+            "spec": {"containers": [{"image": "a:1"}], "initContainers": [{"image": "b:2"}]},
+            "metadata": {"annotations": {"image": "c:3"}},
+        }
         self.assertEqual(sorted(cs.images(pod)), ["a:1", "b:2", "c:3"])
         self.assertEqual(list(cs.values_tags({"image": {"tag": "v5.8.1"}, "x": [{"tag": 3}]})), ["v5.8.1", "3"])
 
@@ -67,7 +72,7 @@ class IndexEntries(unittest.TestCase):
         "  loki:\n"
         "  - appVersion: 3.6.16\n"
         "    version: 7.5.0\n"
-        "generated: \"2026-10-25T00:00:00Z\"\n"
+        'generated: "2026-10-25T00:00:00Z"\n'
     )
 
     def test_slices_one_chart(self):
