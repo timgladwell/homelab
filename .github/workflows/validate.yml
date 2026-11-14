@@ -49,7 +49,7 @@ env:
   # Compiles the requirements*.in files, and checks their lockfiles
   # (step 17). Renovate runs it too, from the lockfile headers.
   # renovate: datasource=pypi depName=uv
-  UV_VERSION: 0.13.7
+  UV_VERSION: 0.13.8
   # Lints and format-checks every Python file (step 18).
   # renovate: datasource=pypi depName=ruff
   RUFF_VERSION: 0.17.5
