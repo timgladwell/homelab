@@ -3,7 +3,7 @@
 # Depends on the kustomize build output from 03-kustomize-build.sh.
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 source "$(dirname "$0")/lib-sites.sh"
 
 fail=0

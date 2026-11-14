@@ -3,7 +3,7 @@
 # that ship, the scripts, the validation helpers and the tests. Config is in
 # pyproject.toml. To fix: `ruff check --fix .` and `ruff format .`.
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 # ruff's rules and formatting change between releases, so another version than
 # CI's can pass a file CI fails, or the reverse.
 source scripts/lib-pinned-tool.sh

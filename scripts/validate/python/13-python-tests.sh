@@ -16,7 +16,7 @@
 # pytest is the runner (requirements-dev.in); the tests stay unittest-style
 # classes, which it runs unchanged. Config is in pyproject.toml.
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 
 output=$(python3 -m pytest -v 2>&1)
 status=$?

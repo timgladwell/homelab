@@ -1,7 +1,7 @@
 #!/bin/bash
 # Validate Kubernetes schemas against each site's built manifest.
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 source "$(dirname "$0")/lib-sites.sh"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
 

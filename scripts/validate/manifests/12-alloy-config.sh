@@ -16,7 +16,7 @@
 # each site's cluster-vars (step 3) — without that every ${VAR} is a parse error.
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 BUILD_DIR="${K3S_BUILD_DIR:-${TMPDIR:-/tmp}}"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 source "$(dirname "$0")/lib-sites.sh"
 
 if ! command -v alloy >/dev/null 2>&1; then

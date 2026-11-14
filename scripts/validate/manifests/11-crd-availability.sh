@@ -21,7 +21,7 @@
 # walking the dependency graph for little benefit — the first layer is where
 # this bug actually happens.
 REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 source "$(dirname "$0")/lib-sites.sh"
 
 # API groups every cluster has, plus the toolkit groups Flux itself installs
