@@ -90,7 +90,7 @@ envsubst error: variable substitution failed: variable not set (strict mode): "d
 So when a release touches substitution, verify by reading step 7's output rather than trusting a green run:
 
 ```bash
-./scripts/validate/03-kustomize-build.sh && ./scripts/validate/07-variable-check.sh
+./scripts/validate/manifests/03-kustomize-build.sh && ./scripts/validate/manifests/07-variable-check.sh
 ```
 
 Any resource whose `${...}` belongs to the target application rather than to Flux must opt out explicitly, and then Flux never touches it:

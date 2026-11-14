@@ -17,7 +17,7 @@
 # A mismatch in the *values* still gets through here. It surfaces as the
 # landing page failing every call while Pi-hole itself is healthy — noted in
 # docs/runbooks/pihole-access.md and in the bootstrap runbook.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 
 fail=0

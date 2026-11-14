@@ -119,11 +119,16 @@ The tests run what the sync Job runs: `requirements-dev.in` includes
 lockfile, so the two can't pin different versions of a shared package. That
 lockfile is also what the Job installs, so a change to it re-runs the Job.
 
-**Validate everything** — the same seventeen steps CI runs, per site:
+**Validate everything** — the same steps CI runs, per site:
 
 ```bash
 ./scripts/validate-k3s.sh
 ```
+
+Or one group of them, as each CI job does: `manifests` (build, schema,
+policy, chart render, the trivy scans), `repo` (yamllint and the repo
+invariants) or `python` (tests and lockfiles). A Python-only change needs only
+`./scripts/validate-k3s.sh python`, which needs none of the cluster tools.
 
 **Build one layer or component** while iterating. Plain `kustomize build` does
 not substitute `${VAR}` placeholders; the full pipeline does.

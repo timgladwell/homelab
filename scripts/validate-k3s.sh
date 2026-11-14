@@ -1,7 +1,15 @@
 #!/bin/bash
-# validate-k3s.sh — runs all validation steps and reports a structured summary.
+# validate-k3s.sh [group...] — runs validation steps and reports a structured summary.
 # Each step runs independently; failures do not prevent subsequent steps from running.
 # The output is structured so that failures are easy to identify and fix.
+#
+# Steps are grouped by what they need, one directory each under validate/, so
+# a group runs without the others' tools. CI runs each as a job of its own.
+# With no arguments every group runs, which is what "validate" means locally.
+#   manifests  builds the manifests and checks what would deploy (flux,
+#              kustomize, kubeconform, kube-score, conftest, alloy, flate, trivy)
+#   repo       repo invariants no build is needed for (yamllint, stdlib python)
+#   python     the Python tests and the lockfiles (the .venv, uv)
 #
 # Conventions for every step:
 # - Warnings are errors. A step fails on any finding at any severity. A check
@@ -101,75 +109,88 @@ skip_step() {
     ((SKIP++))
 }
 
-# Step 1: YAML lint — independent
-run_step "YAML Lint" "$VALIDATE_DIR/01-yaml-lint.sh"
+group_manifests() {
+    local VALIDATE_DIR="$VALIDATE_DIR/manifests"
 
-# Step 2: Flux build — gates kustomize build and all downstream steps
-if run_step "Flux Build" "$VALIDATE_DIR/02-flux-build.sh"; then
-    flux_build_ok=true
-else
-    flux_build_ok=false
-fi
-
-if [[ "$flux_build_ok" == true ]]; then
-    # Step 3: Kustomize build — gates schema, best practices, variable refs, conftest
-    if run_step "Kustomize Build" "$VALIDATE_DIR/03-kustomize-build.sh"; then
-        build_ok=true
+    # Step 2: Flux build — gates kustomize build and all downstream steps
+    if run_step "Flux Build" "$VALIDATE_DIR/02-flux-build.sh"; then
+        flux_build_ok=true
     else
-        build_ok=false
+        flux_build_ok=false
     fi
 
-    if [[ "$build_ok" == true ]]; then
-        run_step "Schema Validation" "$VALIDATE_DIR/04-schema-validate.sh"
-        run_step "Best Practices" "$VALIDATE_DIR/05-best-practices.sh"
-        run_step "Variable References" "$VALIDATE_DIR/07-variable-check.sh"
-        run_step "Policy (conftest)" "$VALIDATE_DIR/08-conftest.sh"
-        run_step "CRD Availability" "$VALIDATE_DIR/11-crd-availability.sh"
-        run_step "Alloy Configs" "$VALIDATE_DIR/12-alloy-config.sh"
+    if [[ "$flux_build_ok" == true ]]; then
+        # Step 3: Kustomize build — gates schema, best practices, variable refs, conftest
+        if run_step "Kustomize Build" "$VALIDATE_DIR/03-kustomize-build.sh"; then
+            build_ok=true
+        else
+            build_ok=false
+        fi
+
+        if [[ "$build_ok" == true ]]; then
+            run_step "Schema Validation" "$VALIDATE_DIR/04-schema-validate.sh"
+            run_step "Best Practices" "$VALIDATE_DIR/05-best-practices.sh"
+            run_step "Variable References" "$VALIDATE_DIR/07-variable-check.sh"
+            run_step "Policy (conftest)" "$VALIDATE_DIR/08-conftest.sh"
+            run_step "CRD Availability" "$VALIDATE_DIR/11-crd-availability.sh"
+            run_step "Alloy Configs" "$VALIDATE_DIR/12-alloy-config.sh"
+        else
+            skip_step "Schema Validation" "kustomize build failed"
+            skip_step "Best Practices" "kustomize build failed"
+            skip_step "Variable References" "kustomize build failed"
+            skip_step "Policy (conftest)" "kustomize build failed"
+            skip_step "CRD Availability" "kustomize build failed"
+            skip_step "Alloy Configs" "kustomize build failed"
+        fi
     else
-        skip_step "Schema Validation" "kustomize build failed"
-        skip_step "Best Practices" "kustomize build failed"
-        skip_step "Variable References" "kustomize build failed"
-        skip_step "Policy (conftest)" "kustomize build failed"
-        skip_step "CRD Availability" "kustomize build failed"
-        skip_step "Alloy Configs" "kustomize build failed"
+        skip_step "Kustomize Build" "flux build failed"
+        skip_step "Schema Validation" "flux build failed"
+        skip_step "Best Practices" "flux build failed"
+        skip_step "Variable References" "flux build failed"
+        skip_step "Policy (conftest)" "flux build failed"
+        skip_step "CRD Availability" "flux build failed"
+        skip_step "Alloy Configs" "flux build failed"
     fi
-else
-    skip_step "Kustomize Build" "flux build failed"
-    skip_step "Schema Validation" "flux build failed"
-    skip_step "Best Practices" "flux build failed"
-    skip_step "Variable References" "flux build failed"
-    skip_step "Policy (conftest)" "flux build failed"
-    skip_step "CRD Availability" "flux build failed"
-    skip_step "Alloy Configs" "flux build failed"
-fi
 
-# Step 6: Security scan — independent
-run_step "Security Scan" "$VALIDATE_DIR/06-security-scan.sh"
+    # Step 6: Security scan — independent; here because it scans the manifests
+    # with the trivy step 16 needs anyway
+    run_step "Security Scan" "$VALIDATE_DIR/06-security-scan.sh"
 
-# Step 9: Dependency coverage — independent (reads the repo, not the build output)
-run_step "Dependency Coverage" "$VALIDATE_DIR/09-dependabot-coverage.sh"
+    # Step 15: Chart render — independent (flate reads the repo itself, with its
+    # own postBuild substitution; it does not use step 3's build output). Gates
+    # step 16, which scans what it rendered.
+    if run_step "Chart Render" "$VALIDATE_DIR/15-chart-render.sh"; then
+        run_step "Rendered Security Scan" "$VALIDATE_DIR/16-rendered-security-scan.sh"
+    else
+        skip_step "Rendered Security Scan" "chart render failed"
+    fi
+}
 
-# Step 10: Secrets encrypted — independent
-run_step "Secrets Encrypted" "$VALIDATE_DIR/10-secrets-encrypted.sh"
+group_repo() {
+    local VALIDATE_DIR="$VALIDATE_DIR/repo"
+    run_step "YAML Lint" "$VALIDATE_DIR/01-yaml-lint.sh"
+    # Reads the repo, not the build output
+    run_step "Dependency Coverage" "$VALIDATE_DIR/09-dependabot-coverage.sh"
+    run_step "Secrets Encrypted" "$VALIDATE_DIR/10-secrets-encrypted.sh"
+    run_step "Pi-hole Secret Pairs" "$VALIDATE_DIR/14-pihole-secret-pairs.sh"
+}
 
-# Step 13: Python tests — independent (the two programs, not the manifests)
-run_step "Python Tests" "$VALIDATE_DIR/13-python-tests.sh"
+group_python() {
+    local VALIDATE_DIR="$VALIDATE_DIR/python"
+    run_step "Python Tests" "$VALIDATE_DIR/13-python-tests.sh"
+    # Reads requirements*.in
+    run_step "Requirements Lockfiles" "$VALIDATE_DIR/17-requirements-lock.sh"
+}
 
-# Step 14: Pi-hole secret pairs — independent
-run_step "Pi-hole Secret Pairs" "$VALIDATE_DIR/14-pihole-secret-pairs.sh"
-
-# Step 15: Chart render — independent (flate reads the repo itself, with its
-# own postBuild substitution; it does not use step 3's build output). Gates
-# step 16, which scans what it rendered.
-if run_step "Chart Render" "$VALIDATE_DIR/15-chart-render.sh"; then
-    run_step "Rendered Security Scan" "$VALIDATE_DIR/16-rendered-security-scan.sh"
-else
-    skip_step "Rendered Security Scan" "chart render failed"
-fi
-
-# Step 17: Requirements lockfiles — independent (reads requirements*.in)
-run_step "Requirements Lockfiles" "$VALIDATE_DIR/17-requirements-lock.sh"
+groups=("$@")
+[[ ${#groups[@]} -eq 0 ]] && groups=(manifests repo python)
+for g in "${groups[@]}"; do
+    case "$g" in
+        manifests|repo|python) ;;
+        *) echo "unknown group: $g (expected manifests, repo or python)" >&2; exit 2 ;;
+    esac
+done
+for g in "${groups[@]}"; do "group_$g"; done
 
 # Summary
 echo ""

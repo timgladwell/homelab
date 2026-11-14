@@ -11,7 +11,7 @@
 #
 # clusters/*/flux-system is excluded on purpose — Flux's own controller images
 # are upgraded through the Flux CLI, not by bumping tags in git.
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO_ROOT"
 
 CONFIG=".github/dependabot.yml"
