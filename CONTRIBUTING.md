@@ -275,10 +275,11 @@ comment on the receiving issue, and the closing comment says where each loose
 end went.
 
 <!-- TEMPORARY(until: 2027-01-31, issue: #214): retires when Alertmanager has a real receiver. -->
-**An alerting or dashboard gap goes in #221** while nothing can alert (#214), so
-the gaps keep their ranking in one place. An alert that a change depends on is
-part of that change and ships with it. Once alerts notify, a gap an incident
-exposes is closed with the rest of that incident's work instead.
+**An alerting gap goes in #620 and a dashboard gap in #621** while nothing can
+alert (#214), so the gaps keep their ranking in one place. An alert that a
+change depends on is part of that change and ships with it. Once alerts
+notify, a gap an incident exposes is closed with the rest of that incident's
+work instead.
 
 ### Exploratory issues
 
