@@ -19,7 +19,13 @@ spec:
   # An upgrade pod left Unknown/255 beside a Completed retry is usually
   # expected: docs/runbooks/k3s-upgrade-pod-unknown.md confirms it.
   upgrade:
-    image: rancher/k3s-upgrade
+    # The job runs privileged and replaces the k3s binary, so its image is
+    # pinned by digest. The tag must be `version:` below with `+` as `-`: the
+    # controller marks the Plan done at `version:` whatever the image installs.
+    # Renovate bumps both in one PR; policy/k3s_upgrade_plan_image.rego fails
+    # a Plan where they differ (#705).
+    # renovate: datasource=docker depName=rancher/k3s-upgrade
+    image: rancher/k3s-upgrade:v1.37.2-k3s1@sha256:69b48cf32cf51ed23ed86348fc913db1e00d1ddc00369ded18953dcad859a6e1
   # Pinned rather than `channel:` on purpose. A channel is resolved inside the
   # cluster at upgrade time, so the Kubernetes version never appears in git —
   # neither Renovate nor Dependabot can see it, and both boxes could cross a
@@ -49,10 +55,13 @@ spec:
     args:
       - prepare
       - server-plan
-    image: rancher/k3s-upgrade
+    # Pinned as in server-plan above.
+    # renovate: datasource=docker depName=rancher/k3s-upgrade
+    image: rancher/k3s-upgrade:v1.37.2-k3s1@sha256:69b48cf32cf51ed23ed86348fc913db1e00d1ddc00369ded18953dcad859a6e1
   serviceAccountName: system-upgrade
   upgrade:
-    image: rancher/k3s-upgrade
+    # renovate: datasource=docker depName=rancher/k3s-upgrade
+    image: rancher/k3s-upgrade:v1.37.2-k3s1@sha256:69b48cf32cf51ed23ed86348fc913db1e00d1ddc00369ded18953dcad859a6e1
   # Keep in lockstep with server-plan above — see the rationale there.
   # renovate: datasource=github-releases depName=k3s-io/k3s
   version: v1.37.2+k3s1
