@@ -21,7 +21,7 @@ configMapGenerator:
       # Each is one responsibility, named in its own docstring: talking to
       # Pi-hole, reconciling the config, the outcome of a run, its logs, its
       # metrics.
-      - pihole_api.py
+      - pihole_client.py
       - reconcile.py
       - results.py
       - logs.py

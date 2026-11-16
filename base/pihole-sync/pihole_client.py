@@ -19,12 +19,13 @@ import time
 import urllib.parse
 from collections.abc import Collection, Iterator
 from http import HTTPStatus
-from typing import Any
+from typing import TYPE_CHECKING, Any, Self
 
 import requests
 from logs import error_field, log
-from metrics import Metrics
-from results import ErrorCode
+
+if TYPE_CHECKING:  # only for the annotation; the app hands the client its Metrics
+    from metrics import Metrics
 
 # Named so Pi-hole's own logs attribute these calls to this syncer.
 _USER_AGENT = "pihole-sync"
@@ -119,15 +120,6 @@ class PiholeError(Exception):
         """True when it is the kind of failure that was retried: it may pass."""
         return _transient(self.status)
 
-    @property
-    def code(self) -> ErrorCode:
-        """The `ErrorCode` the failure is reported under."""
-        if self.status is None:
-            return ErrorCode.NETWORK
-        if self.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
-            return ErrorCode.AUTH
-        return ErrorCode.PIHOLE_API
-
 
 @contextlib.contextmanager
 def _parsing(method: str, route: str, status: int) -> Iterator[None]:
@@ -190,7 +182,7 @@ class PiholeClient:
         self._session.headers["User-Agent"] = _USER_AGENT
         self._logged_in = False
 
-    def __enter__(self) -> "PiholeClient":
+    def __enter__(self) -> Self:
         """Log in, and return the client for the `with` block."""
         self.login()
         return self
@@ -249,7 +241,8 @@ class PiholeClient:
                 log(
                     "LOGOUT FAILED: the Pi-hole session stays open until it expires, holding one of its limited seats.",
                     warn=True,
-                    **error_field(exc.code, str(exc)),
+                    status="error" if exc.status is None else exc.status,
+                    **error_field(None, str(exc)),
                 )
             self._logged_in = False
             self._session.headers.pop("X-FTL-SID", None)
@@ -480,7 +473,9 @@ class PiholeClient:
             started = time.monotonic()
             exception = None
             try:
-                response = self._session.request(method, self._url + path, params=params, json=json, timeout=self._timeout)
+                response = self._session.request(
+                    method, self._url + path, params=params, json=json, timeout=self._timeout
+                )
             except requests.RequestException as exc:  # unreachable, refused, or too slow to connect or answer
                 status = None
                 exception = exc
@@ -528,15 +523,17 @@ class PiholeClient:
 
         The line carries an `error` object only for an attempt that will be
         retried, since nothing else reports it; a final failure is reported by
-        whoever handles the `PiholeError`.
+        whoever handles the `PiholeError`. It has no `code`: codes classify a
+        run's outcome, and a retried attempt isn't one.
         """
         seconds = time.monotonic() - started
         label = "error" if status is None else str(status)
         fields: dict[str, Any] = {"method": method, "path": path, "status": label, "duration_ms": round(seconds * 1000)}
         if error:
             fields.update(
-                error_field(error.code, str(error), exception=type(exception).__name__ if exception else None, retry=retry)
+                error_field(None, str(error), exception=type(exception).__name__ if exception else None, retry=retry)
             )
-        log(f"{method} {path}", warn=status is None or status >= HTTPStatus.BAD_REQUEST, **fields)
+        # A warning only when it carries the error object (logs.py: every warning does).
+        log(f"{method} {path}", warn=error is not None, **fields)
         if self._metrics:
             self._metrics.record_request(method, route, label, seconds)

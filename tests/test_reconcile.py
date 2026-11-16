@@ -1,206 +1,220 @@
-"""base/pihole-sync/reconcile.py — making Pi-hole match the config, with Pi-hole faked out.
+"""base/pihole-sync/reconcile.py — making Pi-hole match the config, against a fake Pi-hole.
 
-Ported from the `--self-check` that used to live at the bottom of sync.py.
-That check tested the right thing and nothing ever ran it; the point of moving
-it here is that validation step 13 does.
+The reconciler talks to Pi-hole only through the client's methods, so the fake
+stands in for the client and no HTTP is involved.
 """
 
 import unittest
+from http import HTTPStatus
 
 import logs
-import pihole_api
-import reconcile
-import results
+from pihole_client import AdList, Client, DomainType, Group, ListType, PiholeError
+from reconcile import Reconciler
+from results import Action, Change, ErrorCode, Kind, Object, SyncResult
 
 
 class FakePihole:
-    """Records every call and answers from a canned list of adlists."""
+    """A Pi-hole held in memory. `refuse` maps a method name to the status it fails with."""
 
-    def __init__(self, lists=None):
+    def __init__(self, groups=(), lists=(), domains=(), clients=(), refuse=None):
+        self.groups_ = {g.name: g for g in groups}
+        self.lists_ = list(lists)
+        self.domains_ = list(domains)
+        self.clients_ = list(clients)
+        self.refuse = refuse or {}
         self.calls = []
-        self.lists = lists or []
 
-    def __call__(self, method, path, body=None, sid=None, timeout=60):
-        self.calls.append((method, path, body))
-        if method == "GET" and path.startswith("/api/lists"):
-            return 200, {"lists": self.lists}
-        return 200, {}
+    def _call(self, name, *args):
+        self.calls.append((name, *args))
+        if name in self.refuse:
+            raise PiholeError(f"{name} refused", method="X", route="/api/x", status=self.refuse[name])
 
-    def of(self, method):
-        return [call for call in self.calls if call[0] == method]
+    def of(self, name):
+        return [call[1:] for call in self.calls if call[0] == name]
+
+    def groups(self):
+        self._call("groups")
+        return list(self.groups_.values())
+
+    def add_group(self, name):
+        self._call("add_group", name)
+        self.groups_[name] = Group(len(self.groups_) + 10, name)
+
+    def delete_group(self, name):
+        self._call("delete_group", name)
+
+    def lists(self, list_type):
+        self._call("lists", list_type)
+        return [lst for lst in self.lists_ if lst.type == list_type]
+
+    def add_list(self, address, list_type, groups, comment):
+        self._call("add_list", address, list_type, groups, comment)
+
+    def update_list(self, adlist):
+        self._call("update_list", adlist)
+
+    def delete_list(self, address, list_type):
+        self._call("delete_list", address, list_type)
+
+    def domains(self, domain_type):
+        self._call("domains", domain_type)
+        return [d for d in self.domains_ if d.type == domain_type]
+
+    def add_domain(self, domain, domain_type, groups, comment):
+        self._call("add_domain", domain, domain_type, groups, comment)
+
+    def update_domain(self, domain):
+        self._call("update_domain", domain)
+
+    def delete_domain(self, domain, domain_type):
+        self._call("delete_domain", domain, domain_type)
+
+    def clients(self):
+        self._call("clients")
+        return list(self.clients_)
+
+    def add_client(self, address, groups, comment):
+        self._call("add_client", address, groups, comment)
+
+    def update_client(self, client):
+        self._call("update_client", client)
+
+    def delete_client(self, address):
+        self._call("delete_client", address)
 
 
-class SyncLists(unittest.TestCase):
-    """The failure that prompted the original self-check.
+GROUPS = (Group(0, "Default"), Group(7, "Extra"))
 
-    An adlist that already exists but whose groups have drifted from config
-    must be PUT back — and that PUT alone must not drag in a gravity rebuild,
-    which takes ~10 minutes and was being triggered on every run.
+
+def reconcile(pihole, config):
+    """Run a whole reconciliation; return its result.
+
+    The config wants the groups in GROUPS unless it says otherwise, so a test
+    about something else doesn't also remove a group.
     """
+    config.setdefault("groups", [{"name": "Extra"}])
+    result = SyncResult()
+    Reconciler(pihole, config, result).run()
+    return result
+
+
+class Quiet(unittest.TestCase):
+    def setUp(self):
+        logs.logger.disabled = True  # the reconciler logs a running commentary
+
+    def tearDown(self):
+        logs.logger.disabled = False
+
+
+class Lists(Quiet):
+    """The failure that prompted the original self-check: an existing list whose
+    groups drifted must be written back, and that alone must not trigger the
+    ~10 minute gravity rebuild."""
 
     def setUp(self):
-        # sync.py logs a running commentary, which is useful in a Job's pod
-        # logs and noise in a test run.
-        logs.logger.disabled = True
-        self.real = pihole_api.request_with_retry
-        # id=1 sits in group 0 only; the config below wants it in 0 and 7.
-        self.fake = FakePihole(
+        super().setUp()
+        self.pihole = FakePihole(
+            groups=GROUPS,
             lists=[
-                {"address": "http://a", "id": 1, "number": 5, "groups": [0]},
-                {"address": "http://b", "id": 2, "number": 5, "groups": [0]},
-            ]
+                AdList("http://a", ListType.BLOCK, groups=(0,), domain_count=5),
+                AdList("http://b", ListType.BLOCK, groups=(0,), domain_count=5),
+            ],
         )
-        pihole_api.request_with_retry = self.fake
-        self.cfg = {
+        self.config = {
             "block_lists": [
                 {"url": "http://a", "groups": ["Default", "Extra"]},
                 {"url": "http://b", "groups": ["Default"]},
             ]
         }
-        self.groups = {"Default": 0, "Extra": 7}
 
-    def tearDown(self):
-        pihole_api.request_with_retry = self.real
-        logs.logger.disabled = False
-
-    def test_regroups_only_the_drifted_list(self):
-        reconcile.sync_lists(self.cfg, "", self.groups, "block", "block_lists")
-        puts = self.fake.of("PUT")
-        self.assertEqual(len(puts), 1, f"expected exactly one PUT, got {puts}")
-        self.assertEqual(puts[0][1], "/api/lists/http%3A%2F%2Fa?type=block")
-        self.assertEqual(sorted(puts[0][2]["groups"]), [0, 7])
-
-    def test_regrouping_does_not_trigger_gravity(self):
-        gravity = reconcile.sync_lists(self.cfg, "", self.groups, "block", "block_lists").gravity_needed
-        self.assertFalse(gravity, "a regroup alone must not trigger gravity")
+    def test_regroups_only_the_drifted_list_without_gravity(self):
+        result = reconcile(self.pihole, self.config)
+        (update,) = self.pihole.of("update_list")
+        self.assertEqual((update[0].address, sorted(update[0].groups)), ("http://a", [0, 7]))
+        self.assertEqual(result.changes, {Change(Object.LIST, Action.UPDATED, Kind.BLOCK): 1})
+        self.assertFalse(result.gravity_required)
 
     def test_no_drift_means_no_writes(self):
-        self.cfg["block_lists"][0]["groups"] = ["Default"]
-        gravity = reconcile.sync_lists(self.cfg, "", self.groups, "block", "block_lists").gravity_needed
-        self.assertEqual(self.fake.of("PUT"), [])
-        self.assertEqual(self.fake.of("POST"), [])
-        self.assertFalse(gravity)
+        self.config["block_lists"][0]["groups"] = ["Default"]
+        result = reconcile(self.pihole, self.config)
+        writes = [c for c in self.pihole.calls if c[0].startswith(("add_", "update_", "delete_"))]
+        self.assertEqual(writes, [])
+        self.assertFalse(result.gravity_required)
 
-    def test_empty_list_forces_gravity(self):
-        # number == 0 means a previous gravity run did not finish for that list.
-        self.fake.lists[1]["number"] = 0
-        self.cfg["block_lists"][0]["groups"] = ["Default"]
-        gravity = reconcile.sync_lists(self.cfg, "", self.groups, "block", "block_lists").gravity_needed
-        self.assertTrue(gravity, "a list with 0 domains loaded must re-run gravity")
+    def test_a_list_with_no_domains_loaded_requires_gravity(self):
+        self.pihole.lists_[1] = AdList("http://b", ListType.BLOCK, groups=(0,), domain_count=0)
+        self.config["block_lists"][0]["groups"] = ["Default"]
+        self.assertTrue(reconcile(self.pihole, self.config).gravity_required)
 
-    def test_new_list_is_added_with_the_right_body(self):
-        self.cfg["block_lists"].append({"url": "http://c", "groups": ["Default", "Extra"], "comment": "new one"})
-        gravity = reconcile.sync_lists(self.cfg, "", self.groups, "block", "block_lists").gravity_needed
+    def test_adding_a_list_sends_group_ids_and_requires_gravity(self):
+        self.config["block_lists"].append({"url": "http://c", "groups": ["Default", "Extra"], "comment": "new"})
+        result = reconcile(self.pihole, self.config)
+        # Group *ids*: posting the names creates a list attached to no group.
+        self.assertEqual(self.pihole.of("add_list"), [("http://c", ListType.BLOCK, (0, 7), "new")])
+        self.assertTrue(result.gravity_required)
 
-        posts = self.fake.of("POST")
-        self.assertEqual(len(posts), 1, f"expected one POST, got {posts}")
-        _, path, body = posts[0]
-        # type is a query parameter, not a body field — Pi-hole ignores a
-        # blocklist POSTed to the allowlist endpoint rather than erroring.
-        self.assertEqual(path, "/api/lists?type=block")
+    def test_removing_a_list_requires_gravity(self):
+        self.config["block_lists"].pop()
+        result = reconcile(self.pihole, self.config)
+        self.assertEqual(self.pihole.of("delete_list"), [("http://b", ListType.BLOCK)])
+        self.assertTrue(result.gravity_required)
+
+
+class Groups(Quiet):
+    def test_ids_are_read_back_so_a_concurrent_create_is_known_too(self):
+        class Raced(FakePihole):
+            def add_group(self, name):
+                self.groups_[name] = Group(9, name)  # another writer got there first
+                raise PiholeError("exists", method="POST", route="/api/groups", status=HTTPStatus.CONFLICT)
+
+        pihole = Raced(groups=GROUPS)
+        config = {"groups": [{"name": "Kids"}], "allow_domains": [{"domain": "a.example", "groups": ["Kids"]}]}
+        result = reconcile(pihole, config)
+        self.assertTrue(result.ok, "a 409 on add is not an error")
+        self.assertEqual(pihole.of("add_domain"), [("a.example", DomainType.ALLOW, (9,), "")])
+
+    def test_a_failed_read_ends_the_run_instead_of_reading_as_empty(self):
+        # Read as empty, every object's groups would be written back as [].
+        pihole = FakePihole(groups=GROUPS, refuse={"groups": HTTPStatus.UNAUTHORIZED})
+        with self.assertRaises(PiholeError):
+            reconcile(pihole, {"groups": [{"name": "Kids"}]})
+        self.assertEqual(pihole.of("update_list") + pihole.of("update_domain") + pihole.of("update_client"), [])
+
+    def test_default_is_never_removed_and_extras_are(self):
+        pihole = FakePihole(groups=(*GROUPS, Group(8, "Old")))
+        result = reconcile(pihole, {"groups": [{"name": "Extra"}]})
+        self.assertEqual(pihole.of("delete_group"), [("Old",)])
+        self.assertEqual(result.changes[Change(Object.GROUP, Action.REMOVED)], 1)
+
+
+class Failures(Quiet):
+    def test_a_refused_write_is_an_error_and_the_rest_still_run(self):
+        pihole = FakePihole(groups=GROUPS, refuse={"add_domain": HTTPStatus.BAD_REQUEST})
+        config = {"block_domains": [{"domain": "a.example"}, {"domain": "b.example"}]}
+        result = reconcile(pihole, config)
+        self.assertEqual(len(pihole.of("add_domain")), 2, "the second domain must still be tried")
         self.assertEqual(
-            body,
-            {
-                "address": "http://c",
-                "enabled": True,
-                # Group *ids*, resolved from names. Posting the names silently
-                # creates a list attached to no group.
-                "groups": [0, 7],
-                "comment": "new one",
-            },
+            [(e.code, e.fatal, e.context["status"]) for e in result.errors], [(ErrorCode.PIHOLE_API, False, 400)] * 2
         )
-        self.assertTrue(gravity, "adding an adlist must re-run gravity")
-
-    def test_removed_list_is_deleted_with_an_escaped_url(self):
-        # The URL is a path segment, so an unescaped one truncates at its first
-        # slash and deletes whatever that names instead.
-        self.cfg["block_lists"] = [{"url": "http://a", "groups": ["Default", "Extra"]}]
-        reconcile.sync_lists(self.cfg, "", self.groups, "block", "block_lists")
-        deletes = self.fake.of("DELETE")
-        self.assertEqual(len(deletes), 1, f"expected one DELETE, got {deletes}")
-        self.assertEqual(deletes[0][1], "/api/lists/http%3A%2F%2Fb?type=block")
-
-
-class ResolveGroupIds(unittest.TestCase):
-    def test_maps_names_to_ids(self):
-        self.assertEqual(reconcile._resolve_group_ids(["Default", "Extra"], {"Default": 0, "Extra": 7}), [0, 7])
-
-    def test_unknown_group_is_skipped_not_fatal(self):
-        # A typo in the config should not abort a whole sync; sync.py logs a
-        # warning and carries on with the groups it recognised.
-        self.assertEqual(reconcile._resolve_group_ids(["Default", "Nope"], {"Default": 0}), [0])
-
-    def test_empty(self):
-        self.assertEqual(reconcile._resolve_group_ids([], {"Default": 0}), [])
-
-
-class ProtectedGroups(unittest.TestCase):
-    def test_default_group_is_never_removed(self):
-        # Deleting Default detaches every list and client from their group.
-        self.assertIn("Default", reconcile._PROTECTED_GROUPS)
-
-
-class FailingPost(FakePihole):
-    """Answers every POST with an error, and everything else normally."""
-
-    def __call__(self, method, path, body=None, sid=None, timeout=60):
-        if method == "POST":
-            self.calls.append((method, path, body))
-            return 400, {"error": {"message": "nope"}}
-        return super().__call__(method, path, body=body, sid=sid, timeout=timeout)
-
-
-class RunResult(unittest.TestCase):
-    """What a sync returns: what it changed, and everything that went wrong.
-
-    Outcomes are values returned by the sync functions, not state kept beside
-    them, so these tests assert on what they return.
-    """
-
-    def setUp(self):
-        logs.logger.disabled = True
-        self.real_request = pihole_api.request_with_retry
-
-    def tearDown(self):
-        logs.logger.disabled = False
-        pihole_api.request_with_retry = self.real_request
-
-    def test_a_change_is_counted_by_object_kind_and_action(self):
-        pihole_api.request_with_retry = FakePihole(lists=[])
-        cfg = {"block_lists": [{"url": "http://c", "groups": ["Default"]}]}
-        result = reconcile.sync_lists(cfg, "", {"Default": 0}, "block", "block_lists")
-        self.assertEqual(result.changes[("list", "block", "added")], 1)
-        self.assertTrue(result.ok)
-
-    def test_deny_domains_are_reported_as_block(self):
-        pihole_api.request_with_retry = FakePihole()
-        cfg = {"block_domains": [{"domain": "x.example", "groups": ["Default"]}]}
-        result = reconcile.sync_domains(cfg, "", {"Default": 0}, "deny", "block_domains")
-        self.assertEqual(result.changes[("domain", "block", "added")], 1)
-
-    def test_a_failed_object_is_an_error_and_the_rest_still_run(self):
-        fake = pihole_api.request_with_retry = FailingPost()
-        cfg = {
-            "block_domains": [
-                {"domain": "a.example", "groups": ["Default"]},
-                {"domain": "b.example", "groups": ["Default"]},
-            ]
-        }
-        result = reconcile.sync_domains(cfg, "", {"Default": 0}, "deny", "block_domains")
-        self.assertFalse(result.ok)
-        self.assertEqual([e.code for e in result.errors], [results.ErrorCode.PIHOLE_API] * 2)
-        self.assertEqual(len(fake.of("POST")), 2, "the second domain must still be tried")
-        self.assertEqual(result.errors[0].context["status"], 400)
-        self.assertFalse(result.errors[0].fatal)
         self.assertEqual(sum(result.changes.values()), 0)
 
-    def test_results_merge(self):
-        a, b = results.Result(), results.Result()
-        a.change("domain", "added", "block")
-        b.change("domain", "added", "block")
-        b.fail(results.ErrorCode.PIHOLE_API, "boom")
-        b.gravity_needed = True
-        a.merge(b)
-        self.assertEqual(a.changes[("domain", "block", "added")], 2)
-        self.assertEqual(len(a.errors), 1)
-        self.assertTrue(a.gravity_needed)
+    def test_pihole_out_of_reach_on_a_write_ends_the_run(self):
+        pihole = FakePihole(groups=GROUPS, refuse={"add_domain": None})
+        config = {"block_domains": [{"domain": "a.example"}, {"domain": "b.example"}]}
+        with self.assertRaises(PiholeError):
+            reconcile(pihole, config)
+        self.assertEqual(len(pihole.of("add_domain")), 1, "no point trying the rest")
+
+    def test_deny_domains_are_reported_as_block(self):
+        result = reconcile(FakePihole(groups=GROUPS), {"block_domains": [{"domain": "x.example"}]})
+        self.assertEqual(result.changes[Change(Object.DOMAIN, Action.ADDED, Kind.BLOCK)], 1)
+
+    def test_an_unknown_group_is_skipped_not_fatal(self):
+        pihole = FakePihole(groups=GROUPS)
+        reconcile(pihole, {"clients": [{"address": "10.0.0.5", "groups": ["Default", "Nope"]}]})
+        self.assertEqual(pihole.of("add_client"), [("10.0.0.5", (0,), "")])
+
+    def test_a_client_is_regrouped_with_its_comment_from_the_config(self):
+        pihole = FakePihole(groups=GROUPS, clients=[Client("10.0.0.5", groups=(0,), comment="old")])
+        reconcile(pihole, {"clients": [{"address": "10.0.0.5", "groups": ["Extra"], "comment": "tv"}]})
+        self.assertEqual(pihole.of("update_client"), [(Client("10.0.0.5", groups=(7,), comment="tv"),)])

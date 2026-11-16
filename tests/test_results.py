@@ -1,35 +1,41 @@
-"""base/pihole-sync/results.py — the outcome of a run, and the closed list of error codes."""
+"""base/pihole-sync/results.py — the outcome of a run, and the closed lists its metrics carry."""
 
 import unittest
 
 import logs
-import results
+from pihole_client import PiholeError
+from results import ALL_CHANGES, Error, ErrorCode, SyncResult, classify
 
 
-class Errors(unittest.TestCase):
+def pihole_error(status):
+    return PiholeError("x", method="GET", route="/api/groups", status=status)
+
+
+class Codes(unittest.TestCase):
     def test_every_code_is_a_valid_label_value(self):
+        # A new value is a change to the naming convention's accepted values.
         self.assertEqual(
-            {str(c) for c in results.ErrorCode}, {"config", "auth", "network", "pihole_api", "gravity", "unknown"}
+            {str(c) for c in ErrorCode},
+            {"config", "auth", "network", "pihole_api", "gravity", "terminated", "unknown"},
         )
 
-    def test_every_retriable_failure_says_why_a_restart_can_fix_it(self):
-        self.assertTrue(set(results.RETRIABLE) <= set(results.ErrorCode))
-        self.assertTrue(all(reason.strip() for reason in results.RETRIABLE.values()))
-        # What a restart can't fix exits 0 (ADR 0010).
-        for code in (results.ErrorCode.CONFIG, results.ErrorCode.AUTH, results.ErrorCode.UNKNOWN):
-            self.assertNotIn(code, results.RETRIABLE)
+    def test_a_pihole_error_is_classified_by_its_status(self):
+        for status, code in [(None, "network"), (401, "auth"), (403, "auth"), (404, "pihole_api"), (503, "pihole_api")]:
+            with self.subTest(status=status):
+                self.assertEqual(classify(pihole_error(status)), code)
 
-    def test_classify(self):
-        self.assertEqual(results.classify(results.SyncError(results.ErrorCode.AUTH, "x")), "auth")
-        self.assertEqual(results.classify(OSError("refused")), "network")
-        self.assertEqual(results.classify(KeyError("groups")), "unknown")
+    def test_every_change_series_is_listed_once(self):
+        self.assertEqual(len(set(ALL_CHANGES)), 6 * 3)
+        self.assertNotIn("kind", ALL_CHANGES[0].attributes)  # a group has no kind
 
-    def test_a_result_with_no_errors_is_ok_and_any_error_makes_it_a_failure(self):
-        result = results.Result()
+
+class Result(unittest.TestCase):
+    def test_no_errors_is_ok_and_any_error_makes_it_a_failure(self):
+        result = SyncResult()
         self.assertTrue(result.ok)
         logs.logger.disabled = True
         try:
-            result.fail(results.ErrorCode.PIHOLE_API, "boom")
+            result.add_error(Error(ErrorCode.PIHOLE_API, "boom"))
         finally:
             logs.logger.disabled = False
         self.assertFalse(result.ok)

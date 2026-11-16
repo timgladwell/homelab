@@ -1,85 +1,104 @@
 """The outcome of a run: what it changed, and everything that went wrong.
 
-A run produces one `Result`. It is a success when it has no errors and a failure
-when it has one or more; there is no in-between, and something that doesn't
-matter is a warning in the log, not an error here. The sync functions each
-return a `Result`, and the run merges them.
+A run produces one `SyncResult`. It is a success when it has no errors and a
+failure when it has one or more; there is no in-between, and something that
+doesn't matter is a warning in the log, not an error here.
 
-`ErrorCode` is the closed list of failure types. It is what the metrics label
-carries, and the logs carry the same value beside the detail.
+The enums are closed lists, because they are metric labels: `ErrorCode` for
+what went wrong, and `Object`, `Action` and `Kind` for what changed. The logs
+carry the same values beside the detail. A new value is a change to the
+accepted values in docs/current-state/naming-convention.md.
 """
 
 import dataclasses
 import enum
 from collections import Counter
+from http import HTTPStatus
 
 from logs import log_error
+from pihole_client import PiholeError
 
 
 class ErrorCode(enum.StrEnum):
-    """The closed list of failure types.
-
-    Metrics carry only these (the `error` label on pihole_sync_timestamp), and
-    logs carry the same value as `error.code` beside the detail. A new value is
-    a change to the accepted values in docs/current-state/naming-convention.md.
-    """
+    """The closed list of failure types: the `error` label on pihole_sync_timestamp."""
 
     CONFIG = "config"  # config or clients file unreadable or invalid
-    AUTH = "auth"  # Pi-hole refused the password or gave no session
+    AUTH = "auth"  # Pi-hole refused the password
     NETWORK = "network"  # Pi-hole unreachable after every retry
     PIHOLE_API = "pihole_api"  # Pi-hole answered, but not with what was needed
     GRAVITY = "gravity"  # the gravity rebuild failed
-    UNKNOWN = "unknown"  # anything not classified above: a bug
+    TERMINATED = "terminated"  # the pod was stopped mid-run (SIGTERM)
+    UNKNOWN = "unknown"  # anything not handled where it happened: a bug, or unforeseen
 
 
-# The failures a prompt restart can fix, each with why. A run that ends on any
-# other code exits 0: the Job is not retried, because the outcome is in the
-# metrics and the logs, not in the exit status (docs/adr/0010-how-a-job-reports-
-# its-outcome.md). Decide a new ErrorCode here when it is added, not later.
-#
-# Not retriable: CONFIG (the ConfigMap is wrong, and a restart reads the same
-# one), AUTH (the password doesn't change when the Job does), UNKNOWN (a bug).
-RETRIABLE = {
-    ErrorCode.NETWORK: "Pi-hole may be restarting or briefly unreachable",
-    ErrorCode.PIHOLE_API: "Pi-hole answered with an error, often while it restarts or rebuilds",
-    ErrorCode.GRAVITY: "the gravity flag file makes the next attempt re-run the rebuild",
-}
+def classify(exc: PiholeError) -> ErrorCode:
+    """The `ErrorCode` a failed call to Pi-hole is reported under.
 
-
-class SyncError(Exception):
-    """Raised when the run can't go on: it ends there, and is one fatal Error.
-
-    Attributes:
-        code: The `ErrorCode` that says what kind of failure it was.
+    It lives here, not in the client, because the codes are this program's
+    vocabulary and the client's is HTTP's. Split them further only when one
+    status has to mean different things in the two.
     """
-
-    def __init__(self, code, message):
-        """Create the error.
-
-        Args:
-            code: The `ErrorCode` for this failure.
-            message: What went wrong, for the log.
-        """
-        super().__init__(message)
-        self.code = code
-
-
-def classify(exc):
-    """Say which `ErrorCode` an exception stands for.
-
-    Args:
-        exc: Any exception that ended a run.
-
-    Returns:
-        The exception's own code if it is a `SyncError`, `NETWORK` for an
-        `OSError` (which covers `URLError` and socket timeouts), and `UNKNOWN`
-        for anything else, which is a bug.
-    """
-    if isinstance(exc, SyncError):
-        return exc.code
-    if isinstance(exc, OSError):  # URLError and socket timeouts
+    if exc.status is None:
         return ErrorCode.NETWORK
-    return ErrorCode.UNKNOWN
+    if exc.status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
+        return ErrorCode.AUTH
+    return ErrorCode.PIHOLE_API
+
+
+class Object(enum.StrEnum):
+    """What kind of Pi-hole object changed."""
+
+    GROUP = "group"
+    CLIENT = "client"
+    DOMAIN = "domain"
+    LIST = "list"
+
+
+class Action(enum.StrEnum):
+    """What happened to it."""
+
+    ADDED = "added"
+    REMOVED = "removed"
+    UPDATED = "updated"
+
+
+class Kind(enum.StrEnum):
+    """Allow or block, for domains and lists; the other objects have no kind."""
+
+    ALLOW = "allow"
+    BLOCK = "block"
+
+
+@dataclasses.dataclass(frozen=True)
+class Change:
+    """One kind of change, such as "a block domain was added"."""
+
+    object: Object
+    action: Action
+    kind: Kind | None = None
+
+    @property
+    def attributes(self) -> dict[str, str]:
+        """The metric attributes; `kind` is left out when there is none."""
+        attributes = {"object": str(self.object), "action": str(self.action)}
+        if self.kind:
+            attributes["kind"] = str(self.kind)
+        return attributes
+
+
+# Every kind of change a run can report, so each series can start at zero.
+ALL_CHANGES = tuple(
+    Change(obj, action, kind)
+    for obj, kind in (
+        (Object.GROUP, None),
+        (Object.CLIENT, None),
+        (Object.DOMAIN, Kind.ALLOW),
+        (Object.DOMAIN, Kind.BLOCK),
+        (Object.LIST, Kind.ALLOW),
+        (Object.LIST, Kind.BLOCK),
+    )
+    for action in Action
+)
 
 
 @dataclasses.dataclass
@@ -91,75 +110,51 @@ class Error:
         message: What went wrong, for the log.
         fatal: True when it ended the run, False when the run went on.
         exception: The exception's class name, if there was an exception.
-        context: Where it happened, such as `method`, `path` and `status`. It
+        context: Where it happened, such as `method`, `route` and `status`. It
             becomes top-level fields on the log line.
+        backtrace: This program's frames, for a failure nothing handled.
     """
 
     code: ErrorCode
     message: str
     fatal: bool = False
-    exception: str | None = None  # the exception class name, if there was one
-    context: dict = dataclasses.field(default_factory=dict)  # method, path, status...
+    exception: str | None = None
+    context: dict[str, object] = dataclasses.field(default_factory=dict)
+    backtrace: list[str] | None = None
 
 
 @dataclasses.dataclass
-class Result:
-    """The outcome of the processing: what changed, and everything that went wrong.
+class SyncResult:
+    """What a run changed, and everything that went wrong.
 
-    A run is a success when it has no errors, and a failure when it has one or
-    more. There is no in-between: something that doesn't matter is a warning in
-    the log, not an error here.
+    The reconciler and the entry point add to the same one as they go, so what
+    was changed before a fatal error is still reported.
 
     Attributes:
-        changes: How many objects were changed, keyed by
-            `(object, kind, action)`, such as `("domain", "block", "added")`.
+        changes: How many objects were changed, by kind of change.
         errors: Every `Error` that came up, fatal or not.
-        gravity_needed: True when what changed means Pi-hole must rebuild its
-            gravity database.
+        gravity_required: True when Pi-hole must rebuild its gravity database.
     """
 
-    changes: Counter = dataclasses.field(default_factory=Counter)  # (object, kind, action) -> n
-    errors: list = dataclasses.field(default_factory=list)
-    gravity_needed: bool = False
+    changes: Counter[Change] = dataclasses.field(default_factory=Counter)
+    errors: list[Error] = dataclasses.field(default_factory=list)
+    gravity_required: bool = False
 
     @property
-    def ok(self):
+    def ok(self) -> bool:
         """True when the run has no errors."""
         return not self.errors
 
-    def change(self, obj, action, kind=None):
-        """Count one object as changed.
+    def change(self, obj: Object, action: Action, kind: Kind | None = None) -> None:
+        """Count one object as changed."""
+        self.changes[Change(obj, action, kind)] += 1
+
+    def add_error(self, error: Error, message: str | None = None) -> None:
+        """Record an error and log it where it happened.
 
         Args:
-            obj: What kind of object: "group", "client", "domain" or "list".
-            action: "added", "removed" or "updated".
-            kind: "allow" or "block" for a domain or a list, and None for the
-                objects that have no such split.
+            error: The error.
+            message: The log line's message; defaults to the error's own.
         """
-        self.changes[(obj, kind, action)] += 1
-
-    def fail(self, code, message, **context):
-        """Record a non-fatal error and log it where it happened.
-
-        Args:
-            code: The `ErrorCode` for this failure.
-            message: What went wrong.
-            **context: Where it happened, such as `method`, `path` and `status`.
-        """
-        error = Error(code, message, context=context)
         self.errors.append(error)
-        log_error(error)
-
-    def merge(self, other):
-        """Add another result's changes and errors to this one.
-
-        Args:
-            other: The `Result` of one step, such as syncing the groups.
-
-        Returns:
-            This result, so a call can be chained.
-        """
-        self.changes.update(other.changes)
-        self.errors.extend(other.errors)
-        self.gravity_needed |= other.gravity_needed
-        return self
+        log_error(error, message)

@@ -9,8 +9,14 @@ all the exceptions can be shown with one filter.
 
 import json
 import logging
+import os
 import sys
 import time
+import traceback
+
+# This program's own files: a backtrace keeps only frames from here, dropping
+# Python's and the installed libraries' (in the Job, /sync against /tmp/pydeps).
+_PROGRAM_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def _ts():
@@ -67,11 +73,13 @@ def log(msg, *, err=False, warn=False, **fields):
     logger.log(level, msg.strip(), extra={"fields": fields})
 
 
-def error_field(code, message, *, exception=None, fatal=False, retry=None):
+def error_field(code, message, *, exception=None, fatal=False, retry=None, backtrace=None):
     """Build the `error` object that every error and warning line carries.
 
     Args:
-        code: An `ErrorCode`, or its string value.
+        code: An `ErrorCode`, or its string value. None for a warning that isn't
+            a run's outcome, such as an attempt that will be retried; the key is
+            then left out.
         message: The exception's message, or what went wrong.
         exception: The exception's class name, if there was an exception.
         fatal: True when the error ended the run.
@@ -79,10 +87,17 @@ def error_field(code, message, *, exception=None, fatal=False, retry=None):
             tried again, and None when it won't, in which case the key is left
             out.
 
+        backtrace: This program's frames (see `backtrace`), for a failure
+            nothing handled.
+
     Returns:
         `{"error": {...}}`, ready to pass to `log` as `**error_field(...)`.
     """
-    error = {"code": str(code), "fatal": fatal, "message": message}
+    error = {"fatal": fatal, "message": message}
+    if code:
+        error["code"] = str(code)
+    if backtrace:
+        error["backtrace"] = backtrace
     if exception:
         error["exception"] = exception
     if retry:
@@ -99,5 +114,26 @@ def log_error(error, msg=None):
         msg: The line's message. Defaults to the error's own message.
     """
     fields = dict(error.context)
-    fields.update(error_field(error.code, error.message, exception=error.exception, fatal=error.fatal))
+    fields.update(
+        error_field(error.code, error.message, exception=error.exception, fatal=error.fatal, backtrace=error.backtrace)
+    )
     log(msg or error.message, err=True, **fields)
+
+
+def backtrace(exc):
+    """Where an exception came from, in this program's own code.
+
+    Frames in Python's standard library and the installed packages are left
+    out: they say how a library failed, and the message already says that.
+
+    Args:
+        exc: The exception, after it was raised.
+
+    Returns:
+        One `file.py:line in function` per frame, outermost first.
+    """
+    return [
+        f"{os.path.basename(frame.filename)}:{frame.lineno} in {frame.name}"
+        for frame in traceback.extract_tb(exc.__traceback__)
+        if os.path.dirname(os.path.abspath(frame.filename)) == _PROGRAM_DIR
+    ]

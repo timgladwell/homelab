@@ -1,96 +1,154 @@
-"""base/pihole-sync/sync.py — main() hands the run's Result to the metrics, however the run ends."""
+"""base/pihole-sync/sync.py — the run's lifecycle: which failures exit non-zero, and that every run is reported.
 
+ADR 0010: a non-zero exit means "retry me", never "I failed". Whether the run
+succeeded is in the result handed to the metrics.
+"""
+
+import os
+import pathlib
+import signal
+import tempfile
 import unittest
+from http import HTTPStatus
 
 import logs
 import metrics
-import results
 import sync
+from pihole_client import PiholeError
+from results import Action, ErrorCode, Object
 
 
-class ObservedRun(unittest.TestCase):
-    """main() hands the run's Result to the metrics, however the run ends."""
+class FakeClient:
+    """Stands in for PiholeClient: `fail_on` names the method that raises `error`."""
 
+    error = None
+    fail_on = None
+    instances = []
+
+    def __init__(self, url, password, metrics):
+        self.closed = False
+        FakeClient.instances.append(self)
+
+    def _maybe_fail(self, where):
+        if FakeClient.fail_on == where:
+            raise FakeClient.error
+
+    def __enter__(self):
+        self._maybe_fail("login")
+        return self
+
+    def __exit__(self, *exc_info):
+        self.closed = True
+
+    def run_gravity(self):
+        self._maybe_fail("gravity")
+
+
+class Run(unittest.TestCase):
     def setUp(self):
-        self.real_run = sync._run
-        self.real_record = metrics.Metrics.record
         logs.logger.disabled = True
+        self.dir = tempfile.TemporaryDirectory()
+        d = pathlib.Path(self.dir.name)
+        (d / "config.yaml").write_text("groups: []\n")
+        (d / "clients.yaml").write_text("clients: []\n")
+        self.patches = {
+            (sync, "CONFIG_PATH"): str(d / "config.yaml"),
+            (sync, "CLIENTS_PATH"): str(d / "clients.yaml"),
+            (sync, "STATE_DIR"): str(d / "state"),
+            (sync, "_GRAVITY_FLAG"): str(d / "state" / "gravity.flag"),
+            (sync, "PiholeClient"): FakeClient,
+            (sync.Reconciler, "run"): lambda me: None,
+            (metrics.Metrics, "record"): lambda me, result: self.recorded.append(result),
+        }
+        self.saved = {key: getattr(*key) for key in self.patches}
+        for (obj, name), value in self.patches.items():
+            setattr(obj, name, value)
+        os.environ.setdefault("PIHOLE_URL", "http://pihole.invalid")
+        FakeClient.error = FakeClient.fail_on = None
+        FakeClient.instances = []
+        self.recorded = []
+        self.sigterm = signal.getsignal(signal.SIGTERM)
 
     def tearDown(self):
+        for (obj, name), value in self.saved.items():
+            setattr(obj, name, value)
+        signal.signal(signal.SIGTERM, self.sigterm)
+        self.dir.cleanup()
         logs.logger.disabled = False
-        sync._run = self.real_run
-        metrics.Metrics.record = self.real_record
 
-    def run_main(self, run):
-        """Run main() around `run`; return the Result it recorded."""
-        sync._run = run
-        recorded = []
-        metrics.Metrics.record = lambda me, result: recorded.append(result)
-        # A raised exception is the Job exiting non-zero, so keep it to assert on.
-        self.raised = None
-        try:
-            sync.main()
-        except Exception as exc:  # noqa: BLE001 - whichever it is, the test inspects it
-            self.raised = exc
-        self.assertEqual(len(recorded), 1, "the metrics must be recorded exactly once")
-        return recorded[0]
+    def main(self):
+        """Run main(); return (exit status, the one result handed to the metrics)."""
+        status = sync.main()
+        self.assertEqual(len(self.recorded), 1, "every run is recorded exactly once")
+        return status, self.recorded[0]
 
-    def test_a_clean_run_is_ok(self):
-        self.assertTrue(self.run_main(lambda result: None).ok)
+    def fail_with(self, where, error):
+        FakeClient.fail_on, FakeClient.error = where, error
 
-    def test_the_job_exits_non_zero_only_when_a_restart_can_fix_the_failure(self):
-        # ADR 0010: a non-zero exit is "retry me", never "I failed". Every code is
-        # checked, so a new one can't be added without being decided.
-        for code in results.ErrorCode:
-            with self.subTest(code=str(code)):
+    def codes(self, result):
+        return [(str(e.code), e.fatal) for e in result.errors]
 
-                def run(result, code=code):
-                    raise results.SyncError(code, "boom")
+    def test_a_clean_run_exits_0_and_is_a_success(self):
+        status, result = self.main()
+        self.assertEqual(status, 0)
+        self.assertTrue(result.ok)
+        self.assertTrue(FakeClient.instances[0].closed, "the session is always closed")
 
-                result = self.run_main(run)
-                self.assertEqual(self.raised is not None, code in results.RETRIABLE)
-                # Either way the run is reported as the failure it was.
-                self.assertFalse(result.ok)
-                self.assertEqual([e.code for e in result.errors], [code])
+    def test_a_bad_config_exits_0(self):
+        pathlib.Path(sync.CLIENTS_PATH).unlink()
+        status, result = self.main()
+        self.assertEqual((status, self.codes(result)), (0, [("config", True)]))
 
-    def test_an_error_on_one_object_exits_zero(self):
-        def run(result):
-            result.fail(results.ErrorCode.PIHOLE_API, "adding domain 'x' failed")
+    def test_pihole_out_of_reach_exits_non_zero(self):
+        self.fail_with("login", PiholeError("down", method="GET", route="/api/auth", status=None))
+        status, result = self.main()
+        self.assertEqual((status, self.codes(result)), (1, [("network", True)]))
 
-        result = self.run_main(run)
-        self.assertIsNone(self.raised)
-        self.assertFalse(result.ok)
+    def test_a_refused_password_exits_0(self):
+        self.fail_with("login", PiholeError("no", method="POST", route="/api/auth", status=HTTPStatus.UNAUTHORIZED))
+        status, result = self.main()
+        self.assertEqual((status, self.codes(result)), (0, [("auth", True)]))
 
-    def test_an_error_along_the_way_makes_the_run_a_failure(self):
-        def run(result):
-            result.fail(results.ErrorCode.PIHOLE_API, "adding domain 'x' failed")
+    def test_a_failed_gravity_exits_non_zero_and_leaves_the_flag_for_the_retry(self):
+        sync.Reconciler.run = lambda me: setattr(me._result, "gravity_required", True)
+        self.fail_with("gravity", PiholeError("boom", method="POST", route="/api/action/gravity", status=None))
+        status, result = self.main()
+        self.assertEqual((status, self.codes(result)), (1, [("gravity", True)]))
+        self.assertTrue(os.path.exists(sync._GRAVITY_FLAG))
 
-        result = self.run_main(run)
-        self.assertFalse(result.ok)
-        self.assertEqual([e.fatal for e in result.errors], [False])
+    def test_the_flag_makes_the_next_run_rebuild_gravity_and_success_clears_it(self):
+        os.makedirs(sync.STATE_DIR)
+        pathlib.Path(sync._GRAVITY_FLAG).write_text("1")
+        status, result = self.main()
+        self.assertEqual(status, 0)
+        self.assertTrue(result.gravity_required)
+        self.assertFalse(os.path.exists(sync._GRAVITY_FLAG))
 
-    def test_a_fatal_error_reports_a_code_from_the_closed_list(self):
-        cases = [
-            (results.SyncError(results.ErrorCode.AUTH, "no"), "auth"),
-            (results.SyncError(results.ErrorCode.GRAVITY, "no"), "gravity"),
-            (OSError("connection refused"), "network"),
-            (KeyError("groups"), "unknown"),
-        ]
-        for exc, code in cases:
-            with self.subTest(code=code):
+    def test_anything_unhandled_exits_non_zero_with_this_programs_frames(self):
+        def bug(me):
+            raise KeyError("groups")
 
-                def run(result, exc=exc):
-                    raise exc
+        sync.Reconciler.run = bug
+        status, result = self.main()
+        self.assertEqual((status, self.codes(result)), (1, [("unknown", True)]))
+        frames = result.errors[0].backtrace
+        self.assertTrue(frames and all(f.split(":")[0].endswith(".py") for f in frames))
+        self.assertTrue(any(f.startswith("sync.py:") for f in frames))
+        self.assertFalse(any("test_sync" in f for f in frames), "frames outside the program are dropped")
 
-                (error,) = self.run_main(run).errors
-                self.assertEqual((error.code, error.fatal), (code, True))
-                self.assertEqual(error.exception, type(exc).__name__)
+    def test_sigterm_ends_the_run_reported_and_logged_out(self):
+        sync.Reconciler.run = lambda me: os.kill(os.getpid(), signal.SIGTERM)
+        status, result = self.main()
+        self.assertEqual((status, self.codes(result)), (128 + signal.SIGTERM, [("terminated", True)]))
+        self.assertTrue(FakeClient.instances[0].closed)
 
-    def test_what_was_changed_before_a_fatal_error_is_still_reported(self):
-        def run(result):
-            result.change("domain", "added", "block")
-            raise results.SyncError(results.ErrorCode.PIHOLE_API, "GET /api/clients failed")
+    def test_what_changed_before_a_fatal_error_is_still_reported(self):
+        def partly(me):
+            me._result.change(Object.GROUP, Action.ADDED)
+            raise PiholeError("down", method="GET", route="/api/clients", status=None)
 
-        result = self.run_main(run)
-        self.assertEqual(result.changes[("domain", "block", "added")], 1)
-        self.assertFalse(result.ok)
+        sync.Reconciler.run = partly
+        status, result = self.main()
+        self.assertEqual(status, 1)
+        self.assertEqual(sum(result.changes.values()), 1)
+        self.assertEqual(self.codes(result), [(str(ErrorCode.NETWORK), True)])

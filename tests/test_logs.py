@@ -28,6 +28,10 @@ class JsonLogs(unittest.TestCase):
         self.assertEqual(logs.error_field("network", "x", retry=retry)["error"]["retry"], retry)
         self.assertNotIn("retry", logs.error_field("network", "x")["error"])
 
+    def test_a_warning_that_is_not_an_outcome_has_no_code(self):
+        # A retried attempt: the run's outcome, and so its code, isn't known yet.
+        self.assertNotIn("code", logs.error_field(None, "x")["error"])
+
     def test_a_value_that_is_not_json_is_still_written(self):
         # A line that can't be written is a line that can't explain a failure.
         self.assertEqual(self.render(thing=object())["thing"][:8], "<object ")

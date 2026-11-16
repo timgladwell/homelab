@@ -10,7 +10,7 @@ import unittest
 import requests
 from pihole_client import AdList, ListType, PiholeClient, PiholeError
 from requests.adapters import BaseAdapter
-from results import ErrorCode
+from results import ErrorCode, classify
 
 
 class Script(BaseAdapter):
@@ -69,13 +69,13 @@ class Retries(unittest.TestCase):
         with self.assertRaises(PiholeError) as caught:
             pihole.groups()
         self.assertTrue(caught.exception.transient)
-        self.assertEqual(caught.exception.code, ErrorCode.PIHOLE_API)
+        self.assertEqual(classify(caught.exception), ErrorCode.PIHOLE_API)
 
     def test_unreachable_after_every_attempt_is_network(self):
         pihole, _ = client(*[requests.ConnectionError("refused")] * 3)
         with self.assertRaises(PiholeError) as caught:
             pihole.groups()
-        self.assertEqual(caught.exception.code, ErrorCode.NETWORK)
+        self.assertEqual(classify(caught.exception), ErrorCode.NETWORK)
         self.assertIsNone(caught.exception.status)
 
     def test_a_4xx_is_raised_at_once(self):
@@ -99,15 +99,14 @@ class Routes(unittest.TestCase):
     def test_every_attempt_is_a_sample(self):
         pihole, _ = client(requests.ReadTimeout("slow"), (200, {"clients": []}))
         pihole.clients()
-        self.assertEqual(
-            pihole._metrics.samples, [("GET", "/api/clients", "error"), ("GET", "/api/clients", "200")]
-        )
+        self.assertEqual(pihole._metrics.samples, [("GET", "/api/clients", "error"), ("GET", "/api/clients", "200")])
 
     def test_update_writes_the_object_back(self):
         pihole, script = client((200, {}))
         pihole.update_list(AdList("https://a.example/l", ListType.ALLOW, groups=(0, 2), comment="c"))
         self.assertEqual(
-            json.loads(script.sent[0].body), {"address": "https://a.example/l", "enabled": True, "comment": "c", "groups": [0, 2]}
+            json.loads(script.sent[0].body),
+            {"address": "https://a.example/l", "enabled": True, "comment": "c", "groups": [0, 2]},
         )
 
 
@@ -116,7 +115,7 @@ class Shape(unittest.TestCase):
         pihole, _ = client((200, {"something_else": []}))
         with self.assertRaises(PiholeError) as caught:
             pihole.groups()
-        self.assertEqual(caught.exception.code, ErrorCode.PIHOLE_API)
+        self.assertEqual(classify(caught.exception), ErrorCode.PIHOLE_API)
         self.assertFalse(caught.exception.transient)
 
 
@@ -125,7 +124,7 @@ class Session(unittest.TestCase):
         pihole, script = client((401, {"session": {"valid": False}}), (401, {"session": {"valid": False}}))
         with self.assertRaises(PiholeError) as caught:
             pihole.login()
-        self.assertEqual(caught.exception.code, ErrorCode.AUTH)
+        self.assertEqual(classify(caught.exception), ErrorCode.AUTH)
         self.assertEqual(len(script.sent), 2)  # the GET that found a password is needed, and one POST
 
     def test_no_password_means_no_session_and_no_logout(self):

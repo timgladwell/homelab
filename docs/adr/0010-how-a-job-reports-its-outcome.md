@@ -9,6 +9,7 @@
 | Date | By | Description |
 | --- | --- | --- |
 | 2026-11-14 | Tim and Claude | Proposed, from the review of the first job to report its own metrics |
+| 2026-11-16 | Tim and Claude | An unforeseen failure exits non-zero; each handled failure decides its own exit, not a list of codes; a stopped run still reports |
 
 ## Context
 
@@ -41,11 +42,20 @@ Constraints:
 
 ## Decision
 
-**A job exits non-zero only when it is designed to be retried.** It has
-identified a situation that a prompt restart can fix, and it uses the exit
-status to reschedule itself. A job that has no such situation always exits zero.
-Which failures are retriable is decided in the job's own code, in one place
-beside its error codes, with the reason for each.
+**A job exits non-zero only when a restart may help.** That is in two cases:
+
+- **A failure it handles, and has decided a prompt restart can fix**, such as a
+  dependency that is briefly unreachable. Each failure the job expects is
+  handled where it happens, and that handler decides the exit status, with the
+  reason beside it. The decision belongs to the situation, not to the error
+  code: the same code can cover a failure a restart fixes (a server error) and
+  one it doesn't (a request the server rejects).
+- **A failure it did not foresee.** Whatever no handler caught reaches one
+  catch-all, which exits non-zero: an unforeseen failure gets the scheduler's
+  limited retries rather than being given up on.
+
+Every other failure is handled and exits zero: a restart would meet the same
+configuration, the same credentials or the same refusal.
 
 **Exit zero means "don't run me again", and nothing more.** A failed run can exit
 zero. Neither the exit status nor the scheduler's Job status is read as the
@@ -65,9 +75,13 @@ result of a run.
    so a failed run can be explained from its own lines.
 
 An alert looks for the outcome metric reporting failure for a `site` and `job`,
-then uses the measurements and the logs to explain it. **A job that reports
-nothing is itself a signal:** a run killed by its deadline or by running out of
-memory never reaches the point where it reports.
+then uses the measurements and the logs to explain it.
+
+**A job reports even when it is stopped.** The scheduler asks a job to stop
+(SIGTERM, for a deadline or a deletion) before it kills it, and the job handles
+that request: it closes what it opened and reports the run as stopped, with its
+own error code. **A job that reports nothing is itself a signal:** a run killed
+outright, as by running out of memory, never reaches the point where it reports.
 
 ## Consequences
 
@@ -82,9 +96,11 @@ memory never reaches the point where it reports.
 
 - `kubectl get jobs` shows `Complete` for a run that failed. Whoever looks has to
   look at the outcome metric.
-- A job's retriable list is a judgement, and a wrong entry either wastes a retry
-  or gives up on a failure a retry would have fixed. Keeping the list in one
-  place beside the error codes makes it easy to revisit.
+- Each handler's exit decision is a judgement, and a wrong one either wastes a
+  retry or gives up on a failure a retry would have fixed.
+- A deterministic bug is retried up to the scheduler's limit, repeating the
+  job's side effects each time. That is the price of not giving up on a
+  transient failure nobody foresaw, and the limit bounds it.
 - Reporting depends on the telemetry path working. A run that can't push its
   metrics still logs its outcome, and the missing metric is what shows it.
 
@@ -93,6 +109,11 @@ memory never reaches the point where it reports.
 **Exit non-zero on any failure.** The simplest rule, and the one most scripts
 follow. Rejected: it spends retries on failures a restart can't fix and repeats a
 job's side effects each time, and it still wouldn't say why the job failed.
+
+**Exit non-zero only for a list of retriable error codes.** The first version of
+this decision. Rejected: anything not on the list exits zero, so a failure
+nobody foresaw is given up on, and one code can name failures that need
+opposite answers (a server error and a rejected request).
 
 **Encode the result in distinct exit codes.** Rejected: job systems distinguish
 only zero from non-zero, and some treat particular codes specially, so the
