@@ -11,3 +11,6 @@ PyYAML
 # Metrics, pushed over OTLP to the site collector (metrics.py).
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
+# Pi-hole's API (pihole_client.py): a Session keeps one connection open and
+# sends the session id on every call.
+requests

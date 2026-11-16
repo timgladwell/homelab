@@ -364,6 +364,7 @@ requests==2.34.2 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
     # via
     #   -c base/pihole-sync/requirements.txt
+    #   -r base/pihole-sync/requirements.in
     #   opentelemetry-exporter-http-transport
     #   opentelemetry-exporter-otlp-proto-http
 typing-extensions==4.16.0 \

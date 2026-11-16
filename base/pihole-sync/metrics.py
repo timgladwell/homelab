@@ -81,6 +81,22 @@ class Metrics:
             for action in ("added", "removed", "updated"):
                 self.changes.add(0, _attrs(obj, action, kind))
 
+    def record_request(self, method, route, status, seconds):
+        """Record how long one request to Pi-hole took.
+
+        The histogram is cumulative and each run is a new process, so read it
+        per run (`max_over_time(..._count[1h])`), not with rate().
+
+        Args:
+            method: The HTTP method, such as "GET".
+            route: The path template, such as `/api/groups/{name}`. Never the
+                path itself: it carries domain names and list URLs, and each
+                would be a series of its own.
+            status: The HTTP status as text, or "error" when there was no answer.
+            seconds: How long the attempt took.
+        """
+        self.request_duration.record(seconds, {"method": method, "route": route, "status": status})
+
     def record(self, result):
         """Push what a finished run did, and how it ended.
 
