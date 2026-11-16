@@ -33,7 +33,7 @@ spec:
       chart: loki
       # Major versions of this chart mark breaking chart changes; read the
       # chart README's "Upgrading" section before taking one.
-      version: "~21.0.0"
+      version: "~21.2.0"
       sourceRef:
         kind: HelmRepository
         name: grafana-community
