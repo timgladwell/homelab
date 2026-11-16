@@ -333,6 +333,7 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 | `zerpzorp_host_timestamp_seconds` | `site`, `host`, `event` = `booted`, `booted_unrequested` | `additionalPrometheusRulesMap` |
 | | `site`, `host`, `action`, `reason_given`, `occurrence`, `event` = `shutdown_requested` | `sites/akron/monitoring/loki-rules/host.yaml` |
 | | `site`, `host`, `device`, `occurrence`, `event` = `link_down`, `link_up`, `address_lost`, `address_acquired` | `sites/akron/monitoring/loki-rules/host.yaml` |
+| | `site`, `host`, `code`, `status`, `occurrence`, `event` = `k3s_exited` | `sites/akron/monitoring/loki-rules/host.yaml` |
 | `zerpzorp_host_reboot_duration_seconds` | `site`, `host` | `additionalPrometheusRulesMap` |
 | `zerpzorp_host_address_outage_duration_seconds`, `zerpzorp_host_link_outage_duration_seconds` | `site`, `host`, `device` | `additionalPrometheusRulesMap` |
 | `zerpzorp_gateway_timestamp_seconds` | `site`, `network_site`, `event` = `booted`, `booted_unrequested` | `additionalPrometheusRulesMap` |
