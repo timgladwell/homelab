@@ -35,6 +35,11 @@ updates:
       interval: weekly
     cooldown:
       default-days: 3
+    # Renovate owns the system-upgrade-controller Plans' k3s-upgrade image: it
+    # has to move in one PR with the Plans' `version:`, which Dependabot can't
+    # see (renovate.json's `k3s` group; #705).
+    ignore:
+      - dependency-name: "rancher/k3s-upgrade"
 
   - package-ecosystem: github-actions
     directories:

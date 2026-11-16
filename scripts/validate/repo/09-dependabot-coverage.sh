@@ -21,8 +21,7 @@ listed=$(grep -oE '^[[:space:]]+- "/[^"]*"' "$CONFIG" \
     | sed -E 's/^[[:space:]]*-[[:space:]]*"//; s/"$//; s|^/||' | sort -u)
 
 # Directories containing an image: with an explicit tag. Untagged images
-# (e.g. plans.yaml's rancher/k3s-upgrade) carry no version for Dependabot to
-# bump, so they are correctly out of scope.
+# carry no version for Dependabot to bump, so they are correctly out of scope.
 IMAGE_RE='^[[:space:]]*(-[[:space:]]+)?image:[[:space:]]*"?[^ "]+:[^ "]+'
 found=$(grep -rlE "$IMAGE_RE" base/ sites/ --include='*.yaml' 2>/dev/null \
     | xargs -n1 dirname 2>/dev/null | sort -u)

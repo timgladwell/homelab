@@ -18,7 +18,7 @@
   },
   "customManagers": [
     {
-      "description": "k3s version pinned in the system-upgrade-controller Plans. Dependabot cannot cover this: the version lives in `version:`, not in an `image:` tag, and rancher/k3s-upgrade is deliberately untagged.",
+      "description": "k3s version pinned in the system-upgrade-controller Plans. Dependabot cannot cover this: the version lives in `version:`, not in an `image:` tag. The Plans' rancher/k3s-upgrade images are the next manager.",
       "customType": "regex",
       "managerFilePatterns": [
         "/(^|/)base/system-upgrade-controller/plans\\.yaml$/"
@@ -27,6 +27,17 @@
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+version: (?<currentValue>\\S+)"
       ],
       "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
+    },
+    {
+      "description": "The rancher/k3s-upgrade image the Plans run privileged, pinned by tag and digest (#705). Its tags spell the k3s release with `-k3s` where `version:` has `+k3s`, so it needs its own versioning, which also leaves out release-candidate tags (`v1.37.2-rc1-k3s1`). The `k3s` group below keeps it in the same PR as `version:`, and policy/k3s_upgrade_plan_image.rego fails a PR that bumps one without the other.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/(^|/)base/system-upgrade-controller/plans\\.yaml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+image: [^\\s:]+:(?<currentValue>[^\\s@]+)@(?<currentDigest>sha256:[a-f0-9]+)"
+      ],
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-k3s(?<build>\\d+)$"
     },
     {
       "description": "The kubectl image system-upgrade-controller uses for cordon/drain. It is set as a container env var, not an `image:` field, so neither Dependabot nor the flux manager sees it.",
@@ -62,8 +73,8 @@
   ],
   "packageRules": [
     {
-      "description": "k3s and the kubectl image system-upgrade-controller drains with move in one PR, so kubectl stays on the server's minor.",
-      "matchDepNames": ["k3s-io/k3s", "registry.k8s.io/kubectl"],
+      "description": "k3s, the k3s-upgrade image that installs it, and the kubectl image system-upgrade-controller drains with move in one PR, so the image matches `version:` and kubectl stays on the server's minor.",
+      "matchDepNames": ["k3s-io/k3s", "rancher/k3s-upgrade", "registry.k8s.io/kubectl"],
       "groupName": "k3s"
     },
     {
