@@ -33,6 +33,7 @@ reconcile will not restore.
 | [Standing Up a New Headless Box (Flash + Cloud-Init)](runbooks/new-box-standup.md) | Provisioning |
 | [Read-Only Grafana Access for Claude Code](runbooks/grafana-query-access.md) | Provisioning |
 | [Let's Encrypt Certificates on a UniFi Console](runbooks/unifi-tls.md) | Provisioning |
+| [Drive Health (SMART) on a USB-Attached SSD](runbooks/disk-health.md) | Provisioning |
 
 ## Retired
 

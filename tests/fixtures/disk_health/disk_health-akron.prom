@@ -1,0 +1,63 @@
+# HELP zerpzorp_disk_temperature_celsius Composite temperature the drive reports.
+# TYPE zerpzorp_disk_temperature_celsius gauge
+zerpzorp_disk_temperature_celsius{device="sda",serial="WWDD250304003004331"} 38
+# HELP zerpzorp_disk_available_spare_ratio Spare capacity left, 1 when new.
+# TYPE zerpzorp_disk_available_spare_ratio gauge
+zerpzorp_disk_available_spare_ratio{device="sda",serial="WWDD250304003004331"} 1.0
+# HELP zerpzorp_disk_available_spare_threshold_ratio Spare level the drive warns below.
+# TYPE zerpzorp_disk_available_spare_threshold_ratio gauge
+zerpzorp_disk_available_spare_threshold_ratio{device="sda",serial="WWDD250304003004331"} 0.05
+# HELP zerpzorp_disk_endurance_used_ratio Rated write endurance used; can exceed 1.
+# TYPE zerpzorp_disk_endurance_used_ratio gauge
+zerpzorp_disk_endurance_used_ratio{device="sda",serial="WWDD250304003004331"} 0.07
+# HELP zerpzorp_disk_read_bytes_total Bytes the host read from the drive.
+# TYPE zerpzorp_disk_read_bytes_total counter
+zerpzorp_disk_read_bytes_total{device="sda",serial="WWDD250304003004331"} 240413340672000
+# HELP zerpzorp_disk_written_bytes_total Bytes the host wrote to the drive.
+# TYPE zerpzorp_disk_written_bytes_total counter
+zerpzorp_disk_written_bytes_total{device="sda",serial="WWDD250304003004331"} 8205478400000
+# HELP zerpzorp_disk_read_commands_total Read commands the controller completed.
+# TYPE zerpzorp_disk_read_commands_total counter
+zerpzorp_disk_read_commands_total{device="sda",serial="WWDD250304003004331"} 16563325369
+# HELP zerpzorp_disk_write_commands_total Write commands the controller completed.
+# TYPE zerpzorp_disk_write_commands_total counter
+zerpzorp_disk_write_commands_total{device="sda",serial="WWDD250304003004331"} 619074558
+# HELP zerpzorp_disk_controller_busy_seconds_total Time the controller was busy with I/O.
+# TYPE zerpzorp_disk_controller_busy_seconds_total counter
+zerpzorp_disk_controller_busy_seconds_total{device="sda",serial="WWDD250304003004331"} 773160
+# HELP zerpzorp_disk_power_on_seconds_total Time the drive has been powered.
+# TYPE zerpzorp_disk_power_on_seconds_total counter
+zerpzorp_disk_power_on_seconds_total{device="sda",serial="WWDD250304003004331"} 30358800
+# HELP zerpzorp_disk_power_cycles_total Times the drive has been powered on.
+# TYPE zerpzorp_disk_power_cycles_total counter
+zerpzorp_disk_power_cycles_total{device="sda",serial="WWDD250304003004331"} 123
+# HELP zerpzorp_disk_unsafe_shutdowns_total Power losses without a clean shutdown.
+# TYPE zerpzorp_disk_unsafe_shutdowns_total counter
+zerpzorp_disk_unsafe_shutdowns_total{device="sda",serial="WWDD250304003004331"} 62
+# HELP zerpzorp_disk_media_errors_total Unrecovered data integrity errors.
+# TYPE zerpzorp_disk_media_errors_total counter
+zerpzorp_disk_media_errors_total{device="sda",serial="WWDD250304003004331"} 0
+# HELP zerpzorp_disk_error_log_entries_total Entries in the drive's error log.
+# TYPE zerpzorp_disk_error_log_entries_total counter
+zerpzorp_disk_error_log_entries_total{device="sda",serial="WWDD250304003004331"} 0
+# HELP zerpzorp_disk_warning_temperature_seconds_total Time spent above the warning temperature.
+# TYPE zerpzorp_disk_warning_temperature_seconds_total counter
+zerpzorp_disk_warning_temperature_seconds_total{device="sda",serial="WWDD250304003004331"} 0
+# HELP zerpzorp_disk_critical_temperature_seconds_total Time spent above the critical temperature.
+# TYPE zerpzorp_disk_critical_temperature_seconds_total counter
+zerpzorp_disk_critical_temperature_seconds_total{device="sda",serial="WWDD250304003004331"} 0
+# HELP zerpzorp_disk_critical_warning The drive's critical-warning bit field; 0 is healthy.
+# TYPE zerpzorp_disk_critical_warning gauge
+zerpzorp_disk_critical_warning{device="sda",serial="WWDD250304003004331"} 0
+# HELP zerpzorp_disk_temperature_sensor_celsius Temperature at one of the drive's own sensors.
+# TYPE zerpzorp_disk_temperature_sensor_celsius gauge
+zerpzorp_disk_temperature_sensor_celsius{device="sda",serial="WWDD250304003004331",sensor="1"} 35
+# HELP zerpzorp_disk_smart_passed The drive's overall self-assessment: 1 passed, 0 failed.
+# TYPE zerpzorp_disk_smart_passed gauge
+zerpzorp_disk_smart_passed{device="sda",serial="WWDD250304003004331"} 1
+# HELP zerpzorp_disk_smartctl_exit_status smartctl's exit-status bit mask; 0 is clean, see smartctl(8) for each bit.
+# TYPE zerpzorp_disk_smartctl_exit_status gauge
+zerpzorp_disk_smartctl_exit_status{device="sda",serial="WWDD250304003004331"} 0
+# HELP zerpzorp_disk_info The drive's identity; always 1.
+# TYPE zerpzorp_disk_info gauge
+zerpzorp_disk_info{device="sda",serial="WWDD250304003004331",model="SPCC M.2 PCIe SSD",firmware="APF1M3R1"} 1

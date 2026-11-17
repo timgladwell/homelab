@@ -2,6 +2,14 @@
 line-length = 120
 target-version = "py315"
 
+# host/ runs on each node's own Python, not CI's: Debian trixie ships 3.13
+# (Akron, 2026-11-16). At py315, ruff format rewrote `except (A, B):` to the
+# 3.14-only `except A, B:` and the script failed on Akron with a SyntaxError
+# that CI's 3.15 never saw (#702). At py313, ruff also flags newer syntax as
+# an error. Raise this only when every node's python3 is newer.
+[tool.ruff.per-file-target-version]
+"host/**" = "py313"
+
 [tool.ruff.lint.per-file-ignores]
 # Test classes keep their fixtures as class-level constants, unittest style.
 "tests/**" = ["RUF012"]

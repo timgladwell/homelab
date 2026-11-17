@@ -22,7 +22,7 @@ spec:
     # The job runs privileged and replaces the k3s binary, so its image is
     # pinned by digest. The tag must be `version:` below with `+` as `-`: the
     # controller marks the Plan done at `version:` whatever the image installs.
-    # Renovate bumps both in one PR; policy/k3s_upgrade_plan_image.rego fails
+    # Renovate bumps both in one PR; policy/privileged_image_digest.rego fails
     # a Plan where they differ (#705).
     # renovate: datasource=docker depName=rancher/k3s-upgrade
     image: rancher/k3s-upgrade:v1.37.2-k3s1@sha256:69b48cf32cf51ed23ed86348fc913db1e00d1ddc00369ded18953dcad859a6e1

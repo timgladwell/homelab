@@ -1,0 +1,49 @@
+# Writes the boot drive's SMART health for node-exporter's textfile collector
+# (#702). Installed by hand per docs/runbooks/disk-health.md; listed in
+# docs/current-state/host-state.md. Started every 30 s by
+# zerpzorp-disk-health.timer. The zerpzorp- prefix marks it as the estate's on
+# a box whose unit namespace it shares with the OS (naming convention, *Host
+# names*).
+#
+# The sandbox is the point of running this on the host rather than as a
+# privileged pod: no network at all, one readable device, and root reduced to
+# the one capability smartctl's passthrough needs (CAP_SYS_RAWIO). That
+# capability still gives full access to the disk, but nothing can reach this
+# process and it can reach nothing: no listener, no network to call out on.
+# smartctl is only ever asked to read (-a); nothing here writes to the drive.
+# Every setting below ran on Akron (2026-11-17, #702).
+#
+# Akron-specific: /dev/sda behind a Realtek RTL9210 bridge (`sntrealtek`).
+# Another box edits --device, --type and DeviceAllow together, and a reinstall
+# keeps those edits (the runbook's Install diffs before overwriting).
+
+[Unit]
+Description=Write the boot drive's SMART health for node-exporter
+Documentation=https://github.com/timgladwell/homelab/blob/main/docs/runbooks/disk-health.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/zerpzorp/disk-health/disk_health.py --device /dev/sda --type sntrealtek --output /var/lib/node-exporter/textfile/disk_health.prom
+
+# node-exporter's hostPath mount (DirectoryOrCreate). It must exist before
+# this starts, because ProtectSystem=strict can't bind a missing path, so the
+# runbook creates it rather than waiting for kubelet to.
+ReadWritePaths=/var/lib/node-exporter/textfile
+
+PrivateNetwork=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+DevicePolicy=closed
+DeviceAllow=/dev/sda r
+CapabilityBoundingSet=CAP_SYS_RAWIO
+SystemCallFilter=@system-service
+
+# A run takes ~1 s and peaks at ~9 MB (Akron, 2026-11-17). A oneshot unit
+# never times out by default, so a smartctl stuck on the USB bridge would hold
+# it forever, and the timer only fires again once a run has finished; 20 s
+# kills it, the file goes stale (which is what alerts) and the next run starts.
+# The memory cap is ~3.5x the measured peak.
+TimeoutStartSec=20s
+MemoryMax=32M

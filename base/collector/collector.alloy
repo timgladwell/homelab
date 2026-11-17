@@ -563,12 +563,38 @@ prometheus.scrape "apiserver" {
 // histogram_quantile does not work without buckets — that is the trade, and it
 // is the right one here: nobody is debugging apiserver p99 on a single-node
 // homelab, and the series are paid for continuously whether queried or not.
+//
+// One family is kept: kine_sql_time_seconds, k3s's datastore latency by SQL
+// operation (`name`). k3s exits when a compaction overruns its 5 s deadline
+// (#702), and a mean cannot show one slow compaction among hundreds of fast
+// queries; its buckets can, with one boundary at 4.096 s, just short of the
+// deadline. Cost: kine's 14 buckets plus +Inf for ~32 label combinations,
+// ~500 series per site (measured 2026-11-16). RE2 has no negative lookahead,
+// so the keep is a temporary label the drop rule tests, removed afterwards.
+//
+// TEMPORARY(until: 2026-12-16, issue: #702): the kine keep is an experiment.
+// k3s's datastore is critical and nothing yet says whether it is healthy; these
+// buckets are meant to answer that. Review them after a month: keep them (drop
+// this tag) if they show datastore health, or remove the keep if not.
 prometheus.relabel "drop_histogram_buckets" {
   forward_to = [prometheus.remote_write.default.receiver]
 
   rule {
     source_labels = ["__name__"]
-    regex         = ".*_bucket"
+    regex         = "kine_sql_time_seconds_bucket"
+    target_label  = "__tmp_keep_bucket"
+    replacement   = "true"
+  }
+
+  rule {
+    source_labels = ["__name__", "__tmp_keep_bucket"]
+    separator     = ";"
+    regex         = ".*_bucket;"
     action        = "drop"
+  }
+
+  rule {
+    regex  = "__tmp_keep_bucket"
+    action = "labeldrop"
   }
 }

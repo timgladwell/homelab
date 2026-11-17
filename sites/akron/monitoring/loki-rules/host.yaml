@@ -42,6 +42,24 @@ groups:
                              occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
               | unwrap ts_s | __error__ = "" [24h]))
 
+      # k3s's process ended on its own and systemd will restart it; the node
+      # stays up and pods keep running. #702 is one: kine exits fatally when a
+      # datastore compaction overruns its 5 s deadline. The line comes from
+      # systemd itself (unit init.scope). `code` and `status` are systemd's own
+      # vocabulary, so a query can rely on them: exited 1/FAILURE is a crash,
+      # killed with a signal is something else. Unknown: whether a deliberate
+      # `systemctl restart k3s` or an upgrade logs this line at all.
+      - record: zerpzorp_host_timestamp_seconds
+        labels:
+          event: k3s_exited
+        expr: |
+          max by (site, host, code, status, occurrence) (
+            max_over_time({job="systemd-journal", unit="init.scope"} |= "k3s.service: Main process exited"
+              | regexp `^k3s\.service: Main process exited, code=(?P<code>[a-z]+), status=(?P<status>\d+/\w+)$`
+              | __error__ = "" | code != ""
+              | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
       # Carrier lost and regained, from the kernel. Shorter than a scrape is
       # still seen: node_network_carrier_changes_total only counts it.
       - record: zerpzorp_host_timestamp_seconds

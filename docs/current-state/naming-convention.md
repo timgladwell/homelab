@@ -333,7 +333,11 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 | `zerpzorp_host_timestamp_seconds` | `site`, `host`, `event` = `booted`, `booted_unrequested` | `additionalPrometheusRulesMap` |
 | | `site`, `host`, `action`, `reason_given`, `occurrence`, `event` = `shutdown_requested` | `sites/akron/monitoring/loki-rules/host.yaml` |
 | | `site`, `host`, `device`, `occurrence`, `event` = `link_down`, `link_up`, `address_lost`, `address_acquired` | `sites/akron/monitoring/loki-rules/host.yaml` |
+| | `site`, `host`, `code`, `status`, `occurrence`, `event` = `k3s_exited` | `sites/akron/monitoring/loki-rules/host.yaml` |
 | `zerpzorp_host_reboot_duration_seconds` | `site`, `host` | `additionalPrometheusRulesMap` |
+| `zerpzorp_disk_*`: `temperature_celsius`, `available_spare_ratio`, `available_spare_threshold_ratio`, `endurance_used_ratio`, `critical_warning`, `smart_passed`, `smartctl_exit_status`; counters `read_bytes_total`, `written_bytes_total`, `read_commands_total`, `write_commands_total`, `controller_busy_seconds_total`, `power_on_seconds_total`, `power_cycles_total`, `unsafe_shutdowns_total`, `media_errors_total`, `error_log_entries_total`, `warning_temperature_seconds_total`, `critical_temperature_seconds_total` | `site`, `instance`, `device`, `serial` | `host/disk-health/disk_health.py`, via node-exporter's textfile collector |
+| `zerpzorp_disk_temperature_sensor_celsius` | `site`, `instance`, `device`, `serial`, `sensor` (1, 2, … as `smartctl -A` numbers them) | `host/disk-health/disk_health.py` |
+| `zerpzorp_disk_info` | `site`, `instance`, `device`, `serial`, `model`, `firmware` | `host/disk-health/disk_health.py` |
 | `zerpzorp_host_address_outage_duration_seconds`, `zerpzorp_host_link_outage_duration_seconds` | `site`, `host`, `device` | `additionalPrometheusRulesMap` |
 | `zerpzorp_gateway_timestamp_seconds` | `site`, `network_site`, `event` = `booted`, `booted_unrequested` | `additionalPrometheusRulesMap` |
 | | `site`, `network_site`, `host`, `cause`, `occurrence`, `event` = `reboot_requested` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
@@ -360,6 +364,27 @@ These are free to change with the collector's shape.
 Renaming the forwarder drops its PVC and its WAL, and changing an ingest URL
 orphans the remote-write queue held for the old one (#306). Make both in one
 change, so the WAL is lost once (#522).
+
+## Host names
+
+What the estate installs on a node by hand (`host/<job>/`, listed in
+[host-state](host-state.md)) lands in namespaces it shares with the OS and
+every package on it. Unlike a Kubernetes object, nothing scopes it: a systemd
+unit name is global to the box.
+
+**Prefix with `zerpzorp` whatever sits in a namespace shared with the OS, and
+nothing inside our own directories.** It is the [metrics](#metrics) rule for
+the same reason: our things are told apart from the OS's at a glance, and listed
+with one pattern.
+
+| Thing | Name | Lists every estate one |
+|---|---|---|
+| systemd unit | `zerpzorp-<job>.service`, `.timer` | `systemctl list-units --all 'zerpzorp-*'` |
+| Installed code | `/usr/local/lib/zerpzorp/<job>/` | `ls /usr/local/lib/zerpzorp` |
+| A file in our own directory, such as node-exporter's textfile directory | unprefixed (`disk_health.prom`) | — |
+| The job's directory in this repo | `host/<job>/` | — |
+
+`<job>` is the same everywhere, as `disk-health` is.
 
 ## Why `internal.`, not the apex
 

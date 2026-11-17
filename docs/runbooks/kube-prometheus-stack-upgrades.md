@@ -19,7 +19,7 @@ For any kube-prometheus-stack chart version bump:
    kubectl get crd prometheuses.monitoring.coreos.com \
      -o jsonpath='{.metadata.annotations.operator\.prometheus\.io/version}'
    ```
-   Applying the CRDs restarts kube-state-metrics and loads the API server. See [What a CRD apply does to the cluster](helm-crd-upgrades.md#what-a-crd-apply-does-to-the-cluster). **Wait for that to settle before merging**, so the CRD apply and the chart rollout show up separately on the dashboards.
+   Applying the CRDs loads the API server and may restart kube-state-metrics. See [What a CRD apply does to the cluster](helm-crd-upgrades.md#what-a-crd-apply-does-to-the-cluster). **Wait for that to settle before merging**, so the CRD apply and the chart rollout show up separately on the dashboards.
 
 4. **If Prometheus's own version changed, read its release notes** ([prometheus releases](https://github.com/prometheus/prometheus/releases)). A deprecated command-line flag is usually not a concern: the operator passes flags only when they differ from the defaults. For example, it omits `--log.level` when `logLevel` is `info` (`pkg/prometheus/promcfg.go`).
 

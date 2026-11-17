@@ -4,10 +4,13 @@ updates:
   # Container images pinned directly in manifests: pihole, unbound,
   # unbound-exporter, python (pihole-sync Job and the landing page),
   # system-upgrade-controller.
-  # Dependabot's docker ecosystem reads `image:` fields out of Kubernetes YAML,
-  # so these are genuinely covered here and nowhere else — Renovate is scoped to
-  # the flux manager (see renovate.json), which handles Helm chart versions but
-  # not raw image tags. The two do not overlap.
+  # Dependabot's docker ecosystem reads `image: repo:tag` fields out of
+  # Kubernetes YAML, and these are covered here and nowhere else. Renovate
+  # (renovate.json) covers what Dependabot can't see: Helm chart versions, and
+  # versions pinned outside an `image:` field (the k3s Plans' `version:`, the
+  # kubectl env var, image tags in HelmRelease values) through `# renovate:`
+  # comments. The one image both could see is ignored below, so they never
+  # propose the same bump.
   #
   # clusters/*/flux-system is deliberately NOT listed: those are Flux's own
   # controller images, upgraded via the Flux CLI (docs/runbooks/flux-upgrades.md).

@@ -94,9 +94,10 @@ dns/replicaset-unbound AVD-KSV-0106
 dns/replicaset-unbound AVD-KSV-0118
 
 # ---------------------------------------------------------------------------
-# node-exporter reads the host's /proc, /sys and root filesystem. hostNetwork,
-# hostPID and the hostPath mounts are the entire function of the component;
-# without them it reports on its own container instead of the node.
+# node-exporter reads the host's /proc, /sys and root filesystem, and the
+# textfile directory host jobs write metrics into (host/disk-health/, #702).
+# hostNetwork, hostPID and the hostPath mounts are the entire function of the
+# component; without them it reports on its own container instead of the node.
 # ---------------------------------------------------------------------------
 monitoring/daemonset-prometheus-node-exporter AVD-KSV-0009
 monitoring/daemonset-prometheus-node-exporter AVD-KSV-0010
