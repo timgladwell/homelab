@@ -36,6 +36,21 @@ and confirming afterwards that the hole filled.
    outage afterwards show nothing. To time an outage after the fact, use send
    lag (post-check 2).
 
+3. **Did a known event explain it?** Before diagnosing, look for estate events
+   around the gap: console and node boots, power loss, reboot requests, WAN and
+   VPN drops, link and address loss, deployments. Each is a series valued at
+   the event's own time, so an annotation or a table lands on the moment:
+
+   ```promql
+   max_over_time({__name__=~"zerpzorp_.*_timestamp_seconds", site="<site>"}[6h])
+   ```
+
+   Widen the range to cover the gap. Consoles' events read through Unpoller
+   carry `site="eastbank"`, so for a console also try
+   `network_site="<site>"`. No event is not evidence that nothing happened:
+   each rule matches lines seen only a few times, and the lines that would
+   explain an outage are the ones most likely to be lost (#718).
+
 ## Steps
 
 ### 1. Diagnose: work from the WAN inwards

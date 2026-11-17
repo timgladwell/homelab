@@ -121,3 +121,7 @@ scripts/validate-k3s.sh  the validation pipeline; steps in scripts/validate/<gro
 | Flux itself | [Flux Upgrades](docs/runbooks/flux-upgrades.md) — the CI pin and every box's CLI are hand work |
 | Host-level configuration | [State That Is Not In Git](docs/current-state/host-state.md), same PR |
 | Anything that looks obviously fixable but has a history of failing, such as making `pi.hole` resolve | The comment beside the code that would change (`base/dns/pihole-deployment.yaml` for `pi.hole`) records what was tried |
+
+**A gap or suspected outage in the data:** check the `zerpzorp_*_timestamp_seconds`
+events around it first ([Recovering a Quiet Site](docs/runbooks/forwarding-path-recovery.md),
+pre-check 3).
