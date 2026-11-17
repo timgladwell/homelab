@@ -122,7 +122,9 @@ spec:
                 expr: |
                   max by (site, host) (
                     label_join(node_boot_time_seconds > time() - 86400, "host", "", "instance"))
-              # The console's boot from Unpoller's uptime.
+              # The console's boot from Unpoller's uptime, beside the one from
+              # its kernel line (loki-rules/gateway.yaml, `source="kernel"`);
+              # both are kept until one is shown the better source (#718).
               # Uptime only falls at a boot. Unpoller serves a value polled up
               # to 5 minutes earlier, so sample time minus uptime overstates
               # the boot by that age; the minimum over the window is the
@@ -133,10 +135,11 @@ spec:
               # while the console is down, and read 0 for a while after
               # Akron's reboot on 2026-11-13 (#390).
               # shortcut: a second boot within 24h of the first is hidden until the first
-              # ages out; the uptime series still shows it. Revisit if consoles reboot that often.
+              # ages out; the uptime series still shows it, and the kernel source doesn't hide it.
               - record: zerpzorp_gateway_timestamp_seconds
                 labels:
                   event: booted
+                  source: uptime
                 expr: |
                   min by (site, network_site) (
                     min_over_time((

@@ -337,8 +337,10 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 | `zerpzorp_disk_*`: `temperature_celsius`, `available_spare_ratio`, `available_spare_threshold_ratio`, `endurance_used_ratio`, `critical_warning`, `smart_passed`, `smartctl_exit_status`; counters `read_bytes_total`, `written_bytes_total`, `read_commands_total`, `write_commands_total`, `controller_busy_seconds_total`, `power_on_seconds_total`, `power_cycles_total`, `unsafe_shutdowns_total`, `media_errors_total`, `error_log_entries_total`, `warning_temperature_seconds_total`, `critical_temperature_seconds_total` | `site`, `instance`, `device`, `serial` | `host/disk-health/disk_health.py`, via node-exporter's textfile collector |
 | `zerpzorp_disk_temperature_sensor_celsius` | `site`, `instance`, `device`, `serial`, `sensor` (1, 2, … as `smartctl -A` numbers them) | `host/disk-health/disk_health.py` |
 | `zerpzorp_disk_info` | `site`, `instance`, `device`, `serial`, `model`, `firmware` | `host/disk-health/disk_health.py` |
-| `zerpzorp_gateway_timestamp_seconds` | `site`, `network_site`, `event` = `booted` | `additionalPrometheusRulesMap` |
-| | `site`, `network_site`, `host`, `cause`, `occurrence`, `event` = `reboot_requested` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
+| `zerpzorp_gateway_timestamp_seconds` | `site`, `network_site`, `host`, `occurrence`, `source` = `kernel`, `event` = `booted` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
+| | `site` (`eastbank`, Unpoller's), `network_site`, `source` = `uptime`, `event` = `booted` | `additionalPrometheusRulesMap` |
+| | `site`, `network_site`, `host`, `upgrade_boot`, `occurrence`, `event` = `boot_completed` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
+| | `site`, `network_site`, `host`, `cause`, `occurrence`, `event` = `reboot_requested` (`cause` = `firmware`, `ucore` from `unifi-os-log`; `protect` from `unifi-events`) | `sites/akron/monitoring/loki-rules/gateway.yaml` |
 | | `site`, `network_site`, `version`, `previous_version`, `occurrence`, `event` = `firmware_updated` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
 | `zerpzorp_wan_timestamp_seconds` | `site`, `network_site`, `wan`, `occurrence`, `event` = `failed`, `restored` | `sites/akron/monitoring/loki-rules/wan.yaml` |
 
