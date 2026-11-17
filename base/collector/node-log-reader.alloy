@@ -105,13 +105,36 @@ discovery.relabel "journal" {
     source_labels = ["__journal__hostname"]
     target_label  = "host"
   }
+  // systemd's id for the boot this line belongs to. A label only until
+  // loki.process "journal" moves it to structured metadata (below).
+  rule {
+    source_labels = ["__journal__boot_id"]
+    target_label  = "boot_id"
+  }
 }
 
 loki.source.journal "system" {
   path          = "/run/log/journal"
-  forward_to    = [loki.write.default.receiver]
+  forward_to    = [loki.process.journal.receiver]
   relabel_rules = discovery.relabel.journal.rules
   labels = {
     job = "systemd-journal",
+  }
+}
+
+// boot_id ties every journal line to the boot it came from, so a node event
+// can be placed in its boot and the last line before an unrequested shutdown
+// found (#718). Structured metadata, not a label: a label would start a new
+// stream at every boot. stage.structured_metadata reads it from the label,
+// which the pipeline copies into its extracted values; the label is dropped.
+loki.process "journal" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.structured_metadata {
+    values = { boot_id = "" }
+  }
+
+  stage.label_drop {
+    values = ["boot_id"]
   }
 }
