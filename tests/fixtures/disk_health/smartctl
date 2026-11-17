@@ -1,0 +1,12 @@
+#!/bin/sh
+# Stands in for smartctl in tests/test_disk_health.py's integration tests, so
+# disk_health.py's real subprocess call runs end to end without a drive. It
+# prints a report captured from Akron, byte for byte, from beside this file:
+# $FAKE_SMARTCTL_REPORT names which one, and $FAKE_SMARTCTL_EXIT is the exit
+# status smartctl gave with it (the test reads it from the report itself).
+#
+# The arguments it was given go to $FAKE_SMARTCTL_ARGV, because stdout is the
+# report and disk_health.py captures stderr without showing it on success.
+printf '%s\n' "$@" > "$FAKE_SMARTCTL_ARGV"
+cat "$(dirname "$0")/$FAKE_SMARTCTL_REPORT"
+exit "$FAKE_SMARTCTL_EXIT"

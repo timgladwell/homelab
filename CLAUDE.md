@@ -100,6 +100,8 @@ sites/<site>/<layer>/    one directory per Flux Kustomization: infrastructure,
 clusters/common/         network-vars.yaml — estate-wide variables
 clusters/<site>/         flux-system/ (do not edit), cluster-vars.yaml, and the
                          Flux Kustomization objects
+host/<job>/              files a node runs outside k3s, copied by hand; each is
+                         listed in host-state.md
 docs/current-state/      state that code does not define
 docs/adr/                one decision per system-level design question
 docs/runbooks/           procedures for a specific outcome, indexed in

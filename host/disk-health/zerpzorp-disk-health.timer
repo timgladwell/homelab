@@ -1,0 +1,15 @@
+# Runs zerpzorp-disk-health.service every 30 s, the collector's scrape
+# interval. One run takes ~1 s and peaks at ~9 MB (measured on Akron,
+# 2026-11-17, #702). Most of what it records are counters, so a missed run
+# loses nothing; only the instantaneous temperatures are sampled.
+
+[Unit]
+Description=Write the boot drive's SMART health every 30 s
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
