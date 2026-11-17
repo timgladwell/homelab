@@ -37,7 +37,8 @@ mechanism, not the destination: a raw `curl` at Grafana is still out.
   adding it to that page in the same PR.**
 - **Security by default.** No unencrypted secrets in the repo (SOPS/age, enforced
   by hooks and validation step 10); only actual secrets in a Secret; least
-  privilege everywhere. **Data from outside the system reaches the DOM through
+  privilege everywhere, and a privileged container's image pinned by digest
+  (`policy/privileged_image_digest.rego`). **Data from outside the system reaches the DOM through
   `textContent`, never `innerHTML`**, and is not encoded at the source — escaping
   belongs at the sink. Read "outside" broadly: a DNS query log is attacker-chosen
   (`base/landing/` carries the reasoning beside each such value).

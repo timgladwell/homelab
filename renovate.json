@@ -29,7 +29,7 @@
       "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
     },
     {
-      "description": "The rancher/k3s-upgrade image the Plans run privileged, pinned by tag and digest (#705). Its tags spell the k3s release with `-k3s` where `version:` has `+k3s`, so it needs its own versioning, which also leaves out release-candidate tags (`v1.37.2-rc1-k3s1`). The `k3s` group below keeps it in the same PR as `version:`, and policy/k3s_upgrade_plan_image.rego fails a PR that bumps one without the other.",
+      "description": "The rancher/k3s-upgrade image the Plans run privileged, pinned by tag and digest (#705). Its tags spell the k3s release with `-k3s` where `version:` has `+k3s`, so it needs its own versioning, which also leaves out release-candidate tags (`v1.37.2-rc1-k3s1`). The `k3s` group below keeps it in the same PR as `version:`, and policy/privileged_image_digest.rego fails a PR that bumps one without the other.",
       "customType": "regex",
       "managerFilePatterns": [
         "/(^|/)base/system-upgrade-controller/plans\\.yaml$/"
@@ -67,7 +67,7 @@
         "/(^|/)sites/.+\\.ya?ml$/"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+tag: (?<currentValue>\\S+)"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+tag: (?<currentValue>[^\\s@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"
       ]
     }
   ],
