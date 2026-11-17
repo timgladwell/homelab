@@ -1,9 +1,9 @@
 ---
 # Gateway events (#648): the site's UniFi console, which routes, serves DHCP
-# and holds the WAN. `booted`, and its pairing with reboot_requested, are
-# Prometheus rules (additionalPrometheusRulesMap in kube-prometheus-stack.yaml):
-# the boot comes only from Unpoller's uptime, since the console's syslog starts
-# after its kernel.
+# and holds the WAN. `booted` is a Prometheus rule
+# (additionalPrometheusRulesMap in kube-prometheus-stack.yaml): the boot comes
+# only from Unpoller's uptime, since the console's syslog starts after its
+# kernel. Nothing pairs it with reboot_requested (#718).
 #
 # Shape, late data and the `occurrence` key as in host.yaml.
 #

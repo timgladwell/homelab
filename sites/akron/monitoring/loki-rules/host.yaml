@@ -29,7 +29,7 @@ groups:
       # `systemctl reboot`. The reason is free text typed by hand, so it stays
       # in the log line and not in a label: a label is for values a query can
       # rely on. Whether one was given is reliable, so `reason_given` is a
-      # label. kube-prometheus-stack.yaml pairs this with the next boot.
+      # label.
       - record: zerpzorp_host_timestamp_seconds
         labels:
           event: shutdown_requested

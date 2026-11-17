@@ -330,19 +330,16 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 | `zerpzorp_deployment_kustomization_timestamp_seconds` | `site`, `name`, `revision`, `sha`, `event` = `applied`, `failed` | `sites/akron/monitoring/loki-rules/deployment.yaml` |
 | `zerpzorp_deployment_duration_seconds` | `site`, `revision`, `sha` | `additionalPrometheusRulesMap` |
 | `zerpzorp_deployment_kustomizations` | `site`, `revision`, `sha`, `state` = `expected`, `applied`, `failed` | `additionalPrometheusRulesMap` |
-| `zerpzorp_host_timestamp_seconds` | `site`, `host`, `event` = `booted`, `booted_unrequested` | `additionalPrometheusRulesMap` |
+| `zerpzorp_host_timestamp_seconds` | `site`, `host`, `event` = `booted` | `additionalPrometheusRulesMap` |
 | | `site`, `host`, `action`, `reason_given`, `occurrence`, `event` = `shutdown_requested` | `sites/akron/monitoring/loki-rules/host.yaml` |
 | | `site`, `host`, `device`, `occurrence`, `event` = `link_down`, `link_up`, `address_lost`, `address_acquired` | `sites/akron/monitoring/loki-rules/host.yaml` |
 | | `site`, `host`, `code`, `status`, `occurrence`, `event` = `k3s_exited` | `sites/akron/monitoring/loki-rules/host.yaml` |
-| `zerpzorp_host_reboot_duration_seconds` | `site`, `host` | `additionalPrometheusRulesMap` |
 | `zerpzorp_disk_*`: `temperature_celsius`, `available_spare_ratio`, `available_spare_threshold_ratio`, `endurance_used_ratio`, `critical_warning`, `smart_passed`, `smartctl_exit_status`; counters `read_bytes_total`, `written_bytes_total`, `read_commands_total`, `write_commands_total`, `controller_busy_seconds_total`, `power_on_seconds_total`, `power_cycles_total`, `unsafe_shutdowns_total`, `media_errors_total`, `error_log_entries_total`, `warning_temperature_seconds_total`, `critical_temperature_seconds_total` | `site`, `instance`, `device`, `serial` | `host/disk-health/disk_health.py`, via node-exporter's textfile collector |
 | `zerpzorp_disk_temperature_sensor_celsius` | `site`, `instance`, `device`, `serial`, `sensor` (1, 2, … as `smartctl -A` numbers them) | `host/disk-health/disk_health.py` |
 | `zerpzorp_disk_info` | `site`, `instance`, `device`, `serial`, `model`, `firmware` | `host/disk-health/disk_health.py` |
-| `zerpzorp_host_address_outage_duration_seconds`, `zerpzorp_host_link_outage_duration_seconds` | `site`, `host`, `device` | `additionalPrometheusRulesMap` |
-| `zerpzorp_gateway_timestamp_seconds` | `site`, `network_site`, `event` = `booted`, `booted_unrequested` | `additionalPrometheusRulesMap` |
+| `zerpzorp_gateway_timestamp_seconds` | `site`, `network_site`, `event` = `booted` | `additionalPrometheusRulesMap` |
 | | `site`, `network_site`, `host`, `cause`, `occurrence`, `event` = `reboot_requested` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
 | | `site`, `network_site`, `version`, `previous_version`, `occurrence`, `event` = `firmware_updated` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
-| `zerpzorp_gateway_reboot_duration_seconds` | `site`, `network_site` | `additionalPrometheusRulesMap` |
 | `zerpzorp_wan_timestamp_seconds` | `site`, `network_site`, `wan`, `occurrence`, `event` = `failed`, `restored` | `sites/akron/monitoring/loki-rules/wan.yaml` |
 
 `revision` is Flux's own, `<branch>@sha1:<sha>`, the same key as
