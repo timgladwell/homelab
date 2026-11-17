@@ -29,7 +29,7 @@ groups:
       # `systemctl reboot`. The reason is free text typed by hand, so it stays
       # in the log line and not in a label: a label is for values a query can
       # rely on. Whether one was given is reliable, so `reason_given` is a
-      # label. kube-prometheus-stack.yaml pairs this with the next boot.
+      # label.
       - record: zerpzorp_host_timestamp_seconds
         labels:
           event: shutdown_requested
@@ -57,6 +57,19 @@ groups:
             max_over_time({job="systemd-journal", unit="init.scope"} |= "k3s.service: Main process exited"
               | regexp `^k3s\.service: Main process exited, code=(?P<code>[a-z]+), status=(?P<status>\d+/\w+)$`
               | __error__ = "" | code != ""
+              | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # k3s started, whether at boot, after k3s_exited, or by hand. Akron
+      # 2026-11-16: exited 06:38:34Z (status=1/FAILURE), started 06:39:16Z.
+      - record: zerpzorp_host_timestamp_seconds
+        labels:
+          event: k3s_started
+        expr: |
+          max by (site, host, occurrence) (
+            max_over_time({job="systemd-journal", unit="init.scope"} |= "Started k3s.service"
+              | regexp `^(?P<started>Started) k3s\.service - `
+              | __error__ = "" | started != ""
               | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
               | unwrap ts_s | __error__ = "" [24h]))
 

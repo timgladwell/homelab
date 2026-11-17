@@ -1,11 +1,18 @@
 ---
 # Gateway events (#648): the site's UniFi console, which routes, serves DHCP
-# and holds the WAN. `booted`, and its pairing with reboot_requested, are
-# Prometheus rules (additionalPrometheusRulesMap in kube-prometheus-stack.yaml):
-# the boot comes only from Unpoller's uptime, since the console's syslog starts
-# after its kernel.
+# and holds the WAN.
+#
+# A boot is its own event and carries its own cause, so nothing pairs a
+# shutdown request with the boot after it: no id links the two, and the request
+# line is not always shipped (Lottage's UI reboot at 09:57Z on 2026-11-11 left
+# none). The console's own boot hooks say how it booted (`upgradeBoot`), so
+# `booted` and `boot_completed` come from the boot, not from a request.
+# Downtime is the gap between the markers, read on a dashboard.
 #
 # Shape, late data and the `occurrence` key as in host.yaml.
+#
+# UniFi's lines are spread over `unifi-os-log` and `unifi-events` without a
+# clean split, so every event is read from both where both can carry it.
 #
 # Two sources, each for what only it has:
 # - The console's own syslog (`unifi-os-log`) for the reboot request: real
@@ -17,6 +24,26 @@
 #   (naming convention, *Labels*). Unpoller stamps each line with the
 #   console's own event time and polls every 5 minutes, so lines land up to 5
 #   minutes late but at the right moment.
+#
+# The console's syslog starts after its kernel, yet the kernel's own
+# `Linux version` line is shipped once its network is up, which makes it the
+# boot's marker. Both boot rules use Loki's arrival time, because the syslog
+# header has no year or timezone: a boot is recorded up to a few minutes after
+# it happened (2m28s on 2026-11-11). A second `booted`, `source="uptime"`, is
+# worked out from Unpoller's uptime (additionalPrometheusRulesMap in
+# kube-prometheus-stack.yaml); both are kept until one is shown the better
+# source (#718).
+#
+# `unifi-events` lines (UniFi OS and Protect) are stored at their arrival
+# time, so every rule on them takes the time written in the line: UniFi OS's
+# `UNIFIutcTime`, Protect's millisecond `timestamp=`. Usually they are under a
+# second apart, but Protect's `off` arrives once power is back, long after the
+# moment it describes.
+#
+# Every event here has been seen only a few times; each rule says where, and
+# #718 keeps the running record. A missing event does not mean nothing
+# happened: the console a site's collector sits behind can drop lines while it
+# reboots.
 groups:
   - name: gateway
     # 1m because reboot_requested reads all of unifi-os-log (below). It sets
@@ -42,6 +69,25 @@ groups:
                              occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
               | unwrap ts_s | __error__ = "" [24h]))
 
+      # The same request, from the other stream: UniFi Protect logs "its host
+      # is restarting" to `unifi-events`, with its own millisecond timestamp.
+      # UniFi does not keep its lines apart, so a request can be in either
+      # stream: Lottage's UI reboot at 10:01Z on 2026-11-11 has this line and no
+      # `do_reboot`. A UI reboot normally logs both, 1-2 s apart, so take the
+      # earliest of the two for a request's time. Measured over 7 days, only UI
+      # reboots emitted it: no firmware reboot did.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: reboot_requested
+        expr: |
+          max by (site, network_site, host, cause, occurrence) (
+            max_over_time({job="unifi-events"} |= "eventType=reboot" |= "host is restarting"
+              | regexp `timestamp=(?P<sec>\d{10})\d{3} `
+              | __error__ = ""
+              | label_format network_site=`{{ .site }}`, cause=`protect`,
+                             occurrence=`{{ .sec }}`, ts_s=`{{ .sec }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
       # The console's own firmware. UniFi logs the same event for the devices
       # it manages, so keep only the line where the updated device is the
       # console itself.
@@ -56,4 +102,151 @@ groups:
               | __error__ = ""
               | label_format console_itself=`{{ if eq .device .console }}true{{ end }}` | console_itself = "true"
               | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # The console's kernel started: one line per boot, so every boot is its
+      # own series, including a second one within the day. Present on all
+      # three boots seen: Lottage 11-11 (reboot), Akron 11-13 (reboot),
+      # Lottage 11-14 (power restored).
+      # shortcut: reads all of unifi-os-log (~5 MB, ~41k lines a day) per evaluation, as wan.yaml does;
+      # move to the event lines' own label or stream once #420's step 4 gives them one.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: booted
+          source: kernel
+        expr: |
+          max by (site, network_site, host, occurrence) (
+            max_over_time({job="unifi-os-log"} |= " kernel: Linux version "
+              | label_format network_site=`{{ .site }}`,
+                             occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # The console's last boot hook ran, with how it booted. `upgrade_boot`
+      # is true when the boot installed a firmware update and false for any
+      # other (a UI reboot, an unrequested one). It is the cause of the boot
+      # nearest before it, and arrives 7 minutes (an ordinary boot) to 28 (an
+      # update) after the kernel line. `resetBoot` and `recoverBoot` are not
+      # recorded: neither has occurred here.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: boot_completed
+        expr: |
+          max by (site, network_site, host, upgrade_boot, occurrence) (
+            max_over_time({job="unifi-os-log"} |= "bootup-bottom/99-reboot-time"
+              | regexp `"upgradeBoot": (?P<upgrade_boot>true|false)`
+              | __error__ = ""
+              | label_format network_site=`{{ .site }}`,
+                             occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # The console lost power: Protect's `off` event, "temporarily went
+      # offline while its host regained power". It is sent after the boot,
+      # but its `timestamp=` is the moment Protect went down, so the value is
+      # when the power went. Seen once: Lottage, written 2026-11-12
+      # 21:00:40.967Z (7 s after its last syslog line), delivered 46h later.
+      # A boot with no reboot_requested before it and this after it was a
+      # power cut. Protect's `offline` (below) shares its signature (2000).
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: power_lost
+        expr: |
+          max by (site, network_site, host, occurrence) (
+            max_over_time({job="unifi-events"} |= "eventType=off " |= "regained power"
+              | regexp `timestamp=(?P<sec>\d{10})\d{3} `
+              | __error__ = ""
+              | label_format network_site=`{{ .site }}`, occurrence=`{{ .sec }}`, ts_s=`{{ .sec }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # UniFi OS's own record that the last shutdown was a power loss
+      # (signature 1302, *Improper Shutdown Detected*), logged at the end of
+      # the boot. Its time is when it was logged, not when the power went:
+      # power_lost has that. Seen once: Lottage 2026-11-14 19:23:59Z, 8 min
+      # after its kernel line.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: booted_after_power_loss
+        expr: |
+          max by (site, network_site, host, occurrence) (
+            max_over_time({job="unifi-events"} | EventSignatureId = "1302"
+              | regexp ` UNIFIutcTime=(?P<utc>\S+)`
+              | __error__ = "" | utc != ""
+              | label_format network_site=`{{ .site }}`,
+                             occurrence=`{{ toDate "2006-01-02T15:04:05.999Z07:00" .utc | unixEpoch }}`
+              | label_format ts_s=`{{ .occurrence }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # UniFi Protect restarted on its own host, which stayed up: "temporarily
+      # went offline while it restarted". Seen once: Lottage 2026-11-10
+      # 22:15:59Z, ~50 min after its UniFi OS update.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: protect_restarted
+        expr: |
+          max by (site, network_site, host, occurrence) (
+            max_over_time({job="unifi-events"} |= "eventType=offline " |= "while it restarted"
+              | regexp `timestamp=(?P<sec>\d{10})\d{3} `
+              | __error__ = ""
+              | label_format network_site=`{{ .site }}`, occurrence=`{{ .sec }}`, ts_s=`{{ .sec }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # An application on the console updated (signature 1102, *Application
+      # Updated*): "Network has been updated to 11.0.99", "Protect has been
+      # updated to 7.3.74". The admin's name follows in the same message, so
+      # it stays in the line, not a label. Seen 4 times, 2026-11-10 and 11-11:
+      # Network at Eastbank and Lottage, Protect at Akron and Eastbank. The
+      # console's own firmware is firmware_updated.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: application_updated
+        expr: |
+          max by (site, network_site, host, application, version, occurrence) (
+            max_over_time({job="unifi-events"} | EventSignatureId = "1102"
+              | regexp ` UNIFIutcTime=(?P<utc>\S+) msg=`
+              | regexp `msg=(?P<application>\w+) has been updated to (?P<version>\d[\w.-]*\w)\.`
+              | __error__ = "" | utc != ""
+              | label_format network_site=`{{ .site }}`,
+                             occurrence=`{{ toDate "2006-01-02T15:04:05.999Z07:00" .utc | unixEpoch }}`
+              | label_format ts_s=`{{ .occurrence }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # A console application came up: systemd's own `Started` line for the
+      # Network application (`unifi.service`, "unifi-native") or Protect
+      # (`unifi-protect.service`). `application` uses the same names as
+      # application_updated. Seen on every console boot read (Lottage 11-10,
+      # 11-11 twice; Akron 11-13 21:49:09Z and 21:50:50Z) and after a Network
+      # update (Lottage 11-10 22:40:48Z); each matches Unpoller logging back
+      # in. A boot normally kills and restarts the Network application one to
+      # three times first (#718), but `Started` is logged only once it stays up
+      # (Akron 11-13: three `Starting`, one `Started`).
+      # shortcut: reads all of unifi-os-log (~5 MB, ~41k lines a day) per evaluation, as wan.yaml does;
+      # move to the event lines' own label or stream once #420's step 4 gives them one.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: application_started
+        expr: |
+          max by (site, network_site, host, application, occurrence) (
+            max_over_time({job="unifi-os-log"} |= "systemd[1]: Started unifi"
+              | regexp `systemd\[1\]: Started (?P<unit>unifi|unifi-protect)\.service - `
+              | __error__ = "" | unit != ""
+              | label_format application=`{{ if eq .unit "unifi" }}Network{{ else }}Protect{{ end }}`,
+                             network_site=`{{ .site }}`,
+                             occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
+      # The console finished applying a new configuration (`ubios-udapi-server`,
+      # "^^^ Apply new configuration done"). An apply can restart services:
+      # dnsmasq restarted with Akron's on 2026-11-16 11:53:23Z, which fell
+      # inside an Akron-Eastbank VPN drop. Lottage logged 5 between 11-10 and
+      # 11-14, around boots and updates. What starts an apply is not in the
+      # line.
+      # shortcut: reads all of unifi-os-log (~5 MB, ~41k lines a day) per evaluation, as wan.yaml does;
+      # move to the event lines' own label or stream once #420's step 4 gives them one.
+      - record: zerpzorp_gateway_timestamp_seconds
+        labels:
+          event: config_applied
+        expr: |
+          max by (site, network_site, host, occurrence) (
+            max_over_time({job="unifi-os-log"} |= "service: ^^^ Apply new configuration done"
+              | label_format network_site=`{{ .site }}`,
+                             occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
               | unwrap ts_s | __error__ = "" [24h]))
