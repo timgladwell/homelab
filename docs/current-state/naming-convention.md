@@ -339,6 +339,9 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 | `zerpzorp_disk_info` | `site`, `instance`, `device`, `serial`, `model`, `firmware` | `host/disk-health/disk_health.py` |
 | `zerpzorp_gateway_timestamp_seconds` | `site`, `network_site`, `host`, `occurrence`, `source` = `kernel`, `event` = `booted` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
 | | `site` (`eastbank`, Unpoller's), `network_site`, `source` = `uptime`, `event` = `booted` | `additionalPrometheusRulesMap` |
+| | `site`, `network_site`, `host`, `occurrence`, `event` = `power_lost`, `booted_after_power_loss`, `protect_restarted`, `config_applied` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
+| | `site`, `network_site`, `host`, `application`, `version`, `occurrence`, `event` = `application_updated` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
+| | `site`, `network_site`, `host`, `application` (`Network`, `Protect`), `occurrence`, `event` = `application_started` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
 | | `site`, `network_site`, `host`, `upgrade_boot`, `occurrence`, `event` = `boot_completed` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
 | | `site`, `network_site`, `host`, `cause`, `occurrence`, `event` = `reboot_requested` (`cause` = `firmware`, `ucore` from `unifi-os-log`; `protect` from `unifi-events`) | `sites/akron/monitoring/loki-rules/gateway.yaml` |
 | | `site`, `network_site`, `version`, `previous_version`, `occurrence`, `event` = `firmware_updated` | `sites/akron/monitoring/loki-rules/gateway.yaml` |
