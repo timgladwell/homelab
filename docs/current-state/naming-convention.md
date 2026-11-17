@@ -334,6 +334,7 @@ from the standardisation in [ADR 0008](../adr/0008-what-observability-collects.m
 | | `site`, `host`, `action`, `reason_given`, `occurrence`, `event` = `shutdown_requested` | `sites/akron/monitoring/loki-rules/host.yaml` |
 | | `site`, `host`, `device`, `occurrence`, `event` = `link_down`, `link_up`, `address_lost`, `address_acquired` | `sites/akron/monitoring/loki-rules/host.yaml` |
 | | `site`, `host`, `code`, `status`, `occurrence`, `event` = `k3s_exited` | `sites/akron/monitoring/loki-rules/host.yaml` |
+| | `site`, `host`, `occurrence`, `event` = `k3s_started` | `sites/akron/monitoring/loki-rules/host.yaml` |
 | `zerpzorp_disk_*`: `temperature_celsius`, `available_spare_ratio`, `available_spare_threshold_ratio`, `endurance_used_ratio`, `critical_warning`, `smart_passed`, `smartctl_exit_status`; counters `read_bytes_total`, `written_bytes_total`, `read_commands_total`, `write_commands_total`, `controller_busy_seconds_total`, `power_on_seconds_total`, `power_cycles_total`, `unsafe_shutdowns_total`, `media_errors_total`, `error_log_entries_total`, `warning_temperature_seconds_total`, `critical_temperature_seconds_total` | `site`, `instance`, `device`, `serial` | `host/disk-health/disk_health.py`, via node-exporter's textfile collector |
 | `zerpzorp_disk_temperature_sensor_celsius` | `site`, `instance`, `device`, `serial`, `sensor` (1, 2, … as `smartctl -A` numbers them) | `host/disk-health/disk_health.py` |
 | `zerpzorp_disk_info` | `site`, `instance`, `device`, `serial`, `model`, `firmware` | `host/disk-health/disk_health.py` |

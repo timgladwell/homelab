@@ -60,6 +60,19 @@ groups:
               | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
               | unwrap ts_s | __error__ = "" [24h]))
 
+      # k3s started, whether at boot, after k3s_exited, or by hand. Akron
+      # 2026-11-16: exited 06:38:34Z (status=1/FAILURE), started 06:39:16Z.
+      - record: zerpzorp_host_timestamp_seconds
+        labels:
+          event: k3s_started
+        expr: |
+          max by (site, host, occurrence) (
+            max_over_time({job="systemd-journal", unit="init.scope"} |= "Started k3s.service"
+              | regexp `^(?P<started>Started) k3s\.service - `
+              | __error__ = "" | started != ""
+              | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
+
       # Carrier lost and regained, from the kernel. Shorter than a scrape is
       # still seen: node_network_carrier_changes_total only counts it.
       - record: zerpzorp_host_timestamp_seconds
