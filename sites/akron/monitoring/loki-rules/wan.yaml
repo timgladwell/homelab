@@ -30,16 +30,21 @@ groups:
     # how soon an event appears, never the time it is recorded at.
     interval: 1m
     rules:
-      # Both events in one rule, so the stream is read once: CEF signature
-      # 100 is Internet Down, 107 Internet Restored.
+      # Every WAN event in one rule, so the stream is read once. CEF
+      # signature 100 is Internet Down, 107 Internet Restored, 112 High
+      # Latency Detected and 113 Packet Loss Detected. Seen 2026-11-10 to
+      # 11-17: Eastbank 2 down and 2 restored (11-12 21:35Z and 11-13
+      # 00:39Z, recorded correctly), 1 latency, 2 loss; Lottage 1 latency.
+      # Latency and loss have no matching "cleared" line.
       - record: zerpzorp_wan_timestamp_seconds
         expr: |
           max by (site, network_site, wan, event, occurrence) (
-            max_over_time({job="unifi-os-log"} |= "|UniFi Network|" |~ `\|(100|107)\|Internet (Down|Restored)\|`
-              | regexp `\|(?P<sig>100|107)\|Internet (Down|Restored)\|`
+            max_over_time({job="unifi-os-log"} |= "|UniFi Network|" |~ `\|(100|107|112|113)\|`
+              | regexp `\|UniFi Network\|[^|]*\|(?P<sig>100|107|112|113)\|`
               | regexp ` UNIFIwanId=(?P<wan>\S+) .*UNIFIutcTime=(?P<utc>\S+)`
               | __error__ = "" | utc != ""
-              | label_format event=`{{ if eq .sig "100" }}failed{{ else }}restored{{ end }}`,
+              | label_format event=`{{ if eq .sig "100" }}failed{{ else if eq .sig "107" }}restored{{
+                                      else if eq .sig "112" }}latency_high{{ else }}packet_loss{{ end }}`,
                              network_site=`{{ .site }}`,
                              occurrence=`{{ toDate "2006-01-02T15:04:05.999Z07:00" .utc | unixEpoch }}`
               | label_format ts_s=`{{ .occurrence }}`

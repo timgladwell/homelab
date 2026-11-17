@@ -30,3 +30,6 @@ configMapGenerator:
   - name: loki-rules-wan
     files:
       - wan.yaml
+  - name: loki-rules-vpn
+    files:
+      - vpn.yaml

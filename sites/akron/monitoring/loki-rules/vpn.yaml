@@ -1,0 +1,39 @@
+---
+# VPN events (#648): the site-to-site WireGuard tunnels between the consoles,
+# as each end sees them. Both ends log their own view, so one tunnel's drop
+# usually appears at two sites; `site` is the console that logged it.
+#
+# Shape, late data and the `occurrence` key as in host.yaml. The time is
+# Loki's arrival time: the syslog header has no year or timezone, and these
+# lines carry no UNIFIutcTime.
+#
+# From `ubios-udapi-server` in `unifi-os-log`. Seen 2026-11-14 to 11-17: 5-8
+# lines per site in 72h, flaps of 3-4 s and one drop of ~3 min (Eastbank's
+# tunnel to Akron, 11-16 11:52Z). The line also carries the peer's public key,
+# IP and port: never a label.
+#
+# shortcut: only the site-to-site ("Magic S2S VPN") line shape is read; a client VPN or a
+# hand-built tunnel logs differently, if at all. Add its shape when one is seen (#718).
+# shortcut: reads all of unifi-os-log (~5 MB, ~41k lines a day) per evaluation, as wan.yaml does;
+# move to the event lines' own label or stream once #420's step 4 gives them one.
+groups:
+  - name: vpn
+    # 1m because of the read above, as wan.yaml.
+    interval: 1m
+    rules:
+      # `peer` is the console's own number for the tunnel (#1000), `tunnel`
+      # its name as that end writes it, own site last: Eastbank logs
+      # `Akron(Default) - Eastbank(Default)`, Akron the reverse. The two ends
+      # don't agree on time either: the 11-16 drop was 11:52:37Z at
+      # Eastbank, 11:54:22Z at Akron.
+      - record: zerpzorp_vpn_timestamp_seconds
+        expr: |
+          max by (site, network_site, host, peer, tunnel, event, occurrence) (
+            max_over_time({job="unifi-os-log"} |= "Site-to-site Wireguard Peer"
+              | regexp `Wireguard Peer \(#(?P<peer>\d+)\) `
+              | regexp `\(Magic S2S VPN: (?P<tunnel>.+)\) (?P<state>connected|disconnected)$`
+              | __error__ = "" | state != ""
+              | label_format event=`{{ if eq .state "connected" }}peer_connected{{ else }}peer_disconnected{{ end }}`,
+                             network_site=`{{ .site }}`,
+                             occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [24h]))
