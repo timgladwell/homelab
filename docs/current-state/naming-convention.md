@@ -223,6 +223,9 @@ cluster node a log came from, where that applies.
   read `k3s01.<site>.internal.zerpzorp.com`, but either can change without the
   other. Pod logs carry `node`, because they come from the cluster. The journal
   carries `host`, because it describes the machine.
+- **`boot_id` is structured metadata on the node journal, not a label**:
+  systemd's id for the boot a line came from, set by the node log reader. As
+  a label it would start a new stream at every boot.
 - **Kubernetes metrics carry the node as `instance`** (node-exporter, kubelet,
   cAdvisor), not `node`. That's Prometheus's convention, and the dashboards
   select on it.
