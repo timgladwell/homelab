@@ -467,6 +467,10 @@ class PiholeClient:
         path = route.format(**{k: urllib.parse.quote(v, safe="") for k, v in names.items()})
         shown = f"{path}?{urllib.parse.urlencode(params)}" if params else path
         attempts = attempts or self._attempts
+        # Our own loop, not urllib3's Retry mounted on the Session: Retry runs every
+        # attempt and backoff sleep inside one request() call, so the histogram would
+        # time the retries rather than Pi-hole, and each attempt's status and log line
+        # would be lost. The OTLP exporter retries for itself, so nothing else needs this.
         for attempt in range(1, attempts + 1):
             if attempt > 1:
                 time.sleep(self._retry_delay * 2 ** (attempt - 2))
