@@ -52,7 +52,7 @@ env:
   UV_VERSION: 0.13.8
   # Lints and format-checks every Python file (step 18).
   # renovate: datasource=pypi depName=ruff
-  RUFF_VERSION: 0.17.5
+  RUFF_VERSION: 0.17.6
   # Lints every shell script (step 19). shellcheck-py wraps the shellcheck
   # binary; its fourth component is the wrapper's revision.
   # renovate: datasource=pypi depName=shellcheck-py
