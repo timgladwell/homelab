@@ -132,8 +132,12 @@ spec:
               # hour or two after the boot, 2026-11-05). The [24h] subquery
               # also picks up samples that arrive late after an outage.
               # Known wrong readings: Unpoller keeps serving the last poll
-              # while the console is down, and read 0 for a while after
-              # Akron's reboot on 2026-11-13 (#390).
+              # while the console is down. It also exports 0 when the Network
+              # app has no stats for the console (#390): after Akron's reboot
+              # on 2026-11-13, and for one sample while Lottage's Network app
+              # restarted on 2026-11-19, which read as a boot (#718). The Network
+              # app starts minutes into a boot, so a real uptime is never 0;
+              # 0 is dropped.
               # shortcut: a second boot within 24h of the first is hidden until the first
               # ages out; the uptime series still shows it, and the kernel source doesn't hide it.
               - record: zerpzorp_gateway_timestamp_seconds
@@ -144,7 +148,7 @@ spec:
                   min by (site, network_site) (
                     min_over_time((
                       timestamp(unpoller_device_uptime_seconds{type="udm"}) - unpoller_device_uptime_seconds{type="udm"}
-                      and unpoller_device_uptime_seconds{type="udm"} < 86400
+                      and unpoller_device_uptime_seconds{type="udm"} > 0 < 86400
                     )[24h:30s]))
 
     grafana:
