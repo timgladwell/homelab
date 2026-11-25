@@ -120,3 +120,37 @@ groups:
               | __error__ = "" | device != "" | device !~ `veth.*|cni.*|flannel.*|lo`
               | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
               | unwrap ts_s | __error__ = "" [24h]))
+
+  # The node went down without a clean shutdown: power lost, or a crash or
+  # hang that ended in a power cycle. It isn't told apart from a requested
+  # shutdown by a missing line; the next boot says so itself. fsck.fat finds
+  # the boot partition's dirty bit set, which the FAT driver sets on mount and
+  # clears on a clean unmount. A clean reboot's fsck prints no such line
+  # (both nodes, 2026-11-07); Eastbank's power cut did (2026-11-24, #718).
+  # Read beside the others: shutdown_requested then booted is a restart;
+  # shutdown_unclean then booted is a power cut or crash; and a console's
+  # power_lost at the same time means the whole site went dark.
+  #
+  # The value is the line's own timestamp, which here is not when it was
+  # logged. The Pi has no RTC: until NTP syncs, timesyncd's clock starts from
+  # its last save (/var/lib/systemd/timesync/clock, written at each sync, at
+  # most 34 min apart at both nodes, 2026-11-25). So the stamp is close to the
+  # moment the node went down, early by up to ~34 min, and the return is
+  # `booted` (node_boot_time_seconds, NTP-corrected).
+  #
+  # Its own group because the line can be stamped long ago: a 46h outage
+  # stamps it 46h back, beyond host's [24h]. 6d is the longest window under
+  # Loki's 1-week query limit; a node down longer is missed. The selector
+  # reads only fsck's streams, so the long window costs little, and 5m only
+  # sets how soon the event appears.
+  - name: host-unclean-shutdown
+    interval: 5m
+    rules:
+      - record: zerpzorp_host_timestamp_seconds
+        labels:
+          event: shutdown_unclean
+        expr: |
+          max by (site, host, occurrence) (
+            max_over_time({job="systemd-journal", unit=~"systemd-fsck@.+"} |= "Dirty bit is set"
+              | label_format occurrence=`{{ __timestamp__ | unixEpoch }}`, ts_s=`{{ __timestamp__ | unixEpoch }}`
+              | unwrap ts_s | __error__ = "" [6d]))
