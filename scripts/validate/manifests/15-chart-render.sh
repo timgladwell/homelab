@@ -158,16 +158,9 @@ for site in $(sites); do
     # comes from one: no HelmRelease uses valuesFrom, and every substituteFrom
     # is a ConfigMap. A HelmRelease that starts reading a SOPS Secret through
     # valuesFrom needs a --supply dummy here, not a wider exception.
-    #
-    # TEMPORARY(until: 2026-12-31, issue: #683): RenderPersistenceDisabled.
-    # flate 0.7.3's release binaries carry no build identity (flate#1515), so
-    # with CI's cache directory set every run warns that rendered output is not
-    # persisted; chart and source caching still work. Retired by the flate
-    # release that ships flate#1516.
     unexpected=$(grep -v '^time=' "$errors" | awk '
         /^  ⚠ warnings \([0-9]+\)$/ { next }
         /^    \[SOPSUnreadable\] / { accepted = 1; next }
-        /^    \[RenderPersistenceDisabled\] / { accepted = 1; next }
         /^    \[/ { accepted = 0 }
         accepted && /^      / { next }
         NF { print }
