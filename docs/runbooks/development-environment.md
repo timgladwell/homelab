@@ -21,6 +21,12 @@ here touches a cluster.
      [Flux Upgrades](flux-upgrades.md).
    - `brew install grafana/grafana/alloy` — plain `brew install alloy` is an
      unrelated package.
+   - `brew install --cask flate`. Its pin is the `home-operations/flate/action@v…`
+     ref in `validate.yml` and `render-diff.yml`, not a variable. The cask carries
+     only the latest release, so when Dependabot moves the ref, `brew upgrade
+     --cask flate` and check that `flate --version` matches it. Nothing checks
+     this locally: a stale copy still renders, and its warnings can differ
+     from CI's.
    - `yamllint`, `uv`, `ruff` and `shellcheck` through pipx (`brew install pipx`, then
      `pipx ensurepath` once), as CI installs them. Homebrew only carries the
      latest release of each, not the pin, so uninstall a Homebrew copy
